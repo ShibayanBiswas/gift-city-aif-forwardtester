@@ -1,0 +1,18 @@
+{
+  "framework": "nextjs",
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "crons": [
+    {
+      "path": "/api/wake",
+      "schedule": "0 3 * * *"
+    }
+  ],
+  "headers": [
+    {
+      "source": "/(.*)",
+      "headers": [
+        { "key": "X-DNS-Prefetch-Control", "value": "on" }
+      ]
+    }
+  ]
+}
