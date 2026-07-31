@@ -227,7 +227,12 @@ def build_forward_market(
     fill_gbm: bool = True,
     base_seed: int = GBM_BASE_SEED,
 ) -> tuple[MarketDB, GbmParams]:
-    """Extend market through Simulation End with Path-1 GBM forward closes."""
+    """Extend market through Simulation End with forward calendars.
+
+    When ``fill_gbm`` is True, Path-1 GBM closes fill the pad (legacy / debug).
+    Production desk meta and path evaluation use ``fill_gbm=False``: calendars
+    only. Each path carries its own GBM spots and path-local roll points.
+    """
     pad_end = horizon_end + timedelta(days=60)
     # Also cover a start placed on as-of whose tenure may extend past horizon only
     # for intermediate paths; final path ends on horizon_end.

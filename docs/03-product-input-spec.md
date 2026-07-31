@@ -128,10 +128,14 @@ Observation months (separate column): **38, 41, 44, 47, 50, 53, 56**.
 | `principal_cr` | Derived: principal / 1e7 |
 | `cash_buffer_cr` / `gsec_opening_cr` | Derived: principal_cr × cash_pct / gsec_pct |
 | `n_obs` | `len(observation_months)` — divisor for contract qty (7 for sample) |
+| `simulation_end_days` | Optional Excel int; `to_dict()` always exposes **resolved** days (default **3650**) |
+| `simulation_end_days_source` | `"excel"` if workbook set the field; else `"default"` |
 
 Each `OptionLegSpec` carries: `quantity`, strike/return, `option_type`, `forward_rate`, `discount_rate`, `vol_near`, `vol`, `include`.
 
 Defaults when rate cells blank (WF1 HS): Forward **6.6%**, Discount **7.6%**. UI shows `—` when absent rather than inventing display rates.
+
+Changing Simulation End Days (or any product field) refreshes header horizon meta; a prior Run is cleared when the product fingerprint no longer matches. Path Market sheets rebuild on the next Run (per-path GBM Nifty / rolls / expiries).
 
 ---
 

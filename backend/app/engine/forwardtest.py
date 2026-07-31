@@ -18,7 +18,7 @@ import numpy as np
 
 from .gbm import GBM_BASE_SEED, GbmParams
 from .hedge import hedge_path
-from .market import MarketDB, load_market
+from .market import MarketDB, path_nifty_on, path_roll_vector, load_market
 from .nav import run_nav
 from .paths import (
     Frequency,
@@ -133,6 +133,8 @@ def _evaluate_path(
     spots = _resolve_spots(path, params, frequency)
     if len(spots) != len(path.dates):
         raise RuntimeError(f"Path {path.path_id}: spot series length mismatch")
+    # Roll *dates* from shared forward calendar; roll *points* from this path's GBM spots.
+    roll_vec, roll_by = path_roll_vector(path.dates, spots, market.roll_shifts)
     hedge = hedge_path(market, product, path.dates, spots=spots)
     nav = run_nav(
         market,
@@ -153,6 +155,7 @@ def _evaluate_path(
         last_observation=hedge.last_observation,
         store_series=store,
         spots=spots,
+        roll_on_day=roll_vec,
     )
     start_nifty = hedge.spot0
     end_nifty = float(spots[-1])
@@ -183,7 +186,11 @@ def _evaluate_path(
         sell_brokerage=nav.sell_brokerage,
         sell_gst=nav.sell_gst,
     )
-    detail = _detail_payload(path, hedge, nav, summary, spots) if store else None
+    detail = (
+        _detail_payload(path, hedge, nav, summary, spots, market, roll_by)
+        if store
+        else None
+    )
     return summary, detail
 
 
@@ -613,10 +620,38 @@ def run_forwardtest(
     }
 
 
-def _detail_payload(path, hedge, nav, summary: PathSummary, spots: np.ndarray) -> dict:
+def _detail_payload(
+    path,
+    hedge,
+    nav,
+    summary: PathSummary,
+    spots: np.ndarray,
+    market: MarketDB,
+    roll_by: dict,
+) -> dict:
     nifty = [float(x) for x in spots]
     if nav.computation_rows:
         nifty = [float(r["nifty"]) for r in nav.computation_rows]
+    start, end = path.dates[0], path.dates[-1]
+    rolls = [
+        {
+            "shift_date": d.isoformat(),
+            "roll_cost": float(roll_by[d]),
+        }
+        for d in sorted(roll_by)
+    ]
+    monthly_expiries = []
+    for e in market.expiries:
+        if e < start or e > end:
+            continue
+        monthly_expiries.append(
+            {
+                "expiry_date": e.isoformat(),
+                "weekday": e.strftime("%A"),
+                "is_monthly_last": e in market.monthly_last_expiries,
+                "nifty_close": path_nifty_on(path.dates, spots, e),
+            }
+        )
     return {
         "path_id": path.path_id,
         "start": path.start.isoformat(),
@@ -624,6 +659,8 @@ def _detail_payload(path, hedge, nav, summary: PathSummary, spots: np.ndarray) -
         "spot0": hedge.spot0,
         "dates": [d.isoformat() for d in path.dates],
         "nifty": nifty,
+        "rolls": rolls,
+        "monthly_expiries": monthly_expiries,
         "observations": [d.isoformat() for d in hedge.observations],
         "obs_spots": hedge.obs_spots,
         "obs_builds": [_obs_dict(b) for b in hedge.obs_builds],

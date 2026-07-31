@@ -24,7 +24,7 @@ const DESK_LINKS = [
   { href: "/hedging", label: "Hedging Sheet" },
   { href: "/computation", label: "Computation" },
   { href: "/analytics", label: "Analytics" },
-  { href: "/intel", label: "Market DB" },
+  { href: "/intel", label: "Path Market" },
 ] as const;
 
 export function LogicAtlasConsole() {

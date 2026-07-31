@@ -29,13 +29,29 @@ Master index: [README.md](README.md).
 
 | Series | Value |
 |--------|------:|
-| Nifty daily | 2001-01-01 → **2026-07-24** |
-| Trading days | **6352** |
-| Monthly expiries (rolls) | **306** |
+| Nifty daily | 2001-01-01 → **latest session** (e.g. 2026-07-31 after sync) |
 | First roll shift | 2001-01-25 |
-| First roll cost | **4.7713** index pts |
+| First roll cost | **4.7713** index pts (19 trading days) |
+| Open-month roll | Pinned to latest Nifty session (`pin_current_month_roll_to_latest`) — Backtester parity |
 
-Auto-sync triggers: API startup · `GET /api/sync` · `scripts/sync_market_data.py`.
+Auto-sync triggers: API startup · `GET /api/sync` · `scripts/sync_market_data.py`. Trading-day / roll counts move with sync — do not hardcode them in desk copy.
+
+---
+
+## Backtester calculation parity (must hold)
+
+| Check | Expected |
+|-------|----------|
+| `nav.py` / `black_scholes.py` | Identical to Gift AIF Backtester |
+| Product rate defaults | Identical (Forwardtester adds Simulation End Days only) |
+| First roll | 19 TD → ≈ 4.7713 |
+| Open-month pin | `pin_current_month_roll_to_latest` on `load_market` + sync |
+| Hedge observation Nifty | Path spot on/before expiry (equals `market.nifty_on` on history) |
+
+```powershell
+$env:PYTHONPATH = "backend"
+.\.venv\Scripts\python.exe scripts\verify_roll_costs.py
+```
 
 ---
 
@@ -51,8 +67,10 @@ Horizon = **As Of Today** + **Simulation End Days** from Product Input (default 
 | Futures shift | **Last trading day** (last Mon–Fri) of each complete month |
 | Roll cost (first) | `avg(TD closes ≤ first shift) × 7% × N_td/365` — **19** TDs → ≈ **4.7713** |
 | Roll cost (later) | `avg(TD closes in (prev, shift]) × 7% × calendar_Δt/365` — Sat/Sun in Δt, not in avg |
+| Open-month hist roll | Pinned to latest Nifty session (Backtester `pin_current_month_roll_to_latest`) |
 | Path spots | GBM on path trading days only; hedge/NAV = Backtester engines |
 | Dynamic as-of | After deploy / `/api/sync`, as-of and horizon advance with latest Nifty |
+| Intel UI | Path Market bound to PathSelect; path-local Nifty / rolls / expiries |
 
 ```powershell
 $env:PYTHONPATH = "backend"
@@ -60,7 +78,7 @@ $env:PYTHONPATH = "backend"
 .\.venv\Scripts\python.exe scripts\verify_roll_costs.py
 ```
 
-Intel `/api/market/{nifty,expiries,rolls}` must span **as-of → Simulation End** only.
+Intel `/api/market/{nifty,expiries,rolls}` returns **calendar / estimation** surfaces (hist Nifty for μ/σ; forward expiry & shift *dates*). Simulated prices and roll points are per path — use Intel · Path Market after a Run.
 
 ---
 
@@ -331,8 +349,9 @@ After `./start.sh` or production deploy
 3. **Desk → Hedging Sheet** — Path 1: observations, Forward/Discount/Vols match WF1; Req. Delta rail populated.
 4. **Desk → Computation** — Path 1 result block: Invt 100 · MTM ~48.82 · Cash ~7.09 · Gsec ~33.21 · Tx ~−0.85 · Fees ~−7.50 · Total ~180.77.
 5. **Desk → Daily Ledger** — charts render for selected path; no junk pre-2001 dates.
-6. **Intel → Market DB** — Nifty last date matches `/api/sync` meta; rolls extend through latest month.
+6. **Intel → Path Market** — pick a path; Simulated Nifty differs across paths; roll points use that path's spots; monthly expiries use last-Tuesday calendar + path Nifty.
 7. **Path picker** — Start Date, End Date, Trading Days, Calendar Days visible.
+8. **Header strip** — As Of Today · Simulation End · Simulation End Days · Trading Days · Monthly Expiries (horizon counts).
 
 ---
 
@@ -340,10 +359,12 @@ After `./start.sh` or production deploy
 
 | Change | Minimum checks |
 |--------|----------------|
-| `nav.py`, `hedge.py`, roll logic | Smoke Path 1 + Path 10 + `verify_monthly_excel.py` |
-| `product.py` / Product Input sample | Six-leg book guard + Path 1 total |
+| `nav.py`, `hedge.py`, roll logic | Smoke Path 1 + Path 10 + `verify_monthly_excel.py` + `verify_roll_costs.py` |
+| `calendar_build` pin / market sync | Open-month roll = last Nifty date; first roll ≈ 4.7713 |
+| `product.py` / Product Input sample | Six-leg book guard + Path 1 total + Simulation End Days default 3650 |
 | Market CSVs / sync | `/api/sync` meta + first roll cost ≈ 4.7713 |
-| Path builder / tenure | Dynamic product suite + Path 1 / Path 10 smoke |
+| Path builder / tenure / forward calendar | `verify_forward_calendar.py` + dynamic product suite |
+| Intel / UI | Path Market per path; header horizon meta from live product calendar |
 
 ---
 

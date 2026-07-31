@@ -19,12 +19,14 @@ The web app is a **live reimplementation** of `Gift AIF Working File 1.xlsm` hed
 | Any product input | Parse principal, tenure days, Simulation End Days, observation months, option book |
 | Forward path atlas | Frequency starts from **as-of** through last start so the **final path ends on Simulation End** |
 | Forward calendars | Sat/Sun closed; monthly expiry = last Tuesday; futures shift = last trading day of month; leap/30/31 aware |
-| Hedging Sheet parity | Same as Backtester: `month × 30.5` → expiry map; options book; required futures delta |
-| Computation parity | Same as Backtester: MTM, rolls, cash, G-Sec, fees, tx, NAV, IRR |
-| Header horizon strip | **As Of Today** · Simulation End · Simulation End Days · Trading Days · Monthly Expiries (as-of→horizon; horizontal scroll) |
-| Intel Market DB | Rolls, expiries, closes from as-of → Simulation End; forward closes via Path One GBM |
-| Desk UX | Full-form labels, Title Case, branded Excel downloads, card rails that scroll sideways instead of wrapping |
-| Ops | Local `./start.ps1`, optional MongoDB Atlas, Vercel + Render |
+| Hedging Sheet parity | Same as Backtester: `month × 30.5` → expiry map; options book; required futures delta (obs Nifty from path spots) |
+| Computation | MTM, rolls, cash, G-Sec, fees, tx, NAV, IRR — same formulas; Forwardtester feeds **path-local** roll points |
+| Historical roll calendar | Same as Backtester: finished months = monthly option expiry; open month pinned via `pin_current_month_roll_to_latest` |
+| Header horizon strip | **As Of Today** · Simulation End · Simulation End Days · Trading Days · Monthly Expiries (calendar counts as-of→horizon) |
+| Intel · Path Market | Selected path: simulated Nifty · monthly expiries · futures roll points from that path's GBM spots |
+| GBM paths | Matrix like `Nifty Simulations.xlsx`: vertical path ids; \(S_t = S_{t-1}\cdot\exp(\mathrm{drift}+\sigma Z)\); same date ⇒ different prices by path |
+| Desk UX | Full-form labels, Title Case, branded Excel downloads, Backtester-parity glass / meta-chip layouts |
+| Ops | Local `./start.ps1`, optional MongoDB Atlas, Vercel + Render · repo https://github.com/ShibayanBiswas/gift-city-aif-forwardtester |
 
 Default UI / API path frequency: **Daily**. Simulation End Days default: **3650**. See [04-forwardtest-engine.md](04-forwardtest-engine.md).
 
@@ -63,17 +65,17 @@ Product_Input_File.xlsx (or upload)
  market.py + market_sync.py → historical Nifty / rolls / expiries through present (as-of)
  │
  ▼
- forward_calendar.py → Mon–Fri pad to Simulation End
+ forward_calendar.py → Mon–Fri pad to Simulation End (calendar dates only)
                          · last-Tuesday monthly expiries
-                         · month-end futures shifts + 7% rolls
-                         · Path-1 GBM closes for Intel
+                         · month-end futures shifts
  │
  ▼
  paths.py → staggered forward tenure windows (Path 1 = as-of … final path ends on Simulation End)
-            per-path GBM spots on trading days only
+            per-path GBM lognormal spots on trading days only
  │
- ├─► hedge.py → observations · legs · req_delta[]   (Backtester-identical)
- └─► nav.py → daily Computation · summary · IRR     (Backtester-identical)
+ ├─► path_roll_vector → 7% roll points from that path's spots
+ ├─► hedge.py → observations · legs · req_delta[]   (obs Nifty from path spots)
+ └─► nav.py → daily Computation · summary · IRR     (path-local rolls)
  │
  ▼
  FastAPI job → KPIs · yearly rollup · on-demand path detail
@@ -96,9 +98,11 @@ Forwardtester **path starts are from as-of**, not 2001 Macro Path pins. The rows
 | WF1 Path 1 Total | **180.7724201145** Cr WF1 · engine Δ ≈ 10⁻⁸ |
 | WF1 Path 10 Total | **216.4729879081** Cr WF1 · engine Δ ≈ 10⁻⁷ |
 | First futures roll (hist) | 19 TD from Jan-2001 → ≈ **4.7713** pts |
+| Open-month futures roll | Pinned to latest Nifty session (`pin_current_month_roll_to_latest`) — Backtester parity |
 | Forward Path 1 | Starts on **As Of Today** (latest Nifty session) |
 | Forward final path | Ends on **Simulation End** (as-of + Simulation End Days) |
 | Header Trading Days / Expiries | Count **as-of → Simulation End** (Mon–Fri; last-Tuesday expiries) |
+| Intel columns | Row / dates / levels only — **no Source** column (Backtester UI parity) |
 
 ---
 

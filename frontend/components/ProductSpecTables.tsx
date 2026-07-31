@@ -338,20 +338,13 @@ export function ProductMetaStrip({ product }: { product: ProductSpec }) {
       : []),
   ];
   return (
-    <div className="desk-card-rail w-full">
-      <div className="desk-card-rail__inner">
-        {items.map((it, i) => (
-          <motion.div
-            key={it.label}
-            className="desk-card-rail__card glass"
-            initial={{ opacity: 0, y: 8 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.04 * i }}
-            whileHover={{ y: -2 }}
-          >
-            <p className="desk-card-rail__label">{it.label}</p>
-            <p className="desk-card-rail__value">{it.value}</p>
-          </motion.div>
+    <div className="horizontal-rail-fill w-full">
+      <div className="horizontal-rail-fill-inner flex w-full gap-3">
+        {items.map((it) => (
+          <div key={it.label} className="rail-card-fill glass min-w-0 flex-1 rounded-2xl px-4 py-3">
+            <p className="text-[10px] tracking-[0.16em] text-[var(--ar-subtle)] font-ui">{it.label}</p>
+            <p className="mt-1 font-display text-lg text-[var(--ar-maroon)]">{it.value}</p>
+          </div>
         ))}
       </div>
     </div>

@@ -10,6 +10,7 @@ import pandas as pd
 from .calendar_build import (
     build_all_option_expiries,
     build_monthly_expiries,
+    pin_current_month_roll_to_latest,
     read_dates_csv,
     write_expiries_csv,
 )
@@ -152,8 +153,9 @@ def extend_roll_and_expiry_calendars() -> dict:
         start=date(2001, 1, 1),
         end=end,
     )
-    # Notes / NSE: roll on monthly option expiry — not WF1 Roll-col quirks.
-    extended_shifts = list(expiries)
+    # Notes / NSE: finished months roll on monthly option expiry.
+    # Open terminal month: pin to latest Nifty session (Backtester parity).
+    extended_shifts = pin_current_month_roll_to_latest(list(expiries), dates)
 
     model = _recompute_roll_costs(dates, closes, extended_shifts)
     roll_by = {d: roll_seed.get(d, model.get(d, 0.0)) for d in extended_shifts}
@@ -203,8 +205,8 @@ def sync_market_to_present(*, force: bool = False) -> dict:
             last_roll = _to_date(rdf["expiry_date"].iloc[-1]) if len(rdf) else None
             if last_nifty and last_roll:
                 ln = date.fromisoformat(last_nifty) if isinstance(last_nifty, str) else last_nifty
-                # Calendars are month-granular; same year-month ⇒ nothing to rebuild.
-                if (last_roll.year, last_roll.month) >= (ln.year, ln.month):
+                # Rebuild when last roll is behind last Nifty (same open month advances).
+                if last_roll >= ln:
                     meta = market_meta()
                     return {
                         "ok": True,

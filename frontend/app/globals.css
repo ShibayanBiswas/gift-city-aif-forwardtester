@@ -312,125 +312,9 @@ html.dark .input-glow:focus {
   box-shadow: 0 12px 28px -16px rgba(122, 30, 44, 0.35);
 }
 
-.horizontal-rail-fill {
-  width: 100%;
-  overflow-x: auto;
-  padding-bottom: 0.25rem;
-  -webkit-overflow-scrolling: touch;
-  scrollbar-width: thin;
-}
-.horizontal-rail-fill-inner {
-  display: flex;
-  flex-wrap: nowrap;
-  align-items: stretch;
-  gap: 0.75rem;
-  width: max-content;
-  min-width: 100%;
-}
-.rail-card-fill {
-  flex: 1 0 auto;
-  min-width: 11.5rem;
-}
-
-/* Shared desk card rail — never wrap; scroll horizontally instead */
-.desk-card-rail {
-  width: 100%;
-  overflow-x: auto;
-  padding-bottom: 0.35rem;
-  scroll-snap-type: x proximity;
-  -webkit-overflow-scrolling: touch;
-  scrollbar-width: thin;
-}
-.desk-card-rail__inner {
-  display: flex;
-  flex-wrap: nowrap;
-  align-items: stretch;
-  gap: 0.75rem;
-  width: max-content;
-  min-width: 100%;
-}
-.desk-card-rail__card {
-  position: relative;
-  flex: 1 0 auto;
-  min-width: 12rem;
-  scroll-snap-align: start;
-  overflow: hidden;
-  border-radius: 1rem;
-  border: 1px solid rgba(212, 178, 76, 0.4);
-  background:
-    linear-gradient(155deg, rgba(255, 254, 251, 0.98), rgba(250, 246, 239, 0.9));
-  padding: 0.9rem 1.05rem;
-  box-shadow:
-    0 1px 0 rgba(255, 255, 255, 0.8) inset,
-    0 12px 28px -18px rgba(122, 30, 44, 0.35);
-  transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
-}
-.desk-card-rail__card::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  background: linear-gradient(
-    105deg,
-    transparent 0%,
-    transparent 40%,
-    rgba(212, 178, 76, 0.12) 50%,
-    transparent 60%,
-    transparent 100%
-  );
-  transform: translateX(-120%);
-  animation: market-meta-card-slide 5.5s ease-in-out infinite;
-}
-.desk-card-rail__card:nth-child(1)::after { animation-delay: 0s; }
-.desk-card-rail__card:nth-child(2)::after { animation-delay: 0.35s; }
-.desk-card-rail__card:nth-child(3)::after { animation-delay: 0.7s; }
-.desk-card-rail__card:nth-child(4)::after { animation-delay: 1.05s; }
-.desk-card-rail__card:nth-child(5)::after { animation-delay: 1.4s; }
-.desk-card-rail__card:nth-child(6)::after { animation-delay: 1.75s; }
-.desk-card-rail__card:hover {
-  border-color: rgba(212, 178, 76, 0.65);
-  box-shadow:
-    0 1px 0 rgba(255, 255, 255, 0.85) inset,
-    0 16px 32px -14px rgba(122, 30, 44, 0.42);
-}
-.desk-card-rail__label {
-  display: flex;
-  align-items: center;
-  gap: 0.35rem;
-  font-family: var(--font-ui, inherit);
-  font-size: 10px;
-  letter-spacing: 0.16em;
-  text-transform: uppercase;
-  color: var(--ar-subtle);
-}
-.desk-card-rail__value {
-  margin-top: 0.4rem;
-  font-family: var(--font-serif);
-  font-size: clamp(1.15rem, 2vw, 1.55rem);
-  font-weight: 700;
-  font-variant-numeric: tabular-nums;
-  color: var(--ar-maroon);
-  line-height: 1.15;
-}
-.desk-card-rail__hint {
-  margin-top: 0.2rem;
-  font-family: var(--font-ui, inherit);
-  font-size: 0.7rem;
-  color: var(--ar-muted);
-}
-html.dark .desk-card-rail__card {
-  border-color: rgba(228, 199, 106, 0.32);
-  background:
-    linear-gradient(155deg, rgba(42, 28, 32, 0.98), rgba(22, 16, 18, 0.96));
-  box-shadow:
-    0 1px 0 rgba(255, 255, 255, 0.04) inset,
-    0 14px 28px -16px rgba(0, 0, 0, 0.65);
-}
-@media (prefers-reduced-motion: reduce) {
-  .desk-card-rail__card::after {
-    animation: none !important;
-  }
-}
+.horizontal-rail-fill { width: 100%; }
+.horizontal-rail-fill-inner { display: flex; width: 100%; }
+.rail-card-fill { min-width: 0; flex: 1 1 0; }
 
 .chart-shell {
   position: relative;
@@ -1346,18 +1230,15 @@ html.dark .desk-select {
   }
 }
 
-/* Header market meta — full-width cards + L→R sheen; scroll instead of wrap */
+/* Header market meta — full-width equal cards + L→R sheen */
 .market-meta-strip {
   position: relative;
-  overflow-x: auto;
-  overflow-y: hidden;
+  overflow: hidden;
   width: 100%;
   border-top: 1px solid rgba(212, 178, 76, 0.28);
   border-bottom: 1px solid rgba(122, 30, 44, 0.08);
   background:
     linear-gradient(105deg, rgba(122, 30, 44, 0.08) 0%, rgba(212, 178, 76, 0.14) 28%, rgba(255, 252, 247, 0.95) 55%, rgba(212, 178, 76, 0.1) 100%);
-  -webkit-overflow-scrolling: touch;
-  scrollbar-width: thin;
 }
 .market-meta-strip::before {
   content: "";
@@ -1387,11 +1268,10 @@ html.dark .desk-select {
 .market-meta-full {
   position: relative;
   z-index: 1;
-  display: flex;
-  flex-wrap: nowrap;
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 0.55rem;
-  width: max-content;
-  min-width: 100%;
+  width: 100%;
   padding: 0.65rem 1rem;
 }
 @media (min-width: 1024px) {
@@ -1403,9 +1283,8 @@ html.dark .desk-select {
 .market-meta-card {
   position: relative;
   display: flex;
-  flex: 1 0 auto;
-  min-width: 11rem;
-  width: auto;
+  min-width: 0;
+  width: 100%;
   flex-direction: column;
   justify-content: center;
   overflow: hidden;
@@ -1440,7 +1319,6 @@ html.dark .desk-select {
 .market-meta-card:nth-child(3)::after { animation-delay: 0.7s; }
 .market-meta-card:nth-child(4)::after { animation-delay: 1.05s; }
 .market-meta-card:nth-child(5)::after { animation-delay: 1.4s; }
-.market-meta-card:nth-child(6)::after { animation-delay: 1.75s; }
 @keyframes market-meta-card-slide {
   0%, 55% { transform: translateX(-120%); opacity: 0; }
   65% { opacity: 1; }
@@ -1524,11 +1402,9 @@ html.dark .market-meta-card:hover {
 }
 @media (max-width: 767px) {
   .market-meta-full {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 0.45rem;
     padding: 0.55rem 0.75rem;
-  }
-  .market-meta-card {
-    min-width: 9.5rem;
   }
 }
 @media (prefers-reduced-motion: reduce) {

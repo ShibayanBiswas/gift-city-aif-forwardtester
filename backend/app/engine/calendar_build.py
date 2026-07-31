@@ -158,6 +158,32 @@ def build_monthly_expiries(
     return [by_ym[k] for k in sorted(by_ym)]
 
 
+def pin_current_month_roll_to_latest(
+    shifts: list[date],
+    trading_dates: list[date],
+) -> list[date]:
+    """Set the open/terminal month's futures roll date to its latest Nifty session.
+
+    Desk rule for Futures Roll Cost (same as Backtester):
+      - Finished months keep monthly option-expiry shifts (WF1 Roll Cost col B /
+        NSE last-Thu / last-Tue) so history stays WF1-aligned.
+      - The current (terminal) month uses the **last / current trading date**
+        present in nifty_daily.csv for that month — not an earlier monthly
+        option expiry while later sessions already exist.
+
+    First-row Excel gap (Jan-2001): trading-day count on/before first shift is
+    **19** (2001-01-01 … 2001-01-25 inclusive) → C3 = avg×7%×19/365 ≈ 4.7713.
+
+    Hedging Sheet monthly expiries are separate — do not use this helper for them.
+    """
+    if not trading_dates:
+        return list(shifts)
+    end = trading_dates[-1]
+    out = [d for d in shifts if (d.year, d.month) != (end.year, end.month)]
+    out.append(end)
+    return sorted(out)
+
+
 def build_all_option_expiries(
     trading_dates: list[date],
     *,

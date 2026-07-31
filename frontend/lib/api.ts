@@ -262,6 +262,16 @@ export type PathDetail = {
   spot0?: number;
   dates: string[];
   nifty?: number[];
+  rolls?: Array<{
+    shift_date: string;
+    roll_cost: number | null;
+  }>;
+  monthly_expiries?: Array<{
+    expiry_date: string;
+    weekday?: string;
+    is_monthly_last?: boolean;
+    nifty_close: number | null;
+  }>;
   observations: string[];
   obs_spots: number[];
   obs_builds?: Array<{

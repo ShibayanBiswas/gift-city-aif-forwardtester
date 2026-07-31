@@ -11,7 +11,8 @@ Forward event calendars (months strictly after as-of, complete months only):
   - **Monthly Nifty option expiry** = last Tuesday of each calendar month.
 
 Horizon end is **as-of + Simulation End Days** from Product Input (default 3650).
-Future closes: Path-1 GBM from live S₀ when ``gbm_params`` is set; else flat last close.
+Optional Path-1 GBM fill is legacy/debug only. Production uses per-path GBM spots
+and ``path_roll_vector`` for roll points — there is no shared forward price workbook.
 Historical expiries / rolls / closes are preserved through as-of unchanged.
 """
 from __future__ import annotations
@@ -116,8 +117,8 @@ def extend_market_forward(
 
     Historical closes / expiries / rolls are preserved through ``market.last_date``.
     Future sessions are Mon–Fri only; future rolls = month-end trading days;
-    future monthly expiries = last Tuesdays. Future closes use Path-1 GBM when
-    ``gbm_params`` is set.
+    future monthly expiries = last Tuesdays. Optional Path-1 GBM closes are only
+    for legacy fill; production uses per-path GBM spots and ``path_roll_vector``.
     """
     if horizon_end <= market.last_date:
         return market

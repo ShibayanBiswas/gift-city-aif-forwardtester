@@ -1,6 +1,8 @@
 # 05 — Architecture
 
-Gift City AIF Forward Tester is a **Next.js 15 + FastAPI** desk application with CSV-backed market data, optional MongoDB Atlas, and a numpy engine that mirrors WF1. Production runs **Vercel (frontend) + Render (backend)**; local dev uses `./start.sh`.
+Gift City AIF Forward Tester is a **Next.js 15 + FastAPI** desk application with CSV-backed market data, optional MongoDB Atlas, and a numpy engine that mirrors WF1. Production runs **Vercel (frontend) + Render (backend)**; local dev uses `./start.ps1` (Windows) or `./start.sh`.
+
+**Repo:** https://github.com/ShibayanBiswas/gift-city-aif-forwardtester
 
 **Engine internals:** [04-forwardtest-engine.md](04-forwardtest-engine.md) · **Deploy:** [08-deploy-vercel-render.md](08-deploy-vercel-render.md) · **UI:** [06-ui-ux.md](06-ui-ux.md).
 
@@ -9,32 +11,33 @@ Gift City AIF Forward Tester is a **Next.js 15 + FastAPI** desk application with
 ## Repository Layout
 
 ```
-gift-city-aif-forwardtester/ # repo root
-├── Product_Input_File.xlsx # Sample product (tracked)
-├── README.md # Root quick start + doc pointer
-├── start.sh # Local API + UI launcher
-├──.env.example # Mongo / forward-test env template
-├── docs/ # Documentation set (01–12 + README + JSON audits)
+gift-city-aif-forwardtester/   # https://github.com/ShibayanBiswas/gift-city-aif-forwardtester
+├── Product_Input_File.xlsx    # Sample product (tracked)
+├── README.md                  # Root quick start + deploy pointer
+├── start.ps1 / start.bat / start.sh
+├── .env.example               # Mongo / BACKEND_URL template (never commit .env)
+├── docs/                      # Documentation set (01–09 + README)
 ├── data/
-│ ├── nifty_daily.csv # Nifty closes (auto-extended to present)
-│ ├── roll_costs.csv # Historical futures shifts + roll pts
-│ ├── nifty_expiries.csv # Historical monthly expiry calendar
-│ ├── expiry_overrides.csv # WF1 option dates
-│ ├── uploads/ # gitignored — current product
-│ └── jobs/ # gitignored — forward-test JSON cache
+│   ├── nifty_daily.csv
+│   ├── roll_costs.csv
+│   ├── nifty_expiries.csv
+│   ├── nifty_all_expiries.csv
+│   ├── expiry_overrides.csv
+│   ├── uploads/               # gitignored
+│   └── jobs/                  # gitignored
 ├── backend/
-│ ├── requirements.txt
-│ └── app/
-│ ├── main.py # FastAPI entry
-│ ├── db/mongo.py # Optional Atlas
-│ └── engine/ # paths, gbm, forward_calendar, hedge, nav, …
-├── frontend/ # Next.js 15 App Router desk UI
-└── scripts/ # verify, sync, audit, build_product_input
+│   ├── requirements.txt
+│   └── app/
+│       ├── main.py
+│       ├── db/mongo.py
+│       └── engine/            # paths, gbm, forward_calendar, hedge, nav, …
+├── frontend/                  # Next.js 15 App Router
+└── scripts/                   # verify_*, sync_market_data, build_product_input
 ```
 
-**Note:** Forwardtester does **not** use `macro_path_windows.csv` pins. Path atlas is as-of → Simulation End via `paths.py` + `forward_calendar.py`.
+**Note:** Forwardtester does **not** use Macro Paths CSV pins for the forward atlas. Historical roll open-month pin matches Backtester via `pin_current_month_roll_to_latest`.
 
-**Local only (gitignored):** `Gift AIF Working File 1.xlsm`, `AIF - Notes.xlsx` — used for Excel parity checks, not runtime.
+**Local only (gitignored):** `Gift AIF Working File 1.xlsm`, `AIF - Notes.xlsx`, `.env` — never commit secrets.
 
 ---
 
@@ -45,7 +48,7 @@ gift-city-aif-forwardtester/ # repo root
 | Product | `product.py` | `.xlsx` upload / sample | `ProductSpec` (+ Simulation End Days) |
 | Market | `market.py` | `data/*.csv` | Historical `MarketDB`, lookups, cache |
 | Market sync | `market_sync.py` | Yahoo API, CSVs | Updated CSVs through present (as-of) |
-| Calendar (hist) | `calendar_build.py` | Overrides, NSE eras | Historical expiries / `month_ends` |
+| Calendar (hist) | `calendar_build.py` | Overrides, NSE eras, **`pin_current_month_roll_to_latest`** | Historical expiries / open-month roll pin |
 | Forward calendar | `forward_calendar.py` | Hist market, horizon | Mon–Fri pad, month-end rolls, last-Tue expiries |
 | GBM | `gbm.py` | Historical returns | μ/σ, `gbm_spots` |
 | Paths | `paths.py` | Market, product, frequency | Forward `PathSpec[]` (as-of → Simulation End) |
@@ -143,7 +146,7 @@ Starting a new run **cancels** any prior queued/running job. `GET /api/sync` ref
 | `app/computation` | Result, Buy/Sell, Brokerage/GST, Daily Rows, Trade Cost Ledger |
 | `app/computation/ledger` | Daily Ledger charts (NAV + Req. Delta) |
 | `app/analytics` | Yearly Lab + Path Summary |
-| `app/intel` | Market DB + Logic Atlas |
+| `app/intel` | Path Market + Logic Atlas |
 
 Theme: Cormorant Garamond display + Source Sans 3 UI; AR maroon/gold tokens in `globals.css`. Full UX spec: [06-ui-ux.md](06-ui-ux.md).
 

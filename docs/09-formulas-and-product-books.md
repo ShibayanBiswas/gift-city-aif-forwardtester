@@ -7,7 +7,7 @@
 
 **Authority rule:** When `AIF - Notes.xlsx` prose and `Gift AIF Working File 1.xlsm` formulas disagree, the engine follows WF1. Notes still define structural intent (235 monthly pins, 7% roll, cash/Gsec seeds, Total composition).
 
-**Verified:** 2026-07-25 against WF1 Path 1 / Path 10 anchors.
+**Verified:** 2026-07-25 against WF1 Path 1 / Path 10 anchors. Forward calendar / roll / open-month pin re-verified 2026-07-31 (`verify_roll_costs.py`, `verify_forward_calendar.py`).
 
 ---
 
@@ -16,8 +16,10 @@
 | Source | File | Role |
 |--------|------|------|
 | Working File 1 | `Gift AIF Working File 1.xlsm` (local, gitignored) | Excel methodology bible — Macro Paths, Roll, Expiry, As per HS, Computation, Summary |
-| Product Input | `Product_Input_File.xlsx` (repo sample) | Sole **Run** input — parsed by `backend/app/engine/product.py` |
+| Product Input | `Product_Input_File.xlsx` (repo sample) | Sole **Run** input — parsed by `backend/app/engine/product.py` (+ Simulation End Days) |
 | Notes | `AIF - Notes.xlsx` (local, gitignored) | Narrative methodology — structure only; BS rates superseded by WF1 |
+| Gift AIF Backtester | sibling Desktop project | Byte-identical `nav.py` / `black_scholes.py`; shared `pin_current_month_roll_to_latest` |
+| GitHub | https://github.com/ShibayanBiswas/gift-city-aif-forwardtester | Canonical Forwardtester source |
 
 The engine does **not** read WF1 at runtime. It parses Product Input and pins WF1-equivalent defaults where cells are blank.
 
@@ -224,10 +226,10 @@ Roll Cost + Paths uses a **7% futures carry model** on monthly **futures shift**
 | Trading sessions | **Mon–Fri only** through Simulation End (Sat/Sun closed; leap/30/31 via real calendar) |
 | Futures shift | **Last trading day of each month** |
 | Monthly option expiry | **Last Tuesday of each month** |
-| Roll points | Same 7% formula on forward closes (Path-1 GBM for Intel; per-path GBM for NAV) |
+| Roll points | Same 7% formula on **each path's** GBM closes via `path_roll_vector` (Intel Path Market = same points) |
 | As-of | Latest Nifty session after deploy sync — horizon = as-of + Simulation End Days |
 
-Historical months through as-of keep CSV / NSE builder behaviour. See [04-forwardtest-engine.md](04-forwardtest-engine.md).
+Historical months through as-of keep CSV / NSE builder behaviour, including **`pin_current_month_roll_to_latest`** (open month = latest Nifty session) — same as Gift AIF Backtester. See [04-forwardtest-engine.md](04-forwardtest-engine.md).
 
 ### 7.1 First gap (seed)
 
@@ -434,16 +436,18 @@ Path 235 Summary row may be **mislabeled** as path id 1 at sheet tail — match 
 
 | Series | Value |
 |--------|------:|
-| Nifty daily range | 2001-01-01 → **2026-07-24** |
-| Trading days | **6352** |
-| Monthly expiries (rolls) | **306** |
+| Nifty daily range | 2001-01-01 → **latest session** (moves with `/api/sync`) |
 | First roll shift | 2001-01-25 |
-| First roll cost | **4.7713** index pts |
+| First roll cost | **4.7713** index pts (**19** trading days) |
+| Open-month futures shift | Latest Nifty session in terminal month (`pin_current_month_roll_to_latest`) — **Backtester parity** |
 | Expiry rule (through Aug-2025) | Last **Thursday** trading day of month |
 | Expiry rule (from Sep-2025) | Last **Tuesday** (NSE circular) |
 | Holiday handling | Snap to **previous** Nifty session |
+| Forward (> as-of) | Mon–Fri; last-Tuesday expiry; month-end futures shift |
 
-Auto-sync: API startup · `GET /api/sync` · `scripts/sync_market_data.py`.
+Auto-sync: API startup · `GET /api/sync` · `scripts/sync_market_data.py`. Trading-day counts are dynamic — do not hardcode in desk copy.
+
+**Verify rolls:** `PYTHONPATH=backend .venv/Scripts/python scripts/verify_roll_costs.py`
 
 ---
 
@@ -503,4 +507,41 @@ print('Book OK', qs)
 
 ## 16. One-Line Conclusion
 
-**Gift City AIF Forward Tester formulas = Working File 1 As per HS + Computation methodology:** six-leg put book at 6.6%/7.6% + Near/Far vols; 7% roll with 19-day first gap (≈4.7713 pts); Path 1 / Path 10 component-exact; engine extends monthly paths beyond WF1 Path 235 through present market. Notes prose is structural reference only where it diverges from WF1 BS rates.
+**Gift City AIF Forward Tester formulas = Working File 1 As per HS + Computation methodology (Backtester-identical `nav` / `black_scholes`):** six-leg put book at 6.6%/7.6% + Near/Far vols; 7% roll with 19-day first gap (≈4.7713 pts) and open-month pin; forward paths use GBM from As Of Today through Simulation End (default 3650 days). Notes prose is structural reference only where it diverges from WF1 BS rates.
+
+
+### GBM step (Monte Carlo)
+
+Authority: desk file `Nifty Simulations.xlsx` + `gbm.py`.
+
+**Parameters** (estimated from `nifty_daily.csv` through as-of):
+
+| Symbol | Definition |
+|--------|------------|
+| \(S_0\) | As-of Nifty close |
+| \(\mu\) | Mean daily simple return |
+| \(\sigma\) | Sample stdev of daily returns (`STDEV`) |
+| \(\mathrm{drift}\) | \(\mu - \tfrac12\sigma^2\) |
+
+**Recurrence** (one Mon–Fri session):
+
+\[
+S_t = S_{t-1} \cdot \exp\bigl(\mathrm{drift} + \sigma \cdot Z\bigr),
+\qquad Z \sim N(0,1)
+\]
+
+```text
+S_t = S_{t-1} · exp(drift + σ · Z)
+```
+
+```excel
+=prev * EXP($drift + $sigma * NORM.INV(RAND(), 0, 1))
+```
+
+**Path matrix (Excel layout):**
+
+- Vertical \(1,2,3,\ldots\) = **path numbers**
+- Horizontal \(1,2,3,\ldots\) = **day indices**
+- For a fixed day (or calendar date), Path \(i\) and Path \(j\) generally show **different** Nifty levels
+
+Independent RNG per `path_id`. Shared forward calendar supplies expiry / futures-shift **dates** only; **levels and roll points** always come from that path’s simulated series. There is no shared forward price workbook.

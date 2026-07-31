@@ -13,7 +13,7 @@ The Gift City AIF Forward Tester desk UI follows **Anand Rathi Wealth Primary SP
 | Home | — | `/` |
 | Analytics | Yearly Lab · Path Summary | `/analytics`, `/analytics/summary` |
 | Desk | Product · Paths · Hedging Sheet · Computation · Daily Ledger | `/product`, `/paths`, `/hedging`, `/computation`, `/computation/ledger` |
-| Intel | Market DB · Logic Atlas | `/intel`, `/intel/logic` |
+| Intel | Path Market · Logic Atlas | `/intel`, `/intel/logic` |
 
 ### Header controls (global)
 
@@ -25,7 +25,7 @@ The Gift City AIF Forward Tester desk UI follows **Anand Rathi Wealth Primary SP
 | **Upload** | `POST /api/product/upload` — becomes current product for next Run |
 | **Run** | Starts forward test; cancels prior job if running |
 | Theme toggle | Light / dark desk palette |
-| Market strip | **As Of Today** · **Simulation End** · **Simulation End Days** · **Trading Days** · **Monthly Expiries** — horizontal scroll (no wrap). Trading Days / Monthly Expiries count **as-of → Simulation End** only |
+| Market strip | **As Of Today** · **Simulation End** · **Simulation End Days** · **Trading Days** · **Monthly Expiries** — responsive **grid** (no horizontal scroll sheen / slide animations). Trading Days / Monthly Expiries count **as-of → Simulation End** only. Default Simulation End Days = **3650** (legacy 7300 uploads are migrated on API startup). |
 
 **Naming:** Excel “As per HS” → UI **Hedging Sheet** (URL `/hedging` unchanged). Headings, tabs, and short button labels use **Title Case**.
 
@@ -35,7 +35,11 @@ Options book Trade Side: **Sold Put Option** / **Bought Put Option** (default bo
 
 ## Desk card rails
 
-Metric chips (header strip, product meta, KPI band, GBM params, path meta) use a **horizontal scroll rail**: cards never wrap to a second row. Narrow viewports scroll sideways.
+Metric chips (product meta, KPI band, GBM params, path meta) use a **horizontal scroll rail** only when needed for overflow. Header market meta uses a **static responsive grid** — no sheen / slide animations.
+
+**Sizing (desk lock):** cards are **compact** — ~10–10.5 rem min-width, moderate padding, value text ~1.05–1.28 rem (KPI means use `text-lg` / `text-xl`, not oversized `text-2xl`).
+
+CSS: `.market-meta-*` and `.desk-card-rail*` in `frontend/app/globals.css`.
 
 ---
 
@@ -143,10 +147,20 @@ Path picker on both subtabs.
 
 | Subtab | Content |
 |--------|---------|
-| **Market DB** | Futures rolls · Monthly expiries (+ Nifty close) · Nifty daily |
+| **Path Market** | Selected path: Simulated Nifty · Monthly Expiries · Futures Roll Costs (path-local) |
 | **Logic Atlas** | Module rail + Active Pipeline step cards |
 
----
+**Path Market tabs:**
+
+| Tab | Columns | Source |
+|-----|---------|--------|
+| Simulated Nifty Closes | Trading Date · Simulated Nifty | `pathDetail.dates` / `nifty` |
+| Monthly Expiries | Row · Expiry · Weekday · Contract · Simulated Nifty | `pathDetail.monthly_expiries` |
+| Futures Roll Costs | Row · Futures Shift Date · Roll Cost (index pts) | `pathDetail.rolls` (`path_roll_vector`) |
+
+Requires a completed Run. PathSelect drives all three tabs. There is no shared forward price database.
+
+**GBM reminder:** path rows are independent. For the same trading date, Path 2’s simulated Nifty is generally not Path 1’s — matching `Nifty Simulations.xlsx` (vertical = path number, horizontal = day).
 
 ## Logic Atlas vs Product Spec
 
@@ -172,9 +186,10 @@ The Logic Atlas is the in-app **pipeline map** for desk education — it does no
 Maps to engine modules in [04-forwardtest-engine.md](04-forwardtest-engine.md) and [05-architecture.md](05-architecture.md)
 
 ```
-Product Input → product.py
-Market CSVs → market.py / market_sync.py
-Path windows → paths.py (235 pins + extension)
+Product Input → product.py (+ Simulation End Days)
+Market CSVs → market.py / market_sync.py (+ pin_current_month_roll_to_latest)
+Forward pad → forward_calendar.py (Mon–Fri · last-Tue · month-end rolls)
+Path windows → paths.py + gbm.py (as-of → Simulation End; no 235 CSV pins)
 Hedging Sheet → hedge.py + black_scholes.py
 Computation → nav.py
 Job / API → forwardtest.py + main.py

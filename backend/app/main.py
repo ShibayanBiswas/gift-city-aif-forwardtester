@@ -94,7 +94,12 @@ def _ensure_product() -> ProductSpec:
 
 
 def _desk_market():
-    """Historical market extended through current product Simulation End with Path-1 GBM."""
+    """Historical market + forward calendar through Simulation End.
+
+    Calendar only for desk meta (Trading Days / Monthly Expiries). Simulated
+    Nifty prices and roll *points* live on each GBM path — there is no shared
+    Path-1 price workbook for the forward horizon.
+    """
     base = load_market()
     product = _ensure_product()
     sim_end = resolved_simulation_end(base.last_date, product)
@@ -104,7 +109,7 @@ def _desk_market():
         sim_end,
         product.tenure_days,
         observation_months=product.observation_months,
-        fill_gbm=True,
+        fill_gbm=False,
     )
     asof = base.last_date
     return {
@@ -187,11 +192,32 @@ def _prune_old_jobs() -> None:
 
 
 def _load_default_product():
+    """Load current upload, migrating legacy Simulation End Days=7300 → sample 3650."""
     global _current_product
     dest = UPLOADS / "current_product.xlsx"
-    if not dest.exists():
+    UPLOADS.mkdir(parents=True, exist_ok=True)
+    if not dest.exists() and DEFAULT_PRODUCT.exists():
         shutil.copy2(DEFAULT_PRODUCT, dest)
-    _current_product = parse_product_workbook(dest, name="Current Product")
+
+    def _parse(path: Path) -> ProductSpec:
+        return parse_product_workbook(path, name="Current Product")
+
+    if dest.exists():
+        _current_product = _parse(dest)
+        # Legacy desk default was 7300; sample + engine default are now 3650.
+        # Refresh the upload copy from the tracked sample so header/Intel stay consistent.
+        if (
+            _current_product.simulation_end_days == 7300
+            and DEFAULT_PRODUCT.exists()
+        ):
+            shutil.copy2(DEFAULT_PRODUCT, dest)
+            _current_product = _parse(dest)
+    elif DEFAULT_PRODUCT.exists():
+        shutil.copy2(DEFAULT_PRODUCT, dest)
+        _current_product = _parse(dest)
+    else:
+        raise RuntimeError("No Product_Input_File.xlsx found to seed the current product")
+
     try:
         mongo.upsert_current_product(_current_product.to_dict())
     except Exception:
@@ -408,22 +434,20 @@ def get_market_meta() -> dict:
 
 @app.get("/api/market/nifty")
 def get_nifty(limit: int = 0) -> dict:
-    """Nifty closes from as-of through Simulation End."""
+    """Historical Nifty through as-of only (GBM estimation sample).
+
+    Forward simulated closes are path-specific — use path detail ``nifty`` /
+    Intel · Path Market, not a shared workbook.
+    """
     desk = _desk_market()
-    m = desk["market"]
+    base = desk["base"]
     asof = desk["asof"]
     sim_end = desk["simulation_end"]
-    rows = []
-    for d, c in zip(m.dates, m.closes):
-        if d < asof or d > sim_end:
-            continue
-        rows.append(
-            {
-                "date": d.isoformat(),
-                "close": float(c),
-                "source": "historical" if d <= asof else "forward",
-            }
-        )
+    rows = [
+        {"date": d.isoformat(), "close": float(c)}
+        for d, c in zip(base.dates, base.closes)
+        if d <= asof
+    ]
     if limit > 0:
         rows = rows[:limit]
     return {
@@ -432,12 +456,16 @@ def get_nifty(limit: int = 0) -> dict:
         "asof": asof.isoformat(),
         "simulation_end": sim_end.isoformat(),
         "simulation_end_days": desk["simulation_end_days"],
+        "note": "Historical closes through as-of for μ/σ estimation. Simulated Nifty is per GBM path.",
     }
 
 
 @app.get("/api/market/expiries")
 def get_expiries(full: bool = True) -> dict:
-    """Nifty option expiries from as-of through Simulation End."""
+    """Forward calendar expiry *dates* as-of → Simulation End (no shared prices).
+
+    Nifty on each expiry is path-specific — see path detail ``monthly_expiries``.
+    """
     desk = _desk_market()
     m = desk["market"]
     asof = desk["asof"]
@@ -447,19 +475,14 @@ def get_expiries(full: bool = True) -> dict:
     for e in source:
         if e < asof or e > sim_end:
             continue
-        try:
-            nifty = float(m.nifty_on(e))
-        except Exception:
-            nifty = None
         is_monthly = e in m.monthly_last_expiries
         rows.append(
             {
                 "expiry_date": e.isoformat(),
-                "nifty_close": nifty,
+                "nifty_close": None,
                 "weekday": e.strftime("%A"),
                 "is_monthly_last": is_monthly,
                 "kind": "monthly_last" if is_monthly else "weekly",
-                "source": "historical" if e <= asof else "forward",
             }
         )
     monthly_count = sum(1 for r in rows if r["is_monthly_last"])
@@ -471,33 +494,32 @@ def get_expiries(full: bool = True) -> dict:
         "asof": asof.isoformat(),
         "simulation_end": sim_end.isoformat(),
         "simulation_end_days": desk["simulation_end_days"],
+        "note": "Calendar dates only. Pair with a path's simulated Nifty on Intel · Path Market.",
     }
 
 
 @app.get("/api/market/rolls")
 def get_rolls() -> dict:
-    """Futures roll costs from as-of through Simulation End."""
+    """Forward calendar futures-shift *dates* as-of → Simulation End.
+
+    Roll *points* are recomputed per path from that path's GBM spots.
+    """
     desk = _desk_market()
     m = desk["market"]
     asof = desk["asof"]
     sim_end = desk["simulation_end"]
-    rows = []
-    for d in m.roll_shifts:
-        if d < asof or d > sim_end:
-            continue
-        rows.append(
-            {
-                "shift_date": d.isoformat(),
-                "roll_cost": m.roll_by_expiry.get(d),
-                "source": "historical" if d <= asof else "forward",
-            }
-        )
+    rows = [
+        {"shift_date": d.isoformat(), "roll_cost": None}
+        for d in m.roll_shifts
+        if asof <= d <= sim_end
+    ]
     return {
         "rows": rows,
         "count": len(rows),
         "asof": asof.isoformat(),
         "simulation_end": sim_end.isoformat(),
         "simulation_end_days": desk["simulation_end_days"],
+        "note": "Shift dates from the shared calendar. Roll points are path-specific.",
     }
 
 @app.get("/api/product/current")

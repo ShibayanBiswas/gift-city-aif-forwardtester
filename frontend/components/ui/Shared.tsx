@@ -96,29 +96,26 @@ function PathMeta({ path }: { path: PathSummary }) {
     { icon: TrendingUp, label: "End Nifty", value: formatNum(path.end_nifty, 2) },
   ];
   return (
-    <div className="desk-card-rail mt-3">
-      <div className="desk-card-rail__inner">
-        {items.map((it, i) => {
-          const Icon = it.icon;
-          return (
-            <motion.div
-              key={it.label}
-              layout
-              initial={{ opacity: 0, y: 6 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.03 * i }}
-              whileHover={{ y: -2 }}
-              className="desk-card-rail__card meta-chip !min-w-[10.5rem]"
-            >
-              <div className="desk-card-rail__label">
-                <Icon className="h-3 w-3 shrink-0 text-[var(--ar-gold-dark)]" />
-                {it.label}
-              </div>
-              <p className="desk-card-rail__value !text-base">{it.value}</p>
-            </motion.div>
-          );
-        })}
-      </div>
+    <div className="mt-3 grid w-full gap-2 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-7">
+      {items.map((it) => {
+        const Icon = it.icon;
+        return (
+          <motion.div
+            key={it.label}
+            layout
+            initial={{ opacity: 0, y: 6 }}
+            animate={{ opacity: 1, y: 0 }}
+            whileHover={{ y: -2, scale: 1.01 }}
+            className="meta-chip"
+          >
+            <div className="flex items-center gap-1.5 text-[10px] tracking-[0.16em] text-[var(--ar-subtle)] font-ui">
+              <Icon className="h-3 w-3 text-[var(--ar-gold-dark)]" />
+              {it.label}
+            </div>
+            <p className="mt-1 font-display text-base tabular-nums text-[var(--ar-maroon)] leading-tight">{it.value}</p>
+          </motion.div>
+        );
+      })}
     </div>
   );
 }
@@ -572,18 +569,18 @@ export function KpiBand() {
     },
   ];
   return (
-    <div className="desk-card-rail w-full pb-1">
-      <div className="desk-card-rail__inner">
+    <div className="w-full overflow-x-auto pb-1">
+      <div className="flex min-w-full gap-3">
         {items.map((k, i) => (
           <motion.div
             key={k.label}
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: i * 0.04 }}
-            whileHover={{ y: -4 }}
-            className="desk-card-rail__card glass glass-glow-cyan !min-w-[12.5rem]"
+            whileHover={{ y: -4, scale: 1.02 }}
+            className="glass glass-glow-cyan min-w-[11.5rem] flex-1 rounded-2xl p-4"
           >
-            <p className="desk-card-rail__label">{k.label}</p>
+            <p className="text-[10px] tracking-[0.16em] text-[var(--ar-subtle)] font-ui">{k.label}</p>
             {k.median != null ? (
               <div className="mt-2 grid grid-cols-2 gap-2">
                 <div>
@@ -596,7 +593,7 @@ export function KpiBand() {
                 </div>
               </div>
             ) : (
-              <p className="desk-card-rail__value !text-2xl">{k.mean}</p>
+              <p className="mt-2 font-display text-2xl tabular-nums text-[var(--ar-maroon)]">{k.mean}</p>
             )}
           </motion.div>
         ))}

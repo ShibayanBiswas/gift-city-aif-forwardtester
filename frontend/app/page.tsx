@@ -94,20 +94,20 @@ export default function HomePage() {
               animate={{ opacity: 1, y: 0 }}
               className="ar-panel overflow-hidden"
             >
-              <div className="border-b border-[var(--ar-border)] bg-gradient-to-r from-[var(--ar-table-head-from)] to-transparent px-5 py-4">
-                <p className="font-ui text-xs uppercase tracking-[0.18em] text-[var(--ar-subtle)]">
+              <div className="border-b border-[var(--ar-border)] bg-gradient-to-r from-[var(--ar-table-head-from)] to-transparent px-6 py-5">
+                <p className="font-ui text-xs uppercase tracking-[0.22em] text-[var(--ar-subtle)]">
                   Geometric Brownian Motion
                 </p>
-                <p className="mt-1 font-display text-xl text-[var(--ar-maroon)] md:text-2xl">
+                <p className="mt-1 font-display text-2xl text-[var(--ar-maroon)] md:text-3xl">
                   Estimation {formatDeskDate(gbmEstStart)} → {formatDeskDate(gbmEstEnd)}
                 </p>
-                <p className="mt-1 max-w-2xl text-xs leading-relaxed text-[var(--ar-muted)] font-ui">
+                <p className="mt-1 max-w-2xl text-sm leading-relaxed text-[var(--ar-muted)] font-ui">
                   Live μ and σ from Nifty history through today&apos;s as-of close. Path spots step only on
                   Mon–Fri sessions.
                 </p>
               </div>
-              <div className="desk-card-rail px-5 py-4">
-                <div className="desk-card-rail__inner">
+              <div className="horizontal-rail-fill px-6 py-5">
+                <div className="horizontal-rail-fill-inner flex w-full gap-3">
                   {[
                     {
                       label: "Current Nifty Spot",
@@ -142,19 +142,21 @@ export default function HomePage() {
                   ].map((card, i) => (
                     <motion.div
                       key={card.label}
-                      className="desk-card-rail__card glass glass-glow-cyan"
+                      className="rail-card-fill glass glass-glow-cyan min-w-0 flex-1 rounded-2xl p-4"
                       initial={{ opacity: 0, y: 10 }}
                       animate={{ opacity: 1, y: 0 }}
                       transition={{ delay: 0.05 * i }}
-                      whileHover={{ y: -3 }}
+                      whileHover={{ y: -3, scale: 1.01 }}
                     >
-                      <p className="desk-card-rail__label">
-                        {card.label}
+                      <p className="text-[10px] tracking-[0.16em] text-[var(--ar-subtle)] font-ui">
+                        {card.label}{" "}
                         <span className="normal-case tracking-normal text-[var(--ar-gold-dark)]">
                           {card.hint}
                         </span>
                       </p>
-                      <p className="desk-card-rail__value">{card.value}</p>
+                      <p className="mt-1 font-display text-xl tabular-nums text-[var(--ar-maroon)] md:text-2xl">
+                        {card.value}
+                      </p>
                     </motion.div>
                   ))}
                 </div>

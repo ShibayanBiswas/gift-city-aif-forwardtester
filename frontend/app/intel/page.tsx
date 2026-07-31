@@ -1,130 +1,81 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { motion } from "framer-motion";
-import { client, formatDeskDate, formatNum, isPlausibleTradingDate } from "@/lib/api";
+import { formatDeskDate, formatNum, isPlausibleTradingDate } from "@/lib/api";
 import { useForwardTest } from "@/lib/store";
-import { SubPageTabs } from "@/components/ui/Shared";
+import { EmptyRunHint, PathDetailGate, PathSelect, SubPageTabs } from "@/components/ui/Shared";
 import { SheetTable } from "@/components/SheetTable";
 
-type TabId = "rolls" | "expiries" | "nifty";
-
-type ExpiryRow = {
-  expiry_date: string;
-  nifty_close: number | null;
-  weekday?: string;
-  is_monthly_last?: boolean;
-  kind?: string;
-  source?: string;
-};
+type TabId = "nifty" | "expiries" | "rolls";
 
 export default function IntelPage() {
-  const { market, product, refreshMarket, refreshProduct } = useForwardTest();
-  const [tab, setTab] = useState<TabId>("rolls");
-  const [nifty, setNifty] = useState<Array<{ date: string; close: number; source?: string }>>([]);
-  const [expiries, setExpiries] = useState<ExpiryRow[]>([]);
-  const [monthlyLastCount, setMonthlyLastCount] = useState(0);
-  const [rolls, setRolls] = useState<
-    Array<{ shift_date: string; roll_cost: number | null; source?: string }>
-  >([]);
-  const [sheetMeta, setSheetMeta] = useState<{
-    asof?: string;
-    simulation_end?: string;
-    simulation_end_days?: number;
-  }>({});
-  const [loadError, setLoadError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [syncedAt, setSyncedAt] = useState<string | null>(null);
+  const { summary, pathDetail, pathId, product } = useForwardTest();
+  const [tab, setTab] = useState<TabId>("nifty");
 
-  const loadSheets = useCallback(
-    async (opts?: { forceSync?: boolean }) => {
-      setLoading(true);
-      setLoadError(null);
-      try {
-        if (opts?.forceSync) {
-          await refreshMarket();
-        }
-        const [n, e, r] = await Promise.all([
-          client.nifty(),
-          client.expiries(true),
-          client.rolls(),
-          refreshProduct(),
-        ]);
-        setNifty(n.rows);
-        setExpiries(e.rows);
-        setMonthlyLastCount(e.monthly_last_count ?? e.rows.filter((x) => x.is_monthly_last).length);
-        setRolls(r.rows);
-        setSheetMeta({
-          asof: n.asof ?? e.asof ?? r.asof,
-          simulation_end: n.simulation_end ?? e.simulation_end ?? r.simulation_end,
-          simulation_end_days:
-            n.simulation_end_days ?? e.simulation_end_days ?? r.simulation_end_days,
-        });
-        setSyncedAt(new Date().toISOString());
-      } catch (err) {
-        setLoadError(err instanceof Error ? err.message : String(err));
-      } finally {
-        setLoading(false);
-      }
-    },
-    [refreshMarket, refreshProduct],
-  );
+  const niftyRows = useMemo(() => {
+    const dates = pathDetail?.dates ?? [];
+    const nifty = pathDetail?.nifty ?? [];
+    return dates
+      .map((d, i) => ({ d, c: nifty[i] }))
+      .filter((r) => isPlausibleTradingDate(r.d) && r.c != null && Number.isFinite(Number(r.c)))
+      .map((r) => [formatDeskDate(r.d), formatNum(Number(r.c), 2)]);
+  }, [pathDetail]);
 
-  useEffect(() => {
-    void loadSheets();
-  }, [
-    loadSheets,
-    market?.last_date,
-    product?.simulation_end_days,
-    product?.tenure_days,
-    product?.n_obs,
-    product?.principal_cr,
-    product?.roll_rate,
-    product?.observation_months?.join(","),
-    product?.legs?.length,
-  ]);
-
-  const asOf = sheetMeta.asof ?? market?.last_date ?? "—";
-  const simEnd = sheetMeta.simulation_end ?? market?.simulation_end ?? "—";
-  const simDays = sheetMeta.simulation_end_days ?? market?.simulation_end_days;
-
-  const rollRows = useMemo(
-    () =>
-      rolls
-        .filter((r) => isPlausibleTradingDate(r.shift_date))
-        .map((r, i) => [
-          i + 1,
-          formatDeskDate(r.shift_date),
-          r.roll_cost == null ? "—" : formatNum(r.roll_cost, 3),
-          r.source === "forward" ? "Forward" : "Historical",
-        ]),
-    [rolls],
-  );
-  const expiryRows = useMemo(
-    () =>
-      expiries
+  const expiryRows = useMemo(() => {
+    const rows = pathDetail?.monthly_expiries ?? [];
+    if (rows.length) {
+      return rows
         .filter((r) => isPlausibleTradingDate(r.expiry_date))
         .map((r, i) => [
           i + 1,
           formatDeskDate(r.expiry_date),
           r.weekday ?? "—",
-          r.is_monthly_last ? "Monthly" : "Weekly",
+          r.is_monthly_last === false ? "Weekly" : "Monthly",
           r.nifty_close == null ? "—" : formatNum(r.nifty_close, 2),
-          r.source === "forward" ? "Forward" : "Historical",
-        ]),
-    [expiries],
-  );
-  const niftyRows = useMemo(
-    () =>
-      nifty
-        .filter((r) => isPlausibleTradingDate(r.date))
-        .map((r) => [
-          formatDeskDate(r.date),
-          formatNum(r.close, 2),
-          r.source === "forward" ? "Forward" : "Historical",
-        ]),
-    [nifty],
-  );
+        ]);
+    }
+    // Fallback for older cached path details: observation expiries only.
+    return (pathDetail?.obs_builds ?? [])
+      .filter((b) => isPlausibleTradingDate(b.expiry))
+      .map((b, i) => [
+        i + 1,
+        formatDeskDate(b.expiry),
+        "—",
+        "Monthly",
+        formatNum(b.nifty, 2),
+      ]);
+  }, [pathDetail]);
+
+  const rollRows = useMemo(() => {
+    const rows = pathDetail?.rolls ?? [];
+    if (rows.length) {
+      return rows
+        .filter((r) => isPlausibleTradingDate(r.shift_date))
+        .map((r, i) => [
+          i + 1,
+          formatDeskDate(r.shift_date),
+          r.roll_cost == null ? "—" : formatNum(r.roll_cost, 3),
+        ]);
+    }
+    // Fallback: non-zero rollover points from Computation ledger.
+    const seen = new Set<string>();
+    const out: Array<[number, string, string]> = [];
+    for (const row of pathDetail?.computation_rows ?? []) {
+      const d = String(row.date ?? "");
+      const cost = Number(row.rollover_cost ?? 0);
+      if (!isPlausibleTradingDate(d) || !Number.isFinite(cost) || Math.abs(cost) < 1e-12) continue;
+      if (seen.has(d)) continue;
+      seen.add(d);
+      out.push([out.length + 1, formatDeskDate(d), formatNum(cost, 3)]);
+    }
+    return out;
+  }, [pathDetail]);
+
+  if (!summary) return <EmptyRunHint />;
+
+  const start = pathDetail?.start ? formatDeskDate(pathDetail.start) : "—";
+  const end = pathDetail?.end ? formatDeskDate(pathDetail.end) : "—";
 
   return (
     <div className="page-enter space-y-6">
@@ -137,37 +88,32 @@ export default function IntelPage() {
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
               <p className="text-xs uppercase tracking-[0.22em] text-[var(--ar-subtle)] font-ui">
-                Intel · Market Database
+                Intel · Path Market
               </p>
               <h2 className="font-display text-3xl text-[var(--ar-maroon)] md:text-4xl">
-                Market Reference Workbooks
+                Simulated Path Market Sheet
               </h2>
               <p className="mt-1 max-w-3xl text-sm leading-relaxed text-[var(--ar-muted)] font-ui">
-                Futures rolls, Nifty option expiries, and daily closes from As Of Today through
-                Simulation End. Forward rows use Path One Geometric Brownian Motion spots and the
-                forward calendar (Mon–Fri; last-Tuesday expiries; month-end futures shifts).
+                Each GBM path has its own Nifty series (like{" "}
+                <span className="font-ui">Nifty Simulations.xlsx</span>: rows = path
+                numbers, columns = days). The same trading date can show different
+                prices across paths. Monthly expiries and futures shift{" "}
+                <em>dates</em> come from the shared forward calendar; Nifty on those
+                dates and roll <em>points</em> are recomputed from this path&apos;s
+                simulated closes — there is no separate shared price database.
               </p>
             </div>
-            <button
-              type="button"
-              onClick={() => void loadSheets({ forceSync: true })}
-              disabled={loading}
-              className="rounded-lg border border-[rgba(212,178,76,0.45)] px-3 py-1.5 text-xs font-semibold text-[var(--ar-maroon)] disabled:opacity-50 font-ui"
-            >
-              {loading ? "Refreshing…" : "Refresh Market"}
-            </button>
           </div>
-          <div className="desk-card-rail mt-4">
-            <div className="desk-card-rail__inner">
+          <div className="mt-4">
+            <PathSelect className="w-full" showMeta />
+          </div>
+          <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
             {[
-              { label: "As Of Today", value: formatDeskDate(asOf) === "—" ? asOf : formatDeskDate(asOf) },
+              { label: "Selected Path", value: String(pathId) },
+              { label: "Path Window", value: `${start} → ${end}` },
               {
-                label: "Simulation End",
-                value: formatDeskDate(simEnd) === "—" ? simEnd : formatDeskDate(simEnd),
-              },
-              {
-                label: "Simulation End Days",
-                value: simDays != null ? String(simDays) : "—",
+                label: "Simulated Sessions",
+                value: pathDetail?.dates?.length != null ? String(pathDetail.dates.length) : "—",
               },
               {
                 label: "Product Roll Rate",
@@ -175,25 +121,21 @@ export default function IntelPage() {
                   product?.roll_rate != null ? `${(product.roll_rate * 100).toFixed(2)}%` : "—",
               },
             ].map((m) => (
-              <div key={m.label} className="desk-card-rail__card glass">
-                <p className="desk-card-rail__label">{m.label}</p>
-                <p className="desk-card-rail__value">{m.value}</p>
+              <div key={m.label} className="glass rounded-2xl p-3">
+                <p className="text-[10px] uppercase tracking-[0.16em] text-[var(--ar-subtle)] font-ui">
+                  {m.label}
+                </p>
+                <p className="font-display text-lg tabular-nums text-[var(--ar-maroon)]">{m.value}</p>
               </div>
             ))}
-            </div>
           </div>
-          {syncedAt ? (
-            <p className="mt-3 text-[10px] tracking-wide text-[var(--ar-subtle)] font-ui">
-              Last Sheet Refresh · {new Date(syncedAt).toLocaleString("en-IN")}
-            </p>
-          ) : null}
         </div>
         <div className="px-6 py-4">
           <SubPageTabs
             tabs={[
+              { id: "nifty", label: "Simulated Nifty Closes" },
+              { id: "expiries", label: "Monthly Expiries" },
               { id: "rolls", label: "Futures Roll Costs" },
-              { id: "expiries", label: "Nifty Option Expiries" },
-              { id: "nifty", label: "Nifty Daily Closes" },
             ]}
             active={tab}
             onChange={(id) => setTab(id as TabId)}
@@ -201,57 +143,49 @@ export default function IntelPage() {
         </div>
       </motion.section>
 
-      {loading ? (
-        <p className="text-sm text-[var(--ar-muted)] font-ui">Loading market workbooks…</p>
-      ) : null}
-      {loadError ? (
-        <div className="ar-panel ar-band p-6 text-sm text-[var(--ar-muted)] font-ui">
-          <p className="font-display text-xl text-[var(--ar-maroon)]">Could Not Load Market Tables</p>
-          <p className="mt-2">{loadError}</p>
-        </div>
-      ) : null}
+      <PathDetailGate loadingLabel="Loading Path Market…">
+        {tab === "nifty" ? (
+          <SheetTable
+            title={`Path ${pathId} · Simulated Nifty`}
+            subtitle={`GBM lognormal closes on Mon–Fri sessions · ${start} → ${end}`}
+            headers={["Trading Date", "Simulated Nifty"]}
+            rows={niftyRows}
+            filename={`path-${pathId}-simulated-nifty.xlsx`}
+            sheetName="Simulated Nifty"
+            columnTypes={["date", "number"]}
+            minWidth={420}
+            maxHeight={560}
+          />
+        ) : null}
 
-      {!loading && !loadError && tab === "rolls" && (
-        <SheetTable
-          title="Futures Monthly Shift Dates"
-          subtitle={`From ${formatDeskDate(asOf)} to ${formatDeskDate(simEnd)}.`}
-          headers={["Row", "Futures Shift Date", "Roll Cost In Index Points", "Source"]}
-          rows={rollRows}
-          filename="intel-futures-rolls.xlsx"
-          sheetName="Futures Rolls"
-          columnTypes={["integer", "date", "number", "text"]}
-          minWidth={720}
-          maxHeight={560}
-        />
-      )}
+        {tab === "expiries" ? (
+          <SheetTable
+            title={`Path ${pathId} · Monthly Expiries`}
+            subtitle="Last-Tuesday expiries in this path window · Nifty from this path's GBM series"
+            headers={["Row", "Expiry Date", "Weekday", "Contract", "Simulated Nifty"]}
+            rows={expiryRows}
+            filename={`path-${pathId}-monthly-expiries.xlsx`}
+            sheetName="Monthly Expiries"
+            columnTypes={["integer", "date", "text", "text", "number"]}
+            minWidth={720}
+            maxHeight={560}
+          />
+        ) : null}
 
-      {!loading && !loadError && tab === "expiries" && (
-        <SheetTable
-          title="Nifty Option Expiries"
-          subtitle={`From ${formatDeskDate(asOf)} to ${formatDeskDate(simEnd)}. ${expiries.length} rows · ${monthlyLastCount} monthly.`}
-          headers={["Row", "Expiry Date", "Weekday", "Contract", "Nifty Closing Level", "Source"]}
-          rows={expiryRows}
-          filename="intel-nifty-option-expiries.xlsx"
-          sheetName="Option Expiries"
-          columnTypes={["integer", "date", "text", "text", "number", "text"]}
-          minWidth={820}
-          maxHeight={560}
-        />
-      )}
-
-      {!loading && !loadError && tab === "nifty" && (
-        <SheetTable
-          title="Nifty Daily Closing Levels"
-          subtitle={`From ${formatDeskDate(asOf)} to ${formatDeskDate(simEnd)}.`}
-          headers={["Trading Date", "Nifty Closing Level", "Source"]}
-          rows={niftyRows}
-          filename="intel-nifty-closes.xlsx"
-          sheetName="Nifty Closes"
-          columnTypes={["date", "number", "text"]}
-          minWidth={520}
-          maxHeight={560}
-        />
-      )}
+        {tab === "rolls" ? (
+          <SheetTable
+            title={`Path ${pathId} · Futures Roll Costs`}
+            subtitle="Month-end futures shifts · roll points = 7% × path average spot × day fraction (scaled by product roll rate in NAV)"
+            headers={["Row", "Futures Shift Date", "Roll Cost In Index Points"]}
+            rows={rollRows}
+            filename={`path-${pathId}-futures-rolls.xlsx`}
+            sheetName="Futures Rolls"
+            columnTypes={["integer", "date", "number"]}
+            minWidth={640}
+            maxHeight={560}
+          />
+        ) : null}
+      </PathDetailGate>
     </div>
   );
 }

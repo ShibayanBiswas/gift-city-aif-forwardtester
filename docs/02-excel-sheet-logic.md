@@ -72,8 +72,14 @@ Roll uses a **7% futures carry model** — separate from BS Forward 6.6% on the 
 
 | Period | Formula | Anchor |
 |--------|---------|--------|
-| First month | `avg(Nifty on trading days ≤ first shift) × 7% × 19/365` | **19** = trading days from 2001-01-01 through 2001-01-25 → ≈ **4.7713** pts |
-| Later months | `avg(Nifty between shifts) × 7% × (calendar days between shifts) / 365` | Calendar Δt between shift dates |
+| First month | `avg(Nifty on trading days ≤ first shift) × 7% × N_td/365` | **19** = trading days from 2001-01-01 through 2001-01-25 → ≈ **4.7713** pts. Sat/Sun never in avg or count. |
+| Later months | `avg(Nifty on trading days in (prev, shift]) × 7% × (calendar days between shifts) / 365` | Calendar Δt between shift dates (Sat/Sun **in** Δt; not in avg) |
+
+### Historical open-month pin (Backtester parity)
+
+Finished months keep monthly option-expiry shifts. The **current / terminal** Nifty month uses `pin_current_month_roll_to_latest`: roll date = latest session in `nifty_daily.csv` for that month (same as Gift AIF Backtester). Hedging Sheet monthly expiries stay on true option dates — do not reuse this helper for them.
+
+Verify: `scripts/verify_roll_costs.py`.
 
 ### Maintenance and auto-sync
 
@@ -93,7 +99,7 @@ Working File Excel historically stops mid-year. The engine **extends** futures s
 |------|--------|
 | Sessions | Mon–Fri only through Simulation End — no Sat/Sun closes |
 | Futures shift | **Last trading day of each calendar month** |
-| Roll cost | Same 7% model on Path-1 GBM (or flat) forward closes |
+| Roll cost | Same 7% model on **each path's** GBM closes (path_roll_vector) |
 | Incomplete months | Skipped — never invent a shift on a truncated pad day |
 
 After last **observation** expiry on a path, Computation zeros further rolls (`As per HS!D14` = last obs; see §5).
@@ -138,6 +144,7 @@ Full forward calendar: [04-forwardtest-engine.md](04-forwardtest-engine.md).
 
 - Full weekly + monthly option calendar also built for Intel (`nifty_all_expiries.csv`): weeklies from Feb-2019 (Thu era) and Sep-2025+ (Tue era).
 - Hedging Sheet uses **monthly expiries only** for observation mapping.
+- Intel · Path Market shows **one selected path's** simulated Nifty, monthly expiries, and roll points — not a shared forward workbook.
 
 ### Hedging observation mapping
 
@@ -327,3 +334,76 @@ Engine recomputes every path from Product Input + market. Bucket summary: **148 
 | Product upload / parser | [03-product-input-spec.md](03-product-input-spec.md) |
 | Engine pipeline | [04-forwardtest-engine.md](04-forwardtest-engine.md) |
 | Stage formulas | [09-formulas-and-product-books.md](09-formulas-and-product-books.md) |
+
+
+## Monte Carlo GBM (Forwardtester)
+
+Reference layout: `Nifty Simulations.xlsx` (desk Monte Carlo sheet).
+
+### Inputs (from history through as-of)
+
+| Symbol | Meaning | Excel label |
+|--------|---------|-------------|
+| \(S_0\) | As-of Nifty close | Current Nifty Level |
+| \(\mu\) | Mean of daily simple returns | Daily Average Return |
+| \(\sigma\) | Sample stdev of daily returns | Daily Standard Dev |
+| \(\mathrm{drift}\) | \(\mu - \tfrac12\sigma^2\) | Drift / Mean Return |
+
+### One-step recurrence (every Mon–Fri session)
+
+\[
+S_t = S_{t-1} \cdot \exp\bigl(\mathrm{drift} + \sigma \cdot Z\bigr),
+\qquad Z \sim N(0,1)
+\]
+
+Equivalent forms:
+
+```text
+S_t = S_{t-1} · exp(drift + σ · Z)
+```
+
+```excel
+=prev * EXP($drift + $sigma * NORM.INV(RAND(), 0, 1))
+```
+
+Engine: `backend/app/engine/gbm.py` → `gbm_spots` / `gbm_spots_matrix`.
+
+### Path × day matrix (how the Excel file is laid out)
+
+In `Nifty Simulations.xlsx`:
+
+- **Rows (vertical)** = path numbers \(1, 2, 3, 4, 5, \ldots\)
+- **Columns (horizontal)** = simulation day indices \(1, 2, 3, 4, 5, \ldots\)
+- Cell \((\mathrm{path}\ i,\ \mathrm{day}\ t)\) = that path’s simulated Nifty at step \(t\)
+
+```text
+              Day 1      Day 2      Day 3     …
+Path 1     25,999.58   25,614.44   25,051.24  …
+Path 2     25,537.72   25,483.62   25,705.77  …
+Path 3     25,487.29   24,890.43   24,973.27  …
+Path 4     25,832.14   25,681.44   25,595.75  …
+Path 5     25,583.00   25,924.99   25,771.45  …
+   ⋮           ⋮           ⋮           ⋮
+```
+
+**Same day index ⇒ different prices across paths.** Path 1 Day 1 ≠ Path 2 Day 1.
+Each path draws its own \(Z\) sequence (engine seed keyed by `path_id`), so the whole Nifty series for path \(i\) is independent of path \(j\).
+
+Desk Forwardtester maps that idea onto **calendar dates** (Mon–Fri only): for a fixed trading date \(D\), simulated closes generally differ by path. That is why there is **no shared forward price database / Market Reference Workbook** — only shared **calendar rules** (when expiries and roll *dates* fall). Nifty levels, monthly-expiry marks, and roll *points* are always taken from the selected path’s column of the matrix (Intel · Path Market).
+
+### Desk vs Excel day-0
+
+| | Excel `Nifty Simulations.xlsx` | Gift AIF Forwardtester |
+|--|-------------------------------|-------------------------|
+| Column / step 0 | First **future** step from \(S_0\) | Index 0 = live as-of \(S_0\) on path start |
+| Later steps | Same recurrence | Same recurrence on path trading days |
+| Path identity | Vertical path id | `path_id` in atlas + PathSelect |
+
+### Downstream (path-local)
+
+| Use | Source |
+|-----|--------|
+| Hedging Sheet obs Nifty | That path’s simulated close on/before expiry |
+| Futures roll points | `path_roll_vector` on that path’s spots |
+| Computation MTM / NAV | That path’s daily simulated Nifty |
+| Intel · Path Market | One selected path’s Nifty · expiries · rolls |

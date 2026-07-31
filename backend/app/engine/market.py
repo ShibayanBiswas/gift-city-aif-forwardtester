@@ -13,6 +13,7 @@ import pandas as pd
 from .calendar_build import (
     build_all_option_expiries,
     build_monthly_expiries,
+    pin_current_month_roll_to_latest,
     read_dates_csv,
     write_expiries_csv,
 )
@@ -177,6 +178,46 @@ def _recompute_roll_costs(dates: list[date], closes: np.ndarray, shifts: list[da
     return roll
 
 
+def path_roll_vector(
+    path_dates: list[date],
+    spots: np.ndarray,
+    roll_shifts: list[date],
+) -> tuple[np.ndarray, dict[date, float]]:
+    """Roll *points* for one GBM path from that path's simulated Nifty.
+
+    Calendar shift *dates* come from the shared forward calendar (month-end
+    trading days). Spot averages — and therefore roll points — use only this
+    path's dates/spots. There is no shared Path-1 price database for forward
+    rolls: each Monte Carlo path has its own Nifty path and its own roll costs.
+    """
+    if not path_dates:
+        return np.zeros(0, dtype=float), {}
+    start, end = path_dates[0], path_dates[-1]
+    shifts = [d for d in roll_shifts if start <= d <= end]
+    model = _recompute_roll_costs(path_dates, np.asarray(spots, dtype=float), shifts)
+    out = np.zeros(len(path_dates), dtype=float)
+    idx = {d: i for i, d in enumerate(path_dates)}
+    for d, cost in model.items():
+        i = idx.get(d)
+        if i is not None:
+            out[i] = float(cost)
+    return out, model
+
+
+def path_nifty_on(path_dates: list[date], spots: np.ndarray, d: date) -> float | None:
+    """Last simulated close on or before ``d`` within the path window."""
+    if not path_dates:
+        return None
+    spots_arr = np.asarray(spots, dtype=float)
+    best: float | None = None
+    for i, pd in enumerate(path_dates):
+        if pd <= d:
+            best = float(spots_arr[i])
+        else:
+            break
+    return best
+
+
 def clear_market_cache() -> None:
     load_market.cache_clear()
 
@@ -297,10 +338,10 @@ def load_market() -> MarketDB:
     shifts = _extend_shifts_through(dates, shifts)
     expiries, all_expiries, monthly_last = _resolve_expiries(dates, shifts)
 
-    # Correct desk rule (Notes + NSE): futures monthly shift = monthly option expiry.
-    # WF1 Roll Cost col B disagrees on ~4 months (e.g. 31-Jul-2023 vs option 27-Jul-2023).
-    # Those are workbook calendar quirks — follow the option/expiry calendar + 7% model.
-    shifts = list(expiries)
+    # Finished months: futures shift = monthly option expiry (Notes / NSE).
+    # Open terminal month: pin roll date to latest Nifty session (Backtester parity).
+    # Hedging Sheet keeps `expiries` on true monthly-last option dates.
+    shifts = pin_current_month_roll_to_latest(list(expiries), dates)
 
     model = _recompute_roll_costs(dates, closes, shifts)
     roll_by_expiry = {d: roll_seed.get(d, model.get(d, 0.0)) for d in shifts}

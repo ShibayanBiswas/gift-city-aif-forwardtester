@@ -160,7 +160,17 @@ export function ForwardTestProvider({ children }: { children: ReactNode }) {
           })
           .catch(() => keepApiAwake());
         const [m, p] = await Promise.all([client.marketMeta(), client.currentProduct()]);
-        setMarket(m);
+        // If product horizon moved (e.g. legacy 7300 → 3650), force a fresh meta read.
+        if (
+          p?.simulation_end_days != null &&
+          m?.simulation_end_days != null &&
+          Number(p.simulation_end_days) !== Number(m.simulation_end_days)
+        ) {
+          const m2 = await client.marketMeta();
+          setMarket(m2);
+        } else {
+          setMarket(m);
+        }
         setProduct(p);
         // Dynamic as-of year from latest Nifty session (not a hardcoded 2001 default).
         if (m?.last_date) {

@@ -72,11 +72,16 @@ def run_nav(
     last_observation: date | None = None,
     store_series: bool = False,
     spots: np.ndarray | None = None,
+    roll_on_day: np.ndarray | None = None,
 ) -> NavResult:
     """Run Computation NAV.
 
     Futures Tx uses Product Input Buy/Sell Brokerage on every day (including day 0).
     Cash day-0 = cash_buffer_cr (principal × cash_pct); Gsec opening = principal − cash.
+
+    When ``roll_on_day`` is provided (Forwardtester GBM paths), those points are used
+    instead of ``market.rolls_for_dates`` — roll *dates* stay on the shared calendar;
+    roll *points* come from that path's simulated Nifty.
     """
     del rate_switch_date  # desk uses one brokerage rate card throughout
     _ = buy_rate, sell_rate  # legacy kwargs accepted but unused for Tx
@@ -94,8 +99,15 @@ def run_nav(
     else:
         spots = np.asarray(spots, dtype=float)
 
-    roll_on_day = market.rolls_for_dates(path_dates)
-    # Scale precomputed roll_costs.csv (built at ROLL_COST_BASE_RATE) to product roll_rate.
+    if roll_on_day is None:
+        roll_on_day = market.rolls_for_dates(path_dates)
+    else:
+        roll_on_day = np.asarray(roll_on_day, dtype=float)
+        if len(roll_on_day) != n:
+            raise ValueError(
+                f"roll_on_day length {len(roll_on_day)} != path length {n}"
+            )
+    # Scale precomputed roll points (built at ROLL_COST_BASE_RATE) to product roll_rate.
     if ROLL_COST_BASE_RATE > 0 and abs(roll_rate - ROLL_COST_BASE_RATE) > 1e-15:
         roll_on_day = roll_on_day * (float(roll_rate) / ROLL_COST_BASE_RATE)
     if last_observation is not None:

@@ -1,12 +1,16 @@
 """Geometric Brownian Motion stats + path generation (Excel Monte Carlo parity).
 
-Excel Raw Data / Simulation:
-  daily_return_t = Nifty_t / Nifty_{t-1} - 1
-  avg_return μ  = mean(daily returns)
-  std_dev σ     = stdev(daily returns)
-  mean_return   = μ − ½ σ²   (drift in the EXP formula)
+Excel ``Nifty Simulations.xlsx`` / Monte Carlo sheet:
 
-  S_t = S_{t-1} * EXP(mean_return + σ * NORM.INV(RAND(), 0, 1))
+  daily_return_t = Nifty_t / Nifty_{t-1} - 1
+  μ              = mean(daily returns)
+  σ              = stdev(daily returns)
+  drift          = μ − ½ σ²
+
+  S_t = S_{t-1} · exp(drift + σ · Z),   Z ~ N(0,1)
+
+  Matrix layout: rows = path numbers 1,2,3,… ; columns = day indices 1,2,3,…
+  Same day index ⇒ different prices across paths (independent Z per path_id).
 """
 from __future__ import annotations
 
@@ -28,7 +32,7 @@ class GbmParams:
     asof: str
     mean_return: float  # raw mean of daily simple returns (μ)
     std_dev: float  # σ of daily simple returns
-    drift: float  # μ − ½ σ²  (Excel "Mean Return")
+    drift: float  # μ − ½ σ²  (Excel "Drift" / "Mean Return")
     n_returns: int
     first_date: str
     last_date: str
@@ -107,10 +111,16 @@ def gbm_spots(
     path_id: int,
     base_seed: int = GBM_BASE_SEED,
 ) -> np.ndarray:
-    """Simulate one GBM spot path of length ``n_dates`` (day-0 = spot0).
+    """Simulate one GBM spot path of length ``n_dates``.
 
-    Excel column 1 is the first *future* day; our path includes as-of as index 0
-    so Hedging Sheet / Computation see the same spot0 as the live Nifty close.
+    Recurrence (matches ``Nifty Simulations.xlsx``)::
+
+        S_t = S_{t-1} · exp(drift + σ · Z),  Z ~ N(0,1)
+
+    Index 0 is as-of ``spot0`` (Hedging / Computation day-0). Excel day columns
+    are the *future* steps; our ``out[1:]`` matches those future columns for the
+    same path_id seed stream. Independent paths ⇒ different prices on the same
+    day index / calendar date.
     """
     if n_dates <= 0:
         return np.zeros(0, dtype=float)
@@ -120,6 +130,7 @@ def gbm_spots(
         return out
     rng = np.random.default_rng(int(base_seed) + int(path_id) * 1_000_003)
     z = rng.standard_normal(n_dates - 1)
+    # Equivalent to iterative S_t = S_{t-1} * exp(drift + sigma*Z_t)
     log_rets = drift + sigma * z
     out[1:] = spot0 * np.exp(np.cumsum(log_rets))
     return out
@@ -134,7 +145,10 @@ def gbm_spots_matrix(
     *,
     base_seed: int = GBM_BASE_SEED,
 ) -> np.ndarray:
-    """Vectorized (n_paths × n_dates) GBM matrix — path i uses seed base+i."""
+    """Vectorized (n_paths × n_dates) matrix — rows = paths 1..n, cols = days.
+
+    Same layout as ``Nifty Simulations.xlsx`` (vertical path id, horizontal day).
+    """
     if n_paths <= 0 or n_dates <= 0:
         return np.zeros((0, 0), dtype=float)
     # Generate path-by-path with the same seed rule as gbm_spots for worker parity.
