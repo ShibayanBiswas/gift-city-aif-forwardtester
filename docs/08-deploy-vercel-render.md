@@ -209,7 +209,7 @@ Optional: `NEXT_PUBLIC_BACKEND_URL` = same URL.
 2. **Sample Input** → download product Excel.
 3. Set path frequency (e.g. **Daily** or **Monthly**). Path count = f(frequency, Simulation End Days, tenure) — not a fixed 235 Macro Paths list.
 4. **Run**.
-5. Check **Home** GBM band, **Desk → Hedging / Computation**, **Intel → Path Market** (per-path simulated Nifty / expiries / rolls).
+5. Check **Home** GBM band, **Desk → Hedging / Computation**, **Intel → Path Market** (per-path simulated Nifty / expiries / rolls), **Intel → MC Matrix** (full path×date grid + Excel download).
 
 ---
 
@@ -288,6 +288,7 @@ Intel · Path Market is **per path** after a Run (no shared forward price workbo
 - [ ] Home shows GBM S₀ / μ / σ / drift after Run
 - [ ] Hedging Sheet + Computation populate for a path
 - [ ] Intel → Path Market: Simulated Nifty / Monthly Expiries / Rolls for selected path
+- [ ] Intel → MC Matrix: preview table + Download Excel (`/api/forwardtest/{job}/mc-matrix.xlsx`)
 - [ ] Header chips show live Simulation End Days (default 3650)
 
 ### Resilience

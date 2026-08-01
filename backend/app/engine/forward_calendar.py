@@ -1,14 +1,14 @@
 """Extend historical MarketDB into the forward simulation horizon.
 
 Forward trading sessions (after last historical Nifty close = as-of):
-  - **Mon–Fri only** — Saturday and Sunday are always closed (no prices).
+  - **Mon–Fri only**, minus projected NSE holidays inferred from historical
+    weekday gaps in ``nifty_daily.csv`` (month–day pattern of the last years).
   - Month lengths follow the real calendar (28/29/30/31), including leap Februaries.
-  - No NSE holiday calendar in the forward pad (every weekday is a session).
 
 Forward event calendars (months strictly after as-of, complete months only):
-  - **Futures shift / roll** = last trading day of each calendar month
-    (last Mon–Fri on/before the real month-end).
-  - **Monthly Nifty option expiry** = last Tuesday of each calendar month.
+  - **Futures shift / roll** = last trading day of each calendar month.
+  - **Monthly Nifty option expiry** = last Tuesday of each calendar month,
+    snapped to the previous trading session when that Tuesday is a holiday.
 
 Horizon end is **as-of + Simulation End Days** from Product Input (default 3650).
 Optional Path-1 GBM fill is legacy/debug only. Production uses per-path GBM spots
@@ -26,16 +26,57 @@ from .gbm import GBM_BASE_SEED, GbmParams, gbm_spots
 from .market import MarketDB, _recompute_roll_costs
 
 
-def _weekday_sessions(start: date, end: date) -> list[date]:
-    """Mon–Fri calendar days from ``start`` through ``end`` inclusive.
+def historical_weekday_holidays(dates: list[date]) -> set[date]:
+    """Weekdays in [first, last] absent from the Nifty session list (= holidays)."""
+    if not dates:
+        return set()
+    present = set(dates)
+    holidays: set[date] = set()
+    d = dates[0]
+    end = dates[-1]
+    while d <= end:
+        if d.weekday() < 5 and d not in present:
+            holidays.add(d)
+        d += timedelta(days=1)
+    return holidays
 
-    Uses real calendar day stepping so Feb 28/29 and 30/31-day months are exact.
-    Saturday (5) and Sunday (6) are never emitted.
-    """
+
+def project_holidays(
+    hist_holidays: set[date],
+    asof: date,
+    end: date,
+    *,
+    lookback_years: int = 6,
+) -> set[date]:
+    """Project recent historical holiday month–days onto the forward calendar."""
+    if not hist_holidays or end <= asof:
+        return set()
+    cutoff = date(asof.year - lookback_years, 1, 1)
+    md: set[tuple[int, int]] = set()
+    for h in hist_holidays:
+        if h >= cutoff and h <= asof:
+            md.add((h.month, h.day))
+    out: set[date] = set()
+    y = asof.year
+    while y <= end.year + 1:
+        for month, day in md:
+            try:
+                cand = date(y, month, day)
+            except ValueError:
+                continue
+            if asof < cand <= end and cand.weekday() < 5:
+                out.add(cand)
+        y += 1
+    return out
+
+
+def _weekday_sessions(start: date, end: date, holidays: set[date] | None = None) -> list[date]:
+    """Mon–Fri calendar days from ``start`` through ``end``, excluding holidays."""
+    hol = holidays or set()
     out: list[date] = []
     d = start
     while d <= end:
-        if d.weekday() < 5:
+        if d.weekday() < 5 and d not in hol:
             out.append(d)
         d += timedelta(days=1)
     return out
@@ -67,6 +108,16 @@ def _last_trading_day_of_month(month_end: date, trading: set[date]) -> date | No
     return None
 
 
+def _snap_to_prior_session(d: date, trading: set[date]) -> date | None:
+    """If ``d`` is not a session, walk back to the previous trading day."""
+    cur = d
+    for _ in range(12):
+        if cur in trading:
+            return cur
+        cur -= timedelta(days=1)
+    return None
+
+
 def _forward_month_rolls_and_expiries(
     trading_dates: list[date],
     *,
@@ -75,10 +126,8 @@ def _forward_month_rolls_and_expiries(
 ) -> tuple[list[date], list[date]]:
     """Future month-end rolls and last-Tuesday expiries for complete months after ``after``.
 
-    A month is emitted only when its **true** last weekday (roll) and last Tuesday
-    (expiry) both fall on the trading calendar and on/before ``end``. Truncated pad
-    months (calendar stops mid-month) are skipped — never invent a fake shift on the
-    pad's last day.
+    Expiry = last Tuesday snapped onto the trading calendar (holiday → prior session).
+    Roll = last trading day of the month. Incomplete pad months are skipped.
     """
     trading = set(trading_dates)
     rolls: list[date] = []
@@ -91,16 +140,16 @@ def _forward_month_rolls_and_expiries(
         true_roll = _last_weekday_of_month(me)
         true_tue = _last_tuesday_of_month_calendar(me)
 
-        # Incomplete month in the pad: true month-end weekday not yet on the calendar.
-        if true_roll not in trading or true_roll > end:
-            continue
-
         roll = _last_trading_day_of_month(me, trading)
-        if roll is not None and roll > after and roll <= end and roll == true_roll:
-            rolls.append(roll)
+        if roll is None or roll <= after or roll > end:
+            continue
+        if true_roll > end:
+            continue
+        rolls.append(roll)
 
-        if true_tue in trading and true_tue > after and true_tue <= end:
-            expiries.append(true_tue)
+        exp = _snap_to_prior_session(true_tue, trading)
+        if exp is not None and exp > after and exp <= end:
+            expiries.append(exp)
 
     return sorted(set(rolls)), sorted(set(expiries))
 
@@ -116,22 +165,22 @@ def extend_market_forward(
     """Return a MarketDB covering through ``horizon_end`` with forward roll/expiry rules.
 
     Historical closes / expiries / rolls are preserved through ``market.last_date``.
-    Future sessions are Mon–Fri only; future rolls = month-end trading days;
-    future monthly expiries = last Tuesdays. Optional Path-1 GBM closes are only
-    for legacy fill; production uses per-path GBM spots and ``path_roll_vector``.
+    Future sessions are Mon–Fri minus projected holidays; future rolls = month-end
+    trading days; future monthly expiries = last Tuesdays (holiday-snapped).
     """
     if horizon_end <= market.last_date:
         return market
 
     asof = market.last_date
-    future = _weekday_sessions(asof + timedelta(days=1), horizon_end)
+    hist_holidays = historical_weekday_holidays(market.dates)
+    fwd_holidays = project_holidays(hist_holidays, asof, horizon_end)
+    future = _weekday_sessions(asof + timedelta(days=1), horizon_end, fwd_holidays)
     if not future:
         return market
 
     dates = list(market.dates) + future
     hist_closes = np.asarray(market.closes, dtype=float)
     if gbm_params is not None:
-        # Full series including as-of at index 0, then future steps.
         series = gbm_spots(
             gbm_params.spot0,
             1 + len(future),
@@ -140,7 +189,6 @@ def extend_market_forward(
             path_id=path_id,
             base_seed=base_seed,
         )
-        # Keep exact historical closes; only append the forward portion.
         closes = np.concatenate([hist_closes, np.asarray(series[1:], dtype=float)])
     else:
         closes = np.concatenate(

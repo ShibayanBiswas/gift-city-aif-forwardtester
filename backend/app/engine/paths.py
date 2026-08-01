@@ -21,6 +21,7 @@ from .gbm import (
     gbm_spots,
 )
 from .market import MarketDB
+from .mc_matrix import spots_aligned_to_horizon
 from .product import ProductSpec, resolved_simulation_end
 
 Frequency = Literal["monthly", "weekly", "daily", "quarterly", "semi_annual"]
@@ -205,9 +206,21 @@ def simulate_path_spots(
     *,
     base_seed: int = GBM_BASE_SEED,
     frequency: Frequency = "daily",
+    horizon_dates: list[date] | None = None,
 ) -> np.ndarray:
-    """Daily GBM along the path trading calendar (S0 = live as-of Nifty)."""
-    del frequency
+    """GBM spots for ``dates``.
+
+    When ``horizon_dates`` is provided (as-of → Simulation End), generate the full
+    Monte Carlo row for ``path_id`` then slice — same calendar date shares one price
+    with the MC matrix (Excel Nifty Simulations layout).
+    """
+    del frequency  # frequency selects starts only; sessions stay daily GBM steps
+    if not dates:
+        return np.zeros(0, dtype=float)
+    if horizon_dates:
+        return spots_aligned_to_horizon(
+            dates, params, path_id, horizon_dates, base_seed=base_seed
+        )
     return gbm_spots(
         params.spot0,
         len(dates),
@@ -292,7 +305,7 @@ def build_paths(
         horizon,
         tenure_days,
         observation_months=observation_months,
-        fill_gbm=True,
+        fill_gbm=False,
         base_seed=base_seed,
     )
     s_last = _snap_start(fwd_market, s_last_raw, asof, s_last_raw if s_last_raw >= asof else asof)
@@ -332,13 +345,17 @@ def build_paths(
         fwd_market = extend_market_forward(
             fwd_market,
             need,
-            gbm_params=params,
+            gbm_params=None,
             base_seed=base_seed,
             path_id=1,
         )
 
     last_expiry = fwd_market.expiries[-1] if fwd_market.expiries else fwd_market.last_date
     last_obs_m = max(observation_months) if observation_months else None
+    # Full MC axis: as-of → Simulation End (Excel columns = these dates).
+    horizon_dates = fwd_market.trading_days_between(asof, horizon)
+    if not horizon_dates and asof in fwd_market.date_to_idx:
+        horizon_dates = [asof]
 
     paths: list[PathSpec] = []
     pid = 1
@@ -352,19 +369,25 @@ def build_paths(
                 fwd_market = extend_market_forward(
                     fwd_market,
                     end_cal + timedelta(days=60),
-                    gbm_params=params,
+                    gbm_params=None,
                     base_seed=base_seed,
                     path_id=1,
                 )
                 last_expiry = (
                     fwd_market.expiries[-1] if fwd_market.expiries else fwd_market.last_date
                 )
+                horizon_dates = fwd_market.trading_days_between(asof, horizon)
                 spec = _build_one(fwd_market, pid, start, tenure_days, max_end=horizon)
             if spec is None:
                 continue
         if attach_spots:
             spec.spots = simulate_path_spots(
-                spec.dates, params, pid, base_seed=base_seed, frequency=frequency
+                spec.dates,
+                params,
+                pid,
+                base_seed=base_seed,
+                frequency=frequency,
+                horizon_dates=horizon_dates,
             )
         paths.append(spec)
         pid += 1
@@ -384,7 +407,12 @@ def build_paths(
         last.dates = horizon_days
         if attach_spots:
             last.spots = simulate_path_spots(
-                last.dates, params, last.path_id, base_seed=base_seed, frequency=frequency
+                last.dates,
+                params,
+                last.path_id,
+                base_seed=base_seed,
+                frequency=frequency,
+                horizon_dates=horizon_dates,
             )
 
     return paths, fwd_market, params, horizon
@@ -400,6 +428,7 @@ def path_from_window(
     params: GbmParams | None = None,
     frequency: Frequency = "daily",
     base_seed: int = GBM_BASE_SEED,
+    horizon_dates: list[date] | None = None,
 ) -> PathSpec | None:
     """Rebuild one path from summary start/end (GBM from path_id seed)."""
     start_d = date.fromisoformat(start) if isinstance(start, str) else start
@@ -411,6 +440,11 @@ def path_from_window(
     spots = None
     if params is not None:
         spots = simulate_path_spots(
-            dates, params, path_id, base_seed=base_seed, frequency=frequency
+            dates,
+            params,
+            path_id,
+            base_seed=base_seed,
+            frequency=frequency,
+            horizon_dates=horizon_dates,
         )
     return PathSpec(path_id=path_id, start=dates[0], end=dates[-1], dates=dates, spots=spots)

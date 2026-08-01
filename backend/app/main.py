@@ -23,6 +23,14 @@ from app.engine.forwardtest import ForwardTestCancelled, compute_single_path_det
 from app.engine.gbm import GBM_BASE_SEED, GbmParams, estimate_gbm_params
 from app.engine.market import load_market, clear_market_cache
 from app.engine.market_sync import sync_market_to_present
+from app.engine.mc_matrix import (
+    build_mc_matrix,
+    load_mc_matrix,
+    matrix_meta,
+    matrix_preview,
+    save_mc_matrix,
+    write_mc_matrix_xlsx,
+)
 from app.engine.paths import build_forward_market, path_from_window
 from app.engine.product import (
     ProductSpec,
@@ -232,7 +240,38 @@ def _persist_job(job_id: str) -> None:
     try:
         status = job.get("status")
         if status == "done" and job.get("result"):
-            slim = {k: v for k, v in job["result"].items() if k != "details"}
+            result = job["result"]
+            # Persist MC matrix binary separately — never JSON-encode ndarray.
+            matrix = result.pop("_mc_matrix", None)
+            dates = result.pop("_mc_dates", None)
+            if matrix is not None and dates is not None:
+                gbm = result.get("gbm") or {}
+                try:
+                    params = GbmParams(
+                        spot0=float(gbm.get("spot0") or result.get("mc_matrix", {}).get("spot0") or 0),
+                        asof=str(gbm.get("asof") or result.get("asof") or ""),
+                        mean_return=float(gbm.get("mean_return") or 0),
+                        std_dev=float(gbm.get("std_dev") or 0),
+                        drift=float(gbm.get("drift") or 0),
+                        n_returns=int(gbm.get("n_returns") or 0),
+                        first_date=str(gbm.get("first_date") or ""),
+                        last_date=str(gbm.get("last_date") or ""),
+                    )
+                    seed = int((result.get("mc_matrix") or {}).get("base_seed") or GBM_BASE_SEED)
+                    save_mc_matrix(
+                        JOBS / job_id,
+                        dates=dates,
+                        matrix=matrix,
+                        params=params,
+                        base_seed=seed,
+                    )
+                except Exception:
+                    pass
+            slim = {
+                k: v
+                for k, v in result.items()
+                if k not in {"details", "_mc_matrix", "_mc_dates"}
+            }
             payload = {
                 "id": job_id,
                 "status": "done",
@@ -669,7 +708,11 @@ async def start_forwardtest(body: RunRequest) -> dict:
                 _jobs[job_id]["message"] = "Complete"
                 _persist_job(job_id)
                 try:
-                    slim = {k: v for k, v in result.items() if k != "details"}
+                    slim = {
+                        k: v
+                        for k, v in result.items()
+                        if k not in {"details", "_mc_matrix", "_mc_dates"}
+                    }
                     mongo.save_job_summary(job_id, frequency, slim)
                 except Exception:
                     pass
@@ -761,6 +804,7 @@ def job_summary(job_id: str) -> dict:
         "simulation_end_days": r.get("simulation_end_days"),
         "gbm": r.get("gbm"),
         "asof": r.get("asof"),
+        "mc_matrix": r.get("mc_matrix"),
         "kpis": r["kpis"],
         "summary": r["summary"],
         "yearly": r["yearly"],
@@ -904,6 +948,19 @@ def _resolve_path_detail(job_id: str, path_id: int) -> dict:
     if params is None:
         params = est
 
+    mc_meta = (job.get("result") or {}).get("mc_matrix") or {}
+    horizon_dates: list[date] | None = None
+    raw_dates = mc_meta.get("dates")
+    if isinstance(raw_dates, list) and raw_dates:
+        horizon_dates = [date.fromisoformat(str(x)[:10]) for x in raw_dates]
+    else:
+        loaded = load_mc_matrix(JOBS / job_id)
+        if loaded:
+            horizon_dates = loaded["dates"]
+        else:
+            asof_d = date.fromisoformat(str(params.asof)[:10])
+            horizon_dates = fwd_market.trading_days_between(asof_d, sim_end)
+
     match = path_from_window(
         fwd_market,
         int(path_id),
@@ -912,6 +969,7 @@ def _resolve_path_detail(job_id: str, path_id: int) -> dict:
         params=params,
         frequency=frequency,
         base_seed=GBM_BASE_SEED,
+        horizon_dates=horizon_dates,
     )
     if not match:
         raise HTTPException(
@@ -921,7 +979,13 @@ def _resolve_path_detail(job_id: str, path_id: int) -> dict:
 
     try:
         detail = compute_single_path_detail(
-            product, match, fwd_market, params=params, frequency=frequency
+            product,
+            match,
+            fwd_market,
+            params=params,
+            frequency=frequency,
+            horizon_dates=horizon_dates,
+            base_seed=GBM_BASE_SEED,
         )
     except Exception as e:
         raise HTTPException(
@@ -931,6 +995,100 @@ def _resolve_path_detail(job_id: str, path_id: int) -> dict:
     details[path_id] = detail
     _save_cached_path_detail(job_id, path_id, detail)
     return detail
+
+
+def _mc_matrix_payload(job_id: str) -> dict[str, Any]:
+    """Load saved MC matrix or rebuild from job GBM params + seed."""
+    job = _get_job(job_id)
+    if not job:
+        raise HTTPException(404, "Unknown job. Run a fresh forward test.")
+    if job.get("status") != "done" or not job.get("result"):
+        raise HTTPException(409, f"Job not ready: {job.get('status')}")
+
+    loaded = load_mc_matrix(JOBS / job_id)
+    if loaded:
+        return loaded
+
+    r = job["result"]
+    meta = r.get("mc_matrix") or {}
+    gbm = r.get("gbm") or {}
+    dates_raw = meta.get("dates") or []
+    if not dates_raw or not gbm.get("spot0"):
+        raise HTTPException(404, "Monte Carlo matrix not available for this job.")
+    dates = [date.fromisoformat(str(x)[:10]) for x in dates_raw]
+    params = GbmParams(
+        spot0=float(gbm["spot0"]),
+        asof=str(gbm["asof"]),
+        mean_return=float(gbm["mean_return"]),
+        std_dev=float(gbm["std_dev"]),
+        drift=float(gbm["drift"]),
+        n_returns=int(gbm["n_returns"]),
+        first_date=str(gbm["first_date"]),
+        last_date=str(gbm["last_date"]),
+    )
+    n_paths = int(meta.get("n_paths") or r.get("path_count") or 0)
+    seed = int(meta.get("base_seed") or GBM_BASE_SEED)
+    matrix = build_mc_matrix(params, dates, n_paths, base_seed=seed)
+    try:
+        save_mc_matrix(JOBS / job_id, dates=dates, matrix=matrix, params=params, base_seed=seed)
+    except Exception:
+        pass
+    return {
+        "matrix": matrix,
+        "dates": dates,
+        "spot0": float(params.spot0),
+        "drift": float(params.drift),
+        "std_dev": float(params.std_dev),
+        "mean_return": float(params.mean_return),
+        "base_seed": seed,
+        "asof": params.asof,
+        "n_paths": int(matrix.shape[0]),
+        "n_dates": int(matrix.shape[1]),
+    }
+
+
+@app.get("/api/forwardtest/{job_id}/mc-matrix")
+def job_mc_matrix_meta(job_id: str) -> dict:
+    job = _get_job(job_id)
+    if not job or job.get("status") != "done" or not job.get("result"):
+        raise HTTPException(404, "Forward test result expired. Please run again.")
+    meta = (job["result"].get("mc_matrix") or {}).copy()
+    if not meta:
+        payload = _mc_matrix_payload(job_id)
+        return {"ok": True, **matrix_meta(payload)}
+    return {"ok": True, **meta}
+
+
+@app.get("/api/forwardtest/{job_id}/mc-matrix/preview")
+def job_mc_matrix_preview(
+    job_id: str,
+    max_paths: int = 25,
+    max_dates: int = 40,
+) -> dict:
+    payload = _mc_matrix_payload(job_id)
+    return {
+        "ok": True,
+        **matrix_preview(
+            payload,
+            max_paths=max(1, min(int(max_paths), 100)),
+            max_dates=max(1, min(int(max_dates), 120)),
+        ),
+    }
+
+
+@app.get("/api/forwardtest/{job_id}/mc-matrix.xlsx")
+def job_mc_matrix_xlsx(job_id: str, max_paths: int | None = None) -> FileResponse:
+    payload = _mc_matrix_payload(job_id)
+    dest = JOBS / job_id / "Monte_Carlo_Nifty_Paths.xlsx"
+    cap = None if max_paths is None else max(1, int(max_paths))
+    if cap is None and payload["n_paths"] * payload["n_dates"] > 2_500_000:
+        cap = min(payload["n_paths"], 500)
+    write_mc_matrix_xlsx(payload, dest, max_paths=cap)
+    return FileResponse(
+        dest,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        filename=f"monte-carlo-nifty-paths-{job_id}.xlsx",
+    )
 
 
 @app.get("/api/forwardtest/{job_id}/paths/{path_id}")

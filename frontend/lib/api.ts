@@ -241,6 +241,22 @@ export type ForwardTestSummary = {
     std_dev_pct?: number;
   };
   asof?: string;
+  mc_matrix?: {
+    n_paths: number;
+    n_dates: number;
+    dates?: string[];
+    base_seed?: number;
+    spot0?: number;
+    drift?: number;
+    std_dev?: number;
+    mean_return?: number;
+    asof?: string;
+    layout?: {
+      rows?: string;
+      columns?: string;
+      formula?: string;
+    };
+  };
   kpis: {
     mean_total: number;
     median_total: number;
@@ -583,6 +599,69 @@ export const client = {
     api<ForwardTestSummary>(`/api/forwardtest/${id}/summary`, { timeoutMs: API_TIMEOUTS.summary }),
   pathDetail: (jobId: string, pathId: number) =>
     api<PathDetail>(`/api/forwardtest/${jobId}/paths/${pathId}`, { timeoutMs: API_TIMEOUTS.pathDetail }),
+  mcMatrixMeta: (jobId: string) =>
+    api<{
+      ok: boolean;
+      n_paths: number;
+      n_dates: number;
+      first_date?: string | null;
+      last_date?: string | null;
+      spot0?: number;
+      drift?: number;
+      std_dev?: number;
+      mean_return?: number;
+      base_seed?: number;
+      asof?: string;
+      layout?: { rows?: string; columns?: string; formula?: string };
+      dates?: string[];
+    }>(`/api/forwardtest/${jobId}/mc-matrix`, { timeoutMs: API_TIMEOUTS.summary }),
+  mcMatrixPreview: (jobId: string, maxPaths = 25, maxDates = 40) =>
+    api<{
+      ok: boolean;
+      n_paths: number;
+      n_dates: number;
+      preview_paths: number;
+      preview_dates: number;
+      headers: string[];
+      rows: Array<Array<number | string>>;
+      truncated: boolean;
+      spot0?: number;
+      drift?: number;
+      std_dev?: number;
+      mean_return?: number;
+      asof?: string;
+      first_date?: string | null;
+      last_date?: string | null;
+      layout?: { rows?: string; columns?: string; formula?: string };
+    }>(
+      `/api/forwardtest/${jobId}/mc-matrix/preview?max_paths=${maxPaths}&max_dates=${maxDates}`,
+      { timeoutMs: API_TIMEOUTS.summary },
+    ),
+  downloadMcMatrix: async (jobId: string) => {
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), API_TIMEOUTS.summary);
+    try {
+      const res = await fetch(apiUrl(`/api/forwardtest/${jobId}/mc-matrix.xlsx`), {
+        signal: ctrl.signal,
+        cache: "no-store",
+      });
+      if (!res.ok) throw new Error("Monte Carlo matrix download failed");
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `monte-carlo-nifty-paths-${jobId}.xlsx`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      if (e instanceof DOMException && e.name === "AbortError") {
+        throw new Error("Monte Carlo matrix download timed out. Retry in a moment.");
+      }
+      throw e;
+    } finally {
+      clearTimeout(timer);
+    }
+  },
   computation: (jobId: string, pathId: number) =>
     api<{
       path_id: number;

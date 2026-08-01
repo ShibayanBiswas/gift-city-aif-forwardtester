@@ -146,7 +146,7 @@ Starting a new run **cancels** any prior queued/running job. `GET /api/sync` ref
 | `app/computation` | Result, Buy/Sell, Brokerage/GST, Daily Rows, Trade Cost Ledger |
 | `app/computation/ledger` | Daily Ledger charts (NAV + Req. Delta) |
 | `app/analytics` | Yearly Lab + Path Summary |
-| `app/intel` | Path Market + Logic Atlas |
+| `app/intel` | Path Market + Monte Carlo Matrix + Logic Atlas |
 
 Theme: Cormorant Garamond display + Source Sans 3 UI; AR maroon/gold tokens in `globals.css`. Full UX spec: [06-ui-ux.md](06-ui-ux.md).
 

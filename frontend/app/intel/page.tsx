@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import Link from "next/link";
 import { motion } from "framer-motion";
 import { formatDeskDate, formatNum, isPlausibleTradingDate } from "@/lib/api";
 import { useForwardTest } from "@/lib/store";
@@ -103,6 +104,9 @@ export default function IntelPage() {
                 simulated closes — there is no separate shared price database.
               </p>
             </div>
+            <Link href="/intel/matrix" className="nav-sub-pill nav-sub-pill-active shrink-0">
+              Full MC Matrix
+            </Link>
           </div>
           <div className="mt-4">
             <PathSelect className="w-full" showMeta />

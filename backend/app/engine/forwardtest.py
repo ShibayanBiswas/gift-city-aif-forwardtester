@@ -19,6 +19,11 @@ import numpy as np
 from .gbm import GBM_BASE_SEED, GbmParams
 from .hedge import hedge_path
 from .market import MarketDB, path_nifty_on, path_roll_vector, load_market
+from .mc_matrix import (
+    build_mc_matrix,
+    horizon_trading_dates,
+    slice_path_spots,
+)
 from .nav import run_nav
 from .paths import (
     Frequency,
@@ -109,13 +114,25 @@ def _obs_dict(b) -> dict:
     }
 
 
-def _resolve_spots(path: PathSpec, params: GbmParams | None, frequency: Frequency) -> np.ndarray:
+def _resolve_spots(
+    path: PathSpec,
+    params: GbmParams | None,
+    frequency: Frequency,
+    *,
+    horizon_dates: list[date] | None = None,
+    base_seed: int = GBM_BASE_SEED,
+) -> np.ndarray:
     if path.spots is not None and len(path.spots) == len(path.dates):
         return np.asarray(path.spots, dtype=float)
     if params is None:
         raise RuntimeError(f"Path {path.path_id} has no GBM spots and no params to regenerate")
     return simulate_path_spots(
-        path.dates, params, path.path_id, frequency=frequency
+        path.dates,
+        params,
+        path.path_id,
+        frequency=frequency,
+        horizon_dates=horizon_dates,
+        base_seed=base_seed,
     )
 
 
@@ -127,10 +144,14 @@ def _evaluate_path(
     *,
     params: GbmParams | None = None,
     frequency: Frequency = "daily",
+    horizon_dates: list[date] | None = None,
+    base_seed: int = GBM_BASE_SEED,
 ) -> tuple[PathSummary, dict | None]:
     if not path.dates:
         raise RuntimeError(f"Path {path.path_id} has no trading days ({path.start} → {path.end})")
-    spots = _resolve_spots(path, params, frequency)
+    spots = _resolve_spots(
+        path, params, frequency, horizon_dates=horizon_dates, base_seed=base_seed
+    )
     if len(spots) != len(path.dates):
         raise RuntimeError(f"Path {path.path_id}: spot series length mismatch")
     # Roll *dates* from shared forward calendar; roll *points* from this path's GBM spots.
@@ -216,7 +237,11 @@ def _init_worker(payload: dict[str, Any]) -> None:
         observation_months=_WORKER_PRODUCT.observation_months,
     )
     _WORKER_MARKET = fwd
-    _WORKER_DATES = None
+    raw_dates = payload.get("horizon_dates") or []
+    _WORKER_DATES = [date.fromisoformat(str(x)[:10]) for x in raw_dates] or None
+    if _WORKER_DATES is None:
+        asof = base.last_date
+        _WORKER_DATES = fwd.trading_days_between(asof, sim_end)
     _WORKER_PARAMS = params
     raw = payload.get("gbm")
     if raw:
@@ -248,6 +273,7 @@ def _eval_chunk(windows: list[tuple[int, str, str]]) -> list[dict[str, Any]]:
             params=_WORKER_PARAMS,
             frequency=_WORKER_FREQUENCY,
             base_seed=_WORKER_SEED,
+            horizon_dates=_WORKER_DATES,
         )
         if path is None:
             raise RuntimeError(f"Could not rebuild path {path_id} ({start_s} → {end_s})")
@@ -258,6 +284,8 @@ def _eval_chunk(windows: list[tuple[int, str, str]]) -> list[dict[str, Any]]:
             store=False,
             params=_WORKER_PARAMS,
             frequency=_WORKER_FREQUENCY,
+            horizon_dates=_WORKER_DATES,
+            base_seed=_WORKER_SEED,
         )
         out.append(asdict(summary))
     return out
@@ -277,6 +305,8 @@ def _run_serial(
     *,
     params: GbmParams,
     frequency: Frequency,
+    horizon_dates: list[date] | None = None,
+    base_seed: int = GBM_BASE_SEED,
 ) -> tuple[list[PathSummary], dict[int, dict]]:
     n = len(paths)
     summaries: list[PathSummary] = []
@@ -292,6 +322,8 @@ def _run_serial(
             path.path_id in store_ids,
             params=params,
             frequency=frequency,
+            horizon_dates=horizon_dates,
+            base_seed=base_seed,
         )
         summaries.append(summary)
         if detail is not None:
@@ -319,6 +351,7 @@ def _run_parallel_processes(
     frequency: Frequency,
     base_seed: int,
     simulation_end: date,
+    horizon_dates: list[date] | None = None,
 ) -> list[PathSummary]:
     n = len(paths)
     windows = [(p.path_id, p.start.isoformat(), p.end.isoformat()) for p in paths]
@@ -335,6 +368,7 @@ def _run_parallel_processes(
         "gbm": params.to_dict(),
         "base_seed": base_seed,
         "simulation_end": simulation_end.isoformat(),
+        "horizon_dates": [d.isoformat() for d in (horizon_dates or [])],
     }
     pool = ProcessPoolExecutor(
         max_workers=workers,
@@ -406,6 +440,8 @@ def _run_parallel_threads(
     *,
     params: GbmParams,
     frequency: Frequency,
+    horizon_dates: list[date] | None = None,
+    base_seed: int = GBM_BASE_SEED,
 ) -> tuple[list[PathSummary], dict[int, dict]]:
     n = len(paths)
     summaries_by_id: dict[int, PathSummary] = {}
@@ -423,6 +459,8 @@ def _run_parallel_threads(
                 path.path_id in store_ids,
                 params=params,
                 frequency=frequency,
+                horizon_dates=horizon_dates,
+                base_seed=base_seed,
             ): path
             for path in paths
         }
@@ -479,9 +517,8 @@ def run_forwardtest(
     _emit(on_progress, 2.0, "Estimating GBM parameters & building forward calendar…")
 
     sim_end = resolved_simulation_end(market.last_date, product)
-    # Don't attach spots for large runs — regenerate from seed in workers.
-    # Estimate size from horizon; attach for monthly/weekly, skip for huge daily.
-    attach = frequency != "daily"
+    # Don't attach spots during build_paths — slice from the full MC matrix below
+    # so every path_id shares one as-of → Simulation End Z-stream (Excel layout).
     paths, fwd_market, params, horizon = build_paths(
         market,
         product.tenure_days,
@@ -490,20 +527,31 @@ def run_forwardtest(
         product=product,
         simulation_end=sim_end,
         base_seed=base_seed,
-        attach_spots=attach,
+        attach_spots=False,
     )
-    if not attach:
-        # Still attach for modest daily counts to speed serial/thread runs.
-        if len(paths) <= 2000:
-            for p in paths:
-                p.spots = simulate_path_spots(
-                    p.dates, params, p.path_id, base_seed=base_seed, frequency=frequency
-                )
 
     if not paths:
         raise RuntimeError("No forward paths generated")
     if should_cancel and should_cancel():
         raise ForwardTestCancelled("Forward test cancelled — a newer run was started.")
+
+    asof = date.fromisoformat(params.asof)
+    horizon_dates = horizon_trading_dates(fwd_market.dates, asof, horizon)
+    if not horizon_dates:
+        raise RuntimeError("No trading dates on MC horizon (as-of → Simulation End)")
+
+    n_paths = max(p.path_id for p in paths)
+    _emit(
+        on_progress,
+        3.5,
+        (
+            f"Building Monte Carlo Nifty matrix · {n_paths} paths × "
+            f"{len(horizon_dates)} dates · S0={params.spot0:,.2f}"
+        ),
+    )
+    mc_matrix = build_mc_matrix(params, horizon_dates, n_paths, base_seed=base_seed)
+    for p in paths:
+        p.spots = slice_path_spots(mc_matrix, horizon_dates, p.dates, p.path_id)
 
     n = len(paths)
     store_ids = detail_path_ids or set()
@@ -536,6 +584,8 @@ def run_forwardtest(
             should_cancel=should_cancel,
             params=params,
             frequency=frequency,
+            horizon_dates=horizon_dates,
+            base_seed=base_seed,
         )
     elif mode == "processes":
         try:
@@ -549,6 +599,7 @@ def run_forwardtest(
                 frequency=frequency,
                 base_seed=base_seed,
                 simulation_end=horizon,
+                horizon_dates=horizon_dates,
             )
         except ForwardTestCancelled:
             raise
@@ -567,6 +618,8 @@ def run_forwardtest(
                 should_cancel=should_cancel,
                 params=params,
                 frequency=frequency,
+                horizon_dates=horizon_dates,
+                base_seed=base_seed,
             )
     else:
         summaries, details = _run_parallel_threads(
@@ -579,6 +632,8 @@ def run_forwardtest(
             should_cancel=should_cancel,
             params=params,
             frequency=frequency,
+            horizon_dates=horizon_dates,
+            base_seed=base_seed,
         )
 
     if should_cancel and should_cancel():
@@ -602,6 +657,25 @@ def run_forwardtest(
         "simulation_end_days": resolved_simulation_end_days(product),
         "gbm": params.to_dict(),
         "asof": params.asof,
+        "mc_matrix": {
+            "n_paths": int(mc_matrix.shape[0]),
+            "n_dates": int(mc_matrix.shape[1]),
+            "dates": [d.isoformat() for d in horizon_dates],
+            "base_seed": int(base_seed),
+            "spot0": float(params.spot0),
+            "drift": float(params.drift),
+            "std_dev": float(params.std_dev),
+            "mean_return": float(params.mean_return),
+            "asof": params.asof,
+            "layout": {
+                "rows": "path_id 1…N (vertical)",
+                "columns": "trading dates as-of → Simulation End (horizontal)",
+                "formula": "S_t = S_{t-1} · exp(drift + σ · Z)",
+            },
+        },
+        # Internal: persisted to jobs/{id}/mc_matrix.npz then stripped before JSON.
+        "_mc_matrix": mc_matrix,
+        "_mc_dates": horizon_dates,
         "kpis": {
             "mean_total": float(np.mean(totals)),
             "median_total": float(np.median(totals)),
@@ -710,6 +784,8 @@ def compute_single_path_detail(
     *,
     params: GbmParams | None = None,
     frequency: Frequency = "daily",
+    horizon_dates: list[date] | None = None,
+    base_seed: int = GBM_BASE_SEED,
 ) -> dict:
     market = market or load_market()
     if params is None and (path.spots is None or len(path.spots) != len(path.dates)):
@@ -721,6 +797,9 @@ def compute_single_path_detail(
             observation_months=product.observation_months,
         )
         market = fwd
+        if horizon_dates is None:
+            asof = date.fromisoformat(params.asof)
+            horizon_dates = horizon_trading_dates(market.dates, asof, sim_end)
         rebuilt = path_from_window(
             market,
             path.path_id,
@@ -728,11 +807,20 @@ def compute_single_path_detail(
             path.end,
             params=params,
             frequency=frequency,
+            base_seed=base_seed,
+            horizon_dates=horizon_dates,
         )
         if rebuilt is not None:
             path = rebuilt
     summary, detail = _evaluate_path(
-        path, product, market, store=True, params=params, frequency=frequency
+        path,
+        product,
+        market,
+        store=True,
+        params=params,
+        frequency=frequency,
+        horizon_dates=horizon_dates,
+        base_seed=base_seed,
     )
     assert detail is not None
     return detail

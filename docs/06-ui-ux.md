@@ -13,7 +13,7 @@ The Gift City AIF Forward Tester desk UI follows **Anand Rathi Wealth Primary SP
 | Home | — | `/` |
 | Analytics | Yearly Lab · Path Summary | `/analytics`, `/analytics/summary` |
 | Desk | Product · Paths · Hedging Sheet · Computation · Daily Ledger | `/product`, `/paths`, `/hedging`, `/computation`, `/computation/ledger` |
-| Intel | Path Market · Logic Atlas | `/intel`, `/intel/logic` |
+| Intel | Path Market · Monte Carlo Matrix · Logic Atlas | `/intel`, `/intel/matrix`, `/intel/logic` |
 
 ### Header controls (global)
 
@@ -148,6 +148,7 @@ Path picker on both subtabs.
 | Subtab | Content |
 |--------|---------|
 | **Path Market** | Selected path: Simulated Nifty · Monthly Expiries · Futures Roll Costs (path-local) |
+| **Monte Carlo Matrix** | Full as-of → Simulation End grid (rows = path #, columns = trading dates) + Excel download |
 | **Logic Atlas** | Module rail + Active Pipeline step cards |
 
 **Path Market tabs:**
