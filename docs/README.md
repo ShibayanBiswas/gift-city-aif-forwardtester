@@ -12,7 +12,7 @@ Gift City AIF Forwardtester projects structured-unit outcomes from **As Of Today
 | [04-forwardtest-engine.md](04-forwardtest-engine.md) | Path atlas, GBM, Mon–Fri pad, hedge/NAV Backtester parity |
 | [05-architecture.md](05-architecture.md) | Next.js + FastAPI + GitHub layout |
 | [06-ui-ux.md](06-ui-ux.md) | Desk UI, Home download, Intel · Market Calendar / MC Matrix |
-| [07-verification.md](07-verification.md) | Checks, roll verify, forward calendar, MC Excel |
+| [07-verification.md](07-verification.md) | Checks · `scripts/windup_suite.py` · calendar / MC / rolls |
 | [08-deploy-vercel-render.md](08-deploy-vercel-render.md) | **Layman** Vercel + Render deploy + **all** env vars |
 | [09-formulas-and-product-books.md](09-formulas-and-product-books.md) | Formulas + forward calendars + roll 7% + GBM |
 
@@ -25,7 +25,7 @@ Gift City AIF Forwardtester projects structured-unit outcomes from **As Of Today
 | Forward calendar | Mon–Fri; last-Tuesday monthly expiry; month-end futures shift |
 | Roll cost | First = trading-day count (19 → ≈4.7713); later = calendar Δt; weekends never in avg |
 | Historical open month | `pin_current_month_roll_to_latest` (Backtester-identical) |
-| Hedge / NAV | Backtester parity (`nav` / `black_scholes` identical) |
+| Hedge / NAV | `black_scholes` identical to Backtester; `nav`/`hedge` add path-local roll points / spots |
 | GBM μ / σ | **Dynamic** every Run from Nifty **2001-01-01 → today’s as-of** (`estimate_gbm_params`) |
 | GBM matrix | Rows = path \(1,2,3,\ldots\); cols = **trading dates** as-of→Simulation End; \(S_t = S_{t-1}\cdot\exp(\mathrm{drift}+\sigma Z)\) |
 | Home download | **Download Excel** → branded Parameters + Simulated Nifty sheets |

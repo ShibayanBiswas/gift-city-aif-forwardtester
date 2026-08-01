@@ -73,7 +73,11 @@ def main() -> int:
 
     prod = parse_product_workbook(ROOT / "Product_Input_File.xlsx", name="Sample")
     check("product_tenure_1930", prod.tenure_days == 1930, str(prod.tenure_days))
-    check("product_sim_days_3650", resolved_simulation_end_days(prod) == 3650, "")
+    check(
+        "product_sim_days_7300",
+        resolved_simulation_end_days(prod) == 7300,
+        str(resolved_simulation_end_days(prod)),
+    )
     check("product_legs_6", len(prod.active_legs) == 6, str(len(prod.active_legs)))
 
     paths, fwd, params, horizon = build_paths(
@@ -84,11 +88,12 @@ def main() -> int:
         product=prod,
         attach_spots=False,
     )
+    n_paths = len(paths)
     asof = date.fromisoformat(params.asof)
     hdates = horizon_trading_dates(fwd.dates, asof, horizon)
     mat = build_mc_matrix(params, hdates, max(x.path_id for x in paths))
 
-    check("mc_matrix_shape", mat.shape == (len(paths), len(hdates)), str(mat.shape))
+    check("mc_matrix_shape", mat.shape == (n_paths, len(hdates)), str(mat.shape))
     check("mc_col0_is_s0", abs(float(mat[0, 0]) - params.spot0) < 1e-6, "")
     check(
         "mc_same_date_diff_paths",
@@ -164,8 +169,8 @@ def main() -> int:
     r = run_forwardtest(prod, "semi_annual")
     check(
         "run_mc_meta",
-        r["path_count"] == 12 and r["mc_matrix"]["n_paths"] == 12,
-        f"mean_total={r['kpis']['mean_total']:.4f} dates={r['mc_matrix']['n_dates']}",
+        r["path_count"] == n_paths and r["mc_matrix"]["n_paths"] == n_paths,
+        f"paths={r['path_count']} mean_total={r['kpis']['mean_total']:.4f} dates={r['mc_matrix']['n_dates']}",
     )
     check("final_path_near_horizon", (horizon - paths[-1].end).days <= 7, str(paths[-1].end))
 

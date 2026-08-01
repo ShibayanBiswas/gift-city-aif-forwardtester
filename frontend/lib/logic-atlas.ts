@@ -393,7 +393,7 @@ export const logicModules: LogicModule[] = [
         bullets: [
           "Path count = f(frequency, horizon, tenure, obs months)",
           "path_from_window rebuilds one path for detail views",
-          "Hedge/NAV engines identical to Backtester",
+          "black_scholes identical to Backtester; nav/hedge add path-local roll points and spots",
         ],
         steps: [
           "Return (paths, forward_market, gbm_params, simulation_end).",

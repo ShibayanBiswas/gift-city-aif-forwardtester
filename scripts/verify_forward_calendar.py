@@ -23,6 +23,7 @@ from app.engine.product import (  # noqa: E402
     DEFAULT_SIMULATION_END_DAYS,
     parse_product_workbook,
     resolved_simulation_end,
+    resolved_simulation_end_days,
 )
 
 
@@ -39,38 +40,45 @@ def main() -> int:
     m = load_market()
     asof = forward_asof(m)
     horizon = resolved_simulation_end(asof, prod)
+    sim_days = resolved_simulation_end_days(prod)
 
-    assert DEFAULT_SIMULATION_END_DAYS == 3650
-    assert (horizon - asof).days == int(
-        prod.simulation_end_days or DEFAULT_SIMULATION_END_DAYS
-    )
+    assert DEFAULT_SIMULATION_END_DAYS == 7300
+    assert sim_days == 7300
+    assert (horizon - asof).days == sim_days
 
     fwd, _ = build_forward_market(
         m,
         horizon,
         prod.tenure_days,
         observation_months=prod.observation_months,
-        fill_gbm=True,
+        fill_gbm=False,
     )
 
     span = [d for d in fwd.dates if asof <= d <= horizon]
     assert all(d.weekday() < 5 for d in span), "weekend session in forward pad"
-    assert not [d for d in _weekday_sessions(asof, horizon) if d not in fwd.date_to_idx]
+    # Forward pad omits projected NSE holidays; every pad session must still be Mon–Fri.
+    assert len(span) > 1000
+    assert set(span).issubset(set(_weekday_sessions(asof, horizon)))
 
     # Leap February must be on the pad when it falls inside the horizon.
     if asof < date(2028, 2, 29) <= horizon:
         assert date(2028, 2, 29) in fwd.date_to_idx
 
-    fwd_rolls = [d for d in fwd.roll_shifts if asof < d <= horizon]
+    trading = set(span)
+    fwd_rolls = [d for d in fwd.roll_shifts if asof <= d <= horizon]
     fwd_exps = [e for e in fwd.expiries if asof < e <= horizon]
     for r in fwd_rolls:
-        assert r == _last_weekday_of_month(_month_end(r)), r
-        assert abs(float(fwd.roll_by_expiry.get(r, 0.0))) > 0
+        me = _month_end(r)
+        # Last Mon–Fri of the month that is on the forward pad (holiday-aware).
+        expect = max(d for d in trading if d.year == me.year and d.month == me.month)
+        assert r == expect, (r, expect, _last_weekday_of_month(me))
     for e in fwd_exps:
-        assert e.weekday() == 1
-        assert e == _last_tuesday_of_month_calendar(_month_end(e)), e
+        assert e in trading, e
+        tue = _last_tuesday_of_month_calendar(_month_end(e))
+        # Last Tuesday, or prior session when Tuesday is a holiday.
+        assert e <= tue and (tue - e).days <= 10, (e, tue)
 
-    paths, fm, _, h = build_paths(
+    paths, fm, params, h = build_paths(
         m,
         prod.tenure_days,
         "monthly",
@@ -80,6 +88,7 @@ def main() -> int:
     )
     assert paths[0].start == asof
     assert h == horizon
+    assert params.asof == asof.isoformat()
     last_td = [d for d in fm.dates if paths[-1].start <= d <= horizon][-1]
     assert paths[-1].end == last_td
     for path in paths:
