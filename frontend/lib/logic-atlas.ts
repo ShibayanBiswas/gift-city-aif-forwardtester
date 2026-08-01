@@ -333,9 +333,9 @@ export const logicModules: LogicModule[] = [
         id: "calendar",
         label: "Forward Calendar",
         kind: "engine",
-        description: "Mon–Fri pad with last-Tuesday expiries and month-end futures shifts.",
+        description: "Trading-day pad with monthly option expiries and month-end futures shifts.",
         detail:
-          "extend_market_forward appends weekday sessions through the horizon pad. month_ends respects 28/29/30/31-day months (leap Februaries). Rolls = last Mon–Fri of each complete month; monthly expiries = last Tuesday. Incomplete pad months are skipped.",
+          "extend_market_forward appends weekday sessions through the horizon pad. month_ends respects 28/29/30/31-day months (leap Februaries). Rolls = last Mon–Fri of each complete month; monthly expiries = monthly option expiry rule. Incomplete pad months are skipped.",
         bullets: [
           "Saturday / Sunday always closed",
           "Futures shift ≠ option expiry in forward months (by design)",
@@ -398,7 +398,7 @@ export const logicModules: LogicModule[] = [
         steps: [
           "Return (paths, forward_market, gbm_params, simulation_end).",
           "forwardtest.run_forwardtest evaluates each path.",
-          "Intel · Market Calendar shows shared shift / expiry dates; path Nifty and roll points are on Hedging, Computation, and the Monte Carlo Matrix.",
+          "Intel · Market Calendar shows shared shift / expiry dates; path Nifty and roll points are on Hedging, Computation, and Simulated Nifty Paths.",
         ],
       },
     ],
@@ -411,7 +411,7 @@ export const logicModules: LogicModule[] = [
       "build_paths is the single forward path factory — no CSV Macro Path pins.",
       "As-of is always market.last_date (dynamic present after sync).",
       "Simulation End Days from Product Input drives the horizon and final path end.",
-      "Forward calendars: last Tuesday expiry, month-end futures shift, leap/30/31 aware.",
+      "Forward calendars: monthly expiry, month-end futures shift, leap/30/31 aware.",
       "GBM spots attach on trading days only; hedge.py and nav.py stay Backtester-parity.",
       "path_from_window rebuilds one path from cached summary start/end for path-detail views.",
     ],
@@ -427,7 +427,7 @@ export const logicModules: LogicModule[] = [
       },
       {
         title: "Forward calendar module",
-        body: "engine/forward_calendar.py owns Mon–Fri sessions, last-Tuesday expiries, and month-end rolls after as-of. Historical CSV calendars are unchanged through as-of.",
+        body: "engine/forward_calendar.py owns Mon–Fri sessions, monthly expiries, and month-end rolls after as-of. Historical CSV calendars are unchanged through as-of.",
         code: "extend_market_forward(market, horizon_end, gbm_params=...)",
       },
       {
@@ -458,12 +458,12 @@ export const logicModules: LogicModule[] = [
     engineFile: "engine/market.py",
     accent: "teal",
     purpose:
-      "MarketDB loads historical Nifty through as-of for μ/σ estimation and calendar seeds. Forward calendars (Mon–Fri, month-end rolls, last-Tuesday expiries) are shared date rules only. Each GBM path owns its simulated Nifty and its roll points — there is no shared forward price workbook.",
+      "MarketDB loads historical Nifty through as-of for μ/σ estimation and calendar seeds. Forward calendars (Mon–Fri, month-end rolls, monthly expiries) are shared date rules only. Each GBM path owns its simulated Nifty and its roll points — there is no shared forward price workbook.",
     stageCount: 5,
     metrics: [
       { label: "Roll Rate", value: "7%" },
       { label: "Forward Shift", value: "Month-End TD" },
-      { label: "Forward Expiry", value: "Last Tuesday" },
+      { label: "Forward Expiry", value: "Monthly Expiry" },
     ],
     nodes: [
       {
@@ -472,7 +472,7 @@ export const logicModules: LogicModule[] = [
         kind: "input",
         description: "Historical CSV through as-of for GBM estimation; each path then carries its own lognormal simulated closes.",
         detail:
-          "load_market builds historical dates/closes through present (as-of). estimate_gbm_params reads μ and σ from that history. Path evaluation uses gbm_spots(S0, μ, σ, path_id) on Mon–Fri sessions — per-path series appear on Hedging / Computation / MC Matrix; Intel · Market Calendar is dates only.",
+          "load_market builds historical dates/closes through present (as-of). estimate_gbm_params reads μ and σ from that history. Path evaluation uses gbm_spots(S0, μ, σ, path_id) on Mon–Fri sessions — per-path series appear on Hedging / Computation / Simulated Nifty Paths; Intel · Market Calendar is dates only.",
         bullets: [
           "As-of = latest Nifty session after /api/sync",
           "Forward sessions: Mon–Fri only (calendar pad)",
@@ -492,7 +492,7 @@ export const logicModules: LogicModule[] = [
         detail:
           "Through as-of, roll_shifts follow the historical builder / CSV. After as-of, forward_calendar emits the last Mon–Fri on/before each real month-end (only complete months). Roll *points* are not stored as a shared workbook — path_roll_vector recomputes them from each path's spots.",
         bullets: [
-          "Forward: last trading day of month (not last Tuesday)",
+          "Forward: last trading day of month (not the option expiry date)",
           "Incomplete pad months never invent a fake shift",
           "Shared calendar dates; path-local roll points",
         ],
@@ -644,7 +644,7 @@ export const logicModules: LogicModule[] = [
         id: "priority",
         label: "Month Resolver",
         kind: "engine",
-        description: "Override → futures shift → last Thursday (to Aug-2025) or last Tuesday (from Sep-2025).",
+        description: "Override → futures shift → historical Thursday era, then current monthly expiry weekday.",
         detail:
           "last_monthly_expiry_on_or_before applies NSE schedule: pre-2019 monthly-only Thursdays; 2019–Aug-2025 weekly+monthly Thursdays; from Sep-2025 Tuesdays. Holiday dates floor to previous trading day.",
         bullets: [
@@ -683,7 +683,7 @@ export const logicModules: LogicModule[] = [
         kind: "lookup",
         description: "Per-path simulated Nifty, monthly expiries, and roll points for the selected GBM path.",
         detail:
-          "There is no shared forward price workbook. Intel · Market Calendar lists futures shift dates and monthly last-Tuesday expiries only. Simulated Nifty and path_roll_vector points differ by path — see MC Matrix, Hedging, and Computation.",
+          "There is no shared forward price workbook. Intel · Market Calendar lists futures shift dates and monthly option expiry dates only. Simulated Nifty and path_roll_vector points differ by path — see Simulated Nifty Paths, Hedging, and Computation.",
         bullets: [
           "Requires a completed Run + selected path",
           "Calendar dates shared; prices/points path-local",
@@ -706,9 +706,9 @@ export const logicModules: LogicModule[] = [
       "build_monthly_expiries produces the monthly-last list used for observation mapping.",
       "hedge.resolve_observation_expiry: target month → expiry_by_month hit, else first_expiry_on_or_after.",
       "Observation targets use m × 30.5 calendar days from path start before expiry mapping.",
-      "Forward futures shifts are month-end trading days; monthly option expiries are last Tuesdays — dates may differ.",
+      "Forward futures shifts are month-end trading days; monthly option expiries follow the desk expiry calendar — dates may differ.",
       "expiry_overrides.csv optional layer sits first in the resolver priority stack.",
-      "Intel · Market Calendar is shared dates only; simulated levels live per path on MC Matrix / Hedging / Computation.",
+      "Intel · Market Calendar is shared dates only; simulated levels live per path on Simulated Nifty Paths / Hedging / Computation.",
     ],
     noteCards: [
       {

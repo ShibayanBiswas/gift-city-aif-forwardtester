@@ -122,9 +122,8 @@ export default function IntelPage() {
                 Forward Calendar Dates
               </h2>
               <p className="mt-1 max-w-3xl text-sm leading-relaxed text-[var(--ar-muted)] font-ui">
-                Shared futures shift dates and monthly last-Tuesday option expiries from as-of through Simulation End.
-                Simulated Nifty levels and roll cost points differ on every Monte Carlo path — they live on the Monte
-                Carlo Matrix, Hedging Sheet, and Computation for a selected path, not on this calendar.
+                Futures shift dates and monthly Nifty option expiry dates from As Of Today through Simulation End.
+                Path prices and roll costs differ by path — see Simulated Nifty Paths, Hedging Sheet, and Computation.
               </p>
             </div>
             <div className="flex flex-wrap gap-2">
@@ -132,7 +131,7 @@ export default function IntelPage() {
                 href="/intel/matrix"
                 className="rounded-lg border border-[rgba(212,178,76,0.45)] px-3 py-1.5 text-xs font-semibold text-[var(--ar-maroon)] font-ui"
               >
-                Monte Carlo Matrix
+                Simulated Nifty Paths
               </Link>
               <button
                 type="button"
@@ -188,8 +187,8 @@ export default function IntelPage() {
 
       {!loadError && tab === "rolls" ? (
         <SheetTable
-          title="Futures · Monthly Shift Dates"
-          subtitle={`Last trading day of each month from ${asOfLabel} through ${simEndLabel}. ${rollDisplayRows.length} dates · calendar only (roll cost points are per path).`}
+          title="Futures Shift Dates"
+          subtitle={`${rollDisplayRows.length} dates from ${asOfLabel} through ${simEndLabel}.`}
           headers={["Row", "Futures Shift Date", "Weekday"]}
           rows={rollDisplayRows}
           exportRows={rollExportRows}
@@ -203,8 +202,8 @@ export default function IntelPage() {
 
       {!loadError && tab === "expiries" ? (
         <SheetTable
-          title="Nifty Option Expiries · Monthly Last Tuesday"
-          subtitle={`Last-Tuesday monthly calendar from ${asOfLabel} through ${simEndLabel}. ${expiryDisplayRows.length} dates · calendar only (simulated Nifty on expiry is per path).`}
+          title="Nifty Option Expiries"
+          subtitle={`${expiryDisplayRows.length} monthly expiry dates from ${asOfLabel} through ${simEndLabel}.`}
           headers={["Row", "Expiry Date", "Weekday", "Contract"]}
           rows={expiryDisplayRows}
           exportRows={expiryExportRows}

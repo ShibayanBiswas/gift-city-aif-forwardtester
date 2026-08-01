@@ -471,6 +471,8 @@ export const client = {
       first_expiry: string | null;
       last_expiry: string | null;
       product_name?: string;
+      tenure_days?: number;
+      path_counts?: Partial<Record<Frequency, number>>;
     }>("/api/market/meta", { timeoutMs: API_TIMEOUTS.bootstrap }, 2),
   nifty: () =>
     api<{

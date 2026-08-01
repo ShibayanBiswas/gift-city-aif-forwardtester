@@ -19,7 +19,7 @@ const ui = Source_Sans_3({
 
 export const metadata: Metadata = {
   title: "Gift City AIF Forwardtester | Anand Rathi Wealth",
-  description: "SEBI Category III GIFT City AIF structured product GBM Monte Carlo forward tester",
+  description: "SEBI Category III GIFT City AIF structured product forward tester — Anand Rathi Wealth",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

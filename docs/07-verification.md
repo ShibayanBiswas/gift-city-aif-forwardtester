@@ -99,13 +99,15 @@ Intel `/api/market/{nifty,expiries,rolls}` returns **calendar / estimation** sur
 
 Path starts are **forward** from As Of Today through Simulation End (default **7300** calendar days). There is no historical Macro Paths pin file.
 
-| Frequency (7300d sample, as-of 2026-07-31) | Approx. paths | Notes |
-|-------------------------------------------|--------------:|-------|
-| Monthly | **182** | Preferred desk / regression frequency |
-| Semi-annual | **32** | Fast audit / parity scripts |
-| Quarterly | **62** | Mid-speed checks |
-| Weekly | **785** | Heavier; avoid on free Render |
-| Daily | ~3,200+ | Stress / offline only on free tier |
+| Frequency (7300d sample, as-of 2026-07-31) | Paths | Start rule |
+|-------------------------------------------|-----:|------------|
+| Daily | **3233** | Every trading day in [as-of, last start] |
+| Weekly | **785** | First trading day of each ISO week |
+| Monthly | **182** | First trading day of each calendar month |
+| Quarterly | **62** | First trading day of each quarter |
+| Semi-annual | **32** | First trading day of each H1 / H2 |
+
+Path 1 is always **As Of Today**. Last start is the latest date whose tenure still ends on Simulation End. Verify: `scripts/verify_path_counts.py`. Desk frequency dropdown shows live counts from `market.path_counts`.
 
 Path count is **product-dependent**: `max(observation_months)` gates which starts still have a resolvable last observation on the live expiry calendar (float `m × 30.5`, same as hedge). Desk catalogue supports **1…7 observation months**. Regression: `scripts/verify_dynamic_products.py`, `scripts/windup_suite.py`.
 

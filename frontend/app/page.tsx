@@ -135,7 +135,7 @@ export default function HomePage() {
                       value: `${formatNum(summary.gbm.std_dev_pct ?? summary.gbm.std_dev * 100, 2)}%`,
                     },
                     {
-                      label: "Mean Drift",
+                      label: "Drift",
                       value: summary.gbm.drift.toFixed(6),
                     },
                   ].map((c) => (

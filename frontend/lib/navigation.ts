@@ -43,7 +43,7 @@ export const mainSections: NavSection[] = [
     match: (p) => p.startsWith("/intel"),
     subNav: [
       { href: "/intel", label: "Market Calendar", match: (p) => p === "/intel" },
-      { href: "/intel/matrix", label: "Monte Carlo Matrix", match: (p) => p.startsWith("/intel/matrix") },
+      { href: "/intel/matrix", label: "Simulated Nifty Paths", match: (p) => p.startsWith("/intel/matrix") },
       { href: "/intel/logic", label: "Logic Atlas", match: (p) => p.startsWith("/intel/logic") },
     ],
   },

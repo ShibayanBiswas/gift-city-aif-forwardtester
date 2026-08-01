@@ -79,7 +79,7 @@ export default function MonteCarloMatrixPage() {
               <p className="text-xs uppercase tracking-[0.22em] text-[var(--ar-subtle)] font-ui">Intel</p>
               <h2 className="font-display text-3xl text-[var(--ar-maroon)] md:text-4xl">Simulated Nifty Paths</h2>
               <p className="mt-1 max-w-3xl text-sm leading-relaxed text-[var(--ar-muted)] font-ui">
-                Path rows and trading-date columns from as-of through Simulation End.
+                Path rows and trading-date columns from As Of Today through Simulation End.
               </p>
             </div>
             <div className="flex flex-wrap gap-2 items-center">

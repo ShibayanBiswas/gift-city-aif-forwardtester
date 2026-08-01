@@ -32,7 +32,12 @@ from app.engine.mc_matrix import (
     slice_path_spots,
     write_mc_matrix_xlsx,
 )
-from app.engine.paths import build_forward_market, path_from_window
+from app.engine.paths import (
+    ALL_FREQUENCIES,
+    build_forward_market,
+    enumerate_path_starts,
+    path_from_window,
+)
 from app.engine.product import (
     ProductSpec,
     parse_product_workbook,
@@ -157,15 +162,29 @@ def _horizon_meta(desk: dict[str, Any]) -> dict[str, Any]:
     fwd = desk["market"]
     asof = desk["asof"]
     sim_end = desk["simulation_end"]
+    product = desk["product"]
     horizon_days = fwd.trading_days_between(asof, sim_end)
     horizon_expiries = [e for e in fwd.expiries if asof <= e <= sim_end]
+    path_counts = {
+        freq: len(
+            enumerate_path_starts(
+                fwd,
+                asof,
+                sim_end,
+                int(product.tenure_days),
+                freq,
+                observation_months=product.observation_months,
+            )
+        )
+        for freq in ALL_FREQUENCIES
+    }
     return {
         "first_date": base.first_date.isoformat(),
         "last_date": asof.isoformat(),
         "asof": asof.isoformat(),
         "simulation_end": sim_end.isoformat(),
         "simulation_end_days": desk["simulation_end_days"],
-        "product_name": desk["product"].name,
+        "product_name": product.name,
         "trading_days": len(horizon_days),
         "trading_days_history": len(base.dates),
         "expiries": len(horizon_expiries),
@@ -181,6 +200,8 @@ def _horizon_meta(desk: dict[str, Any]) -> dict[str, Any]:
             (d.isoformat() for d in reversed(fwd.roll_shifts) if asof <= d <= sim_end),
             None,
         ),
+        "path_counts": path_counts,
+        "tenure_days": int(product.tenure_days),
     }
 
 

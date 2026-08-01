@@ -107,7 +107,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       </header>
       <main className="page-enter mx-auto w-full max-w-full flex-1 px-4 py-4 pb-3 lg:px-6">{children}</main>
       <footer className="border-t border-[var(--ar-border)] py-3 text-center text-xs text-[var(--ar-subtle)]">
-        Anand Rathi Wealth · GIFT City Cat-III AIF Forwardtester · Geometric Brownian Motion From Today
+        Anand Rathi Wealth · GIFT City Cat-III AIF Forwardtester
       </footer>
     </div>
   );

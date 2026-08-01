@@ -8,6 +8,7 @@ function cleanProgressCopy(raw: string): string {
   return raw
     .replace(/\x1b\[[0-9;]*m/g, "")
     .replace(/tqdm/gi, "")
+    .replace(/Monte Carlo/gi, "Simulated")
     .replace(/\s{2,}/g, " ")
     .trim();
 }

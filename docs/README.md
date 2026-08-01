@@ -28,6 +28,7 @@ Gift City AIF Forwardtester projects structured-unit outcomes from **As Of Today
 | Hedge / NAV | `black_scholes` identical to Backtester; `nav`/`hedge` add path-local roll points / spots |
 | GBM μ / σ | **Dynamic** every Run from Nifty **2001-01-01 → today’s as-of** (`estimate_gbm_params`) |
 | GBM matrix | Rows = path \(1,2,3,\ldots\); cols = **trading dates** as-of→Simulation End; \(S_t = S_{t-1}\cdot\exp(\mathrm{drift}+\sigma Z)\) |
+| Path count | \(f(\)frequency, horizon, tenure, obs months\()\) — daily / weekly / monthly / quarterly / semi-annual grids |
 | Home download | **Download Excel** → branded Parameters + Simulated Nifty sheets |
 | Intel · Market Calendar | Shared futures shift / monthly expiry **dates** only (path Nifty & roll points on MC Matrix / Hedging / Computation) |
 | Intel · MC Matrix | Preview table + same Excel download as Home |

@@ -30,8 +30,10 @@ export function SiteNav() {
     run,
     upload,
     product,
+    market,
     setError,
   } = useForwardTest();
+  const pathCounts = market?.path_counts;
 
   return (
     <div className="border-t border-[var(--ar-border)]">
@@ -85,11 +87,15 @@ export function SiteNav() {
             className="desk-select disabled:opacity-50"
             title={running ? "Wait for the current simulation to finish" : "Path Frequency"}
           >
-            {(FREQUENCY_ORDER).map((f) => (
-              <option key={f} value={f}>
-                {FREQUENCY_LABELS[f]}
-              </option>
-            ))}
+            {FREQUENCY_ORDER.map((f) => {
+              const n = pathCounts?.[f];
+              const label = FREQUENCY_LABELS[f];
+              return (
+                <option key={f} value={f}>
+                  {n != null && Number.isFinite(n) ? `${label} · ${n.toLocaleString("en-IN")} paths` : label}
+                </option>
+              );
+            })}
           </select>
           <button
             type="button"

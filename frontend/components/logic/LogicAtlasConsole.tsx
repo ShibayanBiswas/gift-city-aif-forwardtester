@@ -25,7 +25,7 @@ const DESK_LINKS = [
   { href: "/computation", label: "Computation" },
   { href: "/analytics", label: "Analytics" },
   { href: "/intel", label: "Market Calendar" },
-  { href: "/intel/matrix", label: "Monte Carlo Matrix" },
+  { href: "/intel/matrix", label: "Simulated Nifty Paths" },
 ] as const;
 
 export function LogicAtlasConsole() {

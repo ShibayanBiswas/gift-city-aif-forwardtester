@@ -73,7 +73,7 @@ export function PathCalendar({
         </div>
       </div>
       <p className="text-xs text-[var(--ar-subtle)] font-ui">
-        Maroon chips = observation / Nifty monthly option expiry dates.
+        Maroon chips mark observation expiry dates.
       </p>
     </div>
   );

@@ -15,6 +15,7 @@ PY = ROOT / ".venv" / "Scripts" / "python.exe"
 SCRIPTS = [
     "verify_roll_costs.py",
     "verify_forward_calendar.py",
+    "verify_path_counts.py",
     "verify_nifty_expiries.py",
     "audit_forward_parity.py",
     "e2e_edge_cases.py",
