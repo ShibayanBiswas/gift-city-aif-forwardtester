@@ -539,7 +539,7 @@ def run_forwardtest(
     _emit(
         on_progress,
         3.5,
-        f"Building Monte Carlo Nifty matrix · {n_paths} paths",
+        f"Building simulated Nifty paths · {n_paths} paths",
     )
     mc_matrix = build_mc_matrix(params, horizon_dates, n_paths, base_seed=base_seed)
     for p in paths:
