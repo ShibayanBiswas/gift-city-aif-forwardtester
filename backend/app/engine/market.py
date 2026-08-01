@@ -187,14 +187,48 @@ def path_roll_vector(
 
     Calendar shift *dates* come from the shared forward calendar (month-end
     trading days). Spot averages — and therefore roll points — use only this
-    path's dates/spots. There is no shared Path-1 price database for forward
-    rolls: each Monte Carlo path has its own Nifty path and its own roll costs.
+    path's dates/spots.
+
+    The first shift *inside* the path window continues from the previous global
+    shift (calendar Δt), matching Working File 1 / Backtester. It must **not**
+    re-apply the seed-month trading-day N rule (that rule is only for the very
+    first shift in history, e.g. Jan-2001).
     """
     if not path_dates:
         return np.zeros(0, dtype=float), {}
     start, end = path_dates[0], path_dates[-1]
-    shifts = [d for d in roll_shifts if start <= d <= end]
-    model = _recompute_roll_costs(path_dates, np.asarray(spots, dtype=float), shifts)
+    all_shifts = sorted(roll_shifts)
+    shifts = [d for d in all_shifts if start <= d <= end]
+    if not shifts:
+        return np.zeros(len(path_dates), dtype=float), {}
+
+    prev: date | None = None
+    for d in all_shifts:
+        if d < start:
+            prev = d
+        else:
+            break
+
+    date_arr = np.array(path_dates, dtype="datetime64[D]")
+    close_arr = np.asarray(spots, dtype=float)
+    model: dict[date, float] = {}
+    for exp in shifts:
+        if prev is None:
+            mask = date_arr <= np.datetime64(exp)
+            if mask.any():
+                avg = float(close_arr[mask].mean())
+                trading_days = int(mask.sum())
+                model[exp] = avg * 0.07 * trading_days / 365.0
+        else:
+            mask = (date_arr > np.datetime64(prev)) & (date_arr <= np.datetime64(exp))
+            if not mask.any():
+                model[exp] = 0.0
+            else:
+                avg = float(close_arr[mask].mean())
+                days = (exp - prev).days  # calendar Δt (Sat/Sun included)
+                model[exp] = avg * 0.07 * days / 365.0
+        prev = exp
+
     out = np.zeros(len(path_dates), dtype=float)
     idx = {d: i for i, d in enumerate(path_dates)}
     for d, cost in model.items():

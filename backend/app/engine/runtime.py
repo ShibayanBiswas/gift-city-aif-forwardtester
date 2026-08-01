@@ -88,6 +88,10 @@ def forwardtest_parallelism(n_paths: int) -> tuple[str, int]:
     else:
         workers = max(1, min(cpus, 4))
 
+    workers = max(1, min(workers, max(1, n_paths)))
+    if workers == 1:
+        mode = "serial"
+
     return mode, workers
 
 

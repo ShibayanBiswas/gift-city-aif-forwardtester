@@ -157,7 +157,7 @@ Theme: Cormorant Garamond display + Source Sans 3 UI; AR maroon/gold tokens in `
 | Store | Contents | Git |
 |-------|----------|-----|
 | `data/nifty_daily.csv` etc. | Market history (auto-extended) | Tracked |
-| `data/macro_path_windows.csv` | Backtester-only Macro Path pins — **not used** by Forwardtester path atlas | Optional / unused |
+| `data/nifty_daily.csv` | Historical Nifty closes for GBM μ/σ |
 | Header `/api/market/meta` | As Of Today, Simulation End, horizon Trading Days & Monthly Expiries | Live |
 | `data/uploads/` | Current product workbook | Ignored |
 | `data/jobs/` | Slim forward-test results (~12 newest kept) | Ignored |

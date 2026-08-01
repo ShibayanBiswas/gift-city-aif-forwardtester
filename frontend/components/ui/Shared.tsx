@@ -543,7 +543,7 @@ export function KpiBand() {
       median: null as string | null,
     },
     {
-      label: `Paths Since ${sinceYear}`,
+      label: `Paths From ${sinceYear}`,
       mean: String(filteredSummary.length),
       median: null as string | null,
     },
