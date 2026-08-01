@@ -1043,6 +1043,8 @@ def _mc_matrix_payload(job_id: str) -> dict[str, Any]:
         "mean_return": float(params.mean_return),
         "base_seed": seed,
         "asof": params.asof,
+        "first_date": str(params.first_date),
+        "last_date": str(params.last_date),
         "n_paths": int(matrix.shape[0]),
         "n_dates": int(matrix.shape[1]),
     }

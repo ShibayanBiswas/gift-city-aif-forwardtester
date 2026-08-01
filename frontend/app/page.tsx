@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { motion } from "framer-motion";
 import Link from "next/link";
 import { useForwardTest } from "@/lib/store";
@@ -7,10 +8,12 @@ import { EmptyRunHint, KpiBand } from "@/components/ui/Shared";
 import { ChartFrame, YearlyTotalChart } from "@/components/charts/Charts";
 import { ProductMetaStrip, ProductSpecTables } from "@/components/ProductSpecTables";
 import { SheetTable } from "@/components/SheetTable";
-import { formatDeskDate, formatNum } from "@/lib/api";
+import { DownloadButton } from "@/components/DownloadButton";
+import { client, formatDeskDate, formatNum } from "@/lib/api";
 
 export default function HomePage() {
-  const { product, summary, filteredYearly, sinceYear, market } = useForwardTest();
+  const { product, summary, filteredYearly, sinceYear, market, jobId } = useForwardTest();
+  const [downloadError, setDownloadError] = useState<string | null>(null);
   const displayName = product?.name === "Default Product" ? "Current Product" : product?.name ?? "Loading…";
   const principalCr = product?.principal_cr ?? 100;
   const principalLabel =
@@ -32,6 +35,19 @@ export default function HomePage() {
   const gbmEstStart = summary?.gbm?.first_date ?? market?.first_date ?? "2001-01-01";
   const gbmEstEnd =
     market?.asof ?? market?.last_date ?? summary?.asof ?? summary?.gbm?.asof ?? null;
+
+  const downloadSimulatedPaths = async () => {
+    if (!jobId) {
+      setDownloadError("Run a forward test first to generate simulated Nifty paths.");
+      return;
+    }
+    setDownloadError(null);
+    try {
+      await client.downloadMcMatrix(jobId);
+    } catch (e) {
+      setDownloadError(e instanceof Error ? e.message : "Download failed");
+    }
+  };
 
   return (
     <div className="space-y-6">
@@ -95,16 +111,36 @@ export default function HomePage() {
               className="ar-panel overflow-hidden"
             >
               <div className="border-b border-[var(--ar-border)] bg-gradient-to-r from-[var(--ar-table-head-from)] to-transparent px-6 py-5">
-                <p className="font-ui text-xs uppercase tracking-[0.22em] text-[var(--ar-subtle)]">
-                  Geometric Brownian Motion
-                </p>
-                <p className="mt-1 font-display text-2xl text-[var(--ar-maroon)] md:text-3xl">
-                  Estimation {formatDeskDate(gbmEstStart)} → {formatDeskDate(gbmEstEnd)}
-                </p>
-                <p className="mt-1 max-w-2xl text-sm leading-relaxed text-[var(--ar-muted)] font-ui">
-                  Live daily average return and daily standard deviation from Nifty history through today&apos;s as-of
-                  close. Path spots step only on weekday sessions.
-                </p>
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <p className="font-ui text-xs uppercase tracking-[0.22em] text-[var(--ar-subtle)]">
+                      Geometric Brownian Motion
+                    </p>
+                    <p className="mt-1 font-display text-2xl text-[var(--ar-maroon)] md:text-3xl">
+                      Estimation {formatDeskDate(gbmEstStart)} → {formatDeskDate(gbmEstEnd)}
+                    </p>
+                    <p className="mt-1 max-w-2xl text-sm leading-relaxed text-[var(--ar-muted)] font-ui">
+                      Daily average return and daily standard deviation are recalculated from Nifty history from
+                      01-Jan-2001 through today&apos;s as-of close. Download the full path × date simulated Nifty
+                      grid in Excel Monte Carlo format.
+                    </p>
+                  </div>
+                  <DownloadButton
+                    label="Download Simulated Nifty Paths"
+                    onClick={downloadSimulatedPaths}
+                    className="shrink-0 bg-[var(--ar-maroon)] text-white hover:bg-[var(--ar-maroon)] hover:border-[var(--ar-gold)]"
+                  />
+                </div>
+                {downloadError ? (
+                  <p className="mt-3 text-sm text-[var(--ar-maroon)] font-ui">{downloadError}</p>
+                ) : null}
+                {summary.mc_matrix ? (
+                  <p className="mt-3 text-xs text-[var(--ar-muted)] font-ui">
+                    Excel layout · {summary.mc_matrix.n_paths} paths × {summary.mc_matrix.n_dates} trading dates ·
+                    rows = path number · columns = dates · {formatDeskDate(summary.asof)} →{" "}
+                    {formatDeskDate(summary.simulation_end)}
+                  </p>
+                ) : null}
               </div>
               <div className="horizontal-rail-fill px-6 py-5">
                 <div className="horizontal-rail-fill-inner flex w-full gap-3">

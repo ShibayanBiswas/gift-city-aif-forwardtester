@@ -124,6 +124,8 @@ def save_mc_matrix(
         mean_return=float(params.mean_return),
         base_seed=int(base_seed),
         asof=str(params.asof),
+        first_date=str(params.first_date),
+        last_date=str(params.last_date),
     )
     return path
 
@@ -134,6 +136,7 @@ def load_mc_matrix(folder: Path) -> dict[str, Any] | None:
         return None
     data = np.load(path, allow_pickle=False)
     dates = [date.fromisoformat(str(x)) for x in data["dates"].tolist()]
+    keys = set(data.files)
     return {
         "matrix": np.asarray(data["matrix"], dtype=np.float32),
         "dates": dates,
@@ -143,6 +146,8 @@ def load_mc_matrix(folder: Path) -> dict[str, Any] | None:
         "mean_return": float(data["mean_return"]),
         "base_seed": int(data["base_seed"]),
         "asof": str(data["asof"]),
+        "first_date": str(data["first_date"]) if "first_date" in keys else "2001-01-01",
+        "last_date": str(data["last_date"]) if "last_date" in keys else str(data["asof"]),
         "n_paths": int(data["matrix"].shape[0]),
         "n_dates": int(data["matrix"].shape[1]),
     }
@@ -201,17 +206,31 @@ def write_mc_matrix_xlsx(payload: dict[str, Any], dest: Path, *, max_paths: int 
     dates: list[date] = payload["dates"]
     n_paths = mat.shape[0] if max_paths is None else min(mat.shape[0], int(max_paths))
     n_dates = mat.shape[1]
+    mean_ret = float(payload["mean_return"])
+    std_dev = float(payload["std_dev"])
+    asof = str(payload.get("asof") or "")
+    # Prefer explicit history window when present (2001 → today).
+    hist_first = str(payload.get("first_date") or payload.get("estimation_start") or "2001-01-01")
+    hist_last = str(payload.get("last_date") or payload.get("estimation_end") or asof)
 
     wb = Workbook(write_only=True)
     ws = wb.create_sheet("Monte Carlo Nifty")
-    # Params block (Excel Raw Data / Monte Carlo style)
+    # Params block — matches Excel Monte Carlo.xlsx Raw Data / Monte Carlo sheet.
     ws.append(["Current Nifty Level (S0)", float(payload["spot0"])])
-    ws.append(["Daily Average Return (μ)", float(payload["mean_return"])])
-    ws.append(["Daily Standard Dev (σ)", float(payload["std_dev"])])
+    ws.append(["Daily Average Return (μ)", mean_ret])
+    ws.append(["Daily Average Return %", mean_ret * 100.0])
+    ws.append(["Daily Standard Dev (σ)", std_dev])
+    ws.append(["Daily Standard Dev %", std_dev * 100.0])
     ws.append(["Mean Drift (μ − ½σ²)", float(payload["drift"])])
-    ws.append(["As Of", str(payload["asof"])])
+    ws.append(["Estimation Start", hist_first])
+    ws.append(["Estimation End / As Of", hist_last])
+    ws.append(["Simulation First Date", dates[0].isoformat() if dates else ""])
+    ws.append(["Simulation Last Date", dates[-1].isoformat() if dates else ""])
+    ws.append(["Number Of Paths", int(n_paths)])
+    ws.append(["Number Of Trading Dates", int(n_dates)])
     ws.append(["Formula", "S_t = S_{t-1} * EXP(drift + sigma * Z), Z ~ N(0,1)"])
     ws.append([])
+    # Rows = path numbers; columns = forward trading dates.
     ws.append(["Path \\ Date"] + [d.isoformat() for d in dates])
     for i in range(n_paths):
         ws.append([i + 1] + [round(float(mat[i, j]), 6) for j in range(n_dates)])
