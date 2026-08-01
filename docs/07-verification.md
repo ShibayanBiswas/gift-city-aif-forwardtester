@@ -88,7 +88,7 @@ Intel `/api/market/{nifty,expiries,rolls}` returns **calendar / estimation** sur
 |--------|------:|-------|
 | Notes R3 | **235** | Narrative pin count |
 | Macro Paths / Summary (WF1) | **235** | Last start ~2020-07-01 |
-| Engine monthly (pinned) | **235** | Matches `macro_path_windows.csv` start/end |
+| Engine monthly paths | Frequency-driven from as-of → Simulation End | No Macro Path pin file |
 | Engine monthly (total) | **250** | Paths 236…250 extend through 2026-07-24 |
 
 Path count is **product-dependent**: `max(observation_months)` gates which starts still have a resolvable last observation on the live expiry calendar (float `m × 30.5`, same as hedge). Desk catalogue supports **1…7 observation months** (min 1, max 7 — not fixed at 7). Empty or 8+ lists are rejected at parse / `ProductSpec` construction. Regression: `scripts/verify_dynamic_products.py`.

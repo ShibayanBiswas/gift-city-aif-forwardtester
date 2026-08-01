@@ -320,7 +320,7 @@ export const logicModules: LogicModule[] = [
           "generate_path_starts builds the grid on the forward trading calendar: every Mon–Fri (daily), first TD of ISO week / month / quarter / half-year. Path 1 is forced to as-of = market.last_date after Yahoo sync.",
         bullets: [
           "As-of updates after deploy via /api/sync",
-          "No macro_path_windows.csv pins (Backtester-only)",
+          "Staggered GBM starts from today through Simulation End",
           "Last start chosen so tenure can reach Simulation End",
         ],
         steps: [
