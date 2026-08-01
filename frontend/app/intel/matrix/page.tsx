@@ -5,11 +5,7 @@ import Link from "next/link";
 import { motion } from "framer-motion";
 import { Download, RefreshCw } from "lucide-react";
 
-import {
-  client,
-  formatDeskDate,
-  formatNum,
-} from "@/lib/api";
+import { client, formatDeskDate, formatNum } from "@/lib/api";
 import { useForwardTest } from "@/lib/store";
 import { EmptyRunHint } from "@/components/ui/Shared";
 import { SheetTable } from "@/components/SheetTable";
@@ -90,16 +86,18 @@ export default function MonteCarloMatrixPage() {
               <p className="text-xs uppercase tracking-[0.22em] text-[var(--ar-subtle)] font-ui">
                 Intel · Monte Carlo Matrix
               </p>
-              <h2 className="font-display text-3xl text-[var(--ar-maroon)] md:text-4xl">
+              <h2 className="font-display text-2xl text-[var(--ar-maroon)] md:text-3xl">
                 Path × Date Nifty Grid
               </h2>
               <p className="mt-1 max-w-3xl text-sm leading-relaxed text-[var(--ar-muted)] font-ui">
-                Full-horizon GBM matrix from as-of through Simulation End. Rows are path
-                numbers; columns are trading dates (holidays excluded). Formula matches
-                Excel Monte Carlo:{" "}
-                <span className="font-ui">Sₜ = Sₜ₋₁ · exp(drift + σ · Z)</span>. Tenure
-                windows and roll costs slice this same grid — different paths ⇒ different
-                Nifty on the same date ⇒ different roll points.
+                Full-horizon Geometric Brownian Motion matrix from as-of through Simulation End.
+                Rows are path numbers; columns are weekday trading dates after holiday exclusion.
+                Each step follows{" "}
+                <span className="font-serif italic">
+                  S<sub>t</sub> = S<sub>t−1</sub> · exp(drift + σ · Z)
+                </span>
+                . Tenure windows and roll costs slice this same grid, so different paths carry
+                different Nifty levels and different roll points on the same calendar date.
               </p>
             </div>
             <div className="flex flex-wrap gap-2">
@@ -129,19 +127,19 @@ export default function MonteCarloMatrixPage() {
 
           <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
             {[
-              { label: "Paths (rows)", value: String(nPaths) },
-              { label: "Trading Dates (cols)", value: String(nDates) },
+              { label: "Paths · Vertical Rows", value: String(nPaths) },
+              { label: "Trading Dates · Horizontal Columns", value: String(nDates) },
               {
-                label: "As Of → End",
+                label: "As Of → Simulation End",
                 value: `${formatDeskDate(preview?.first_date ?? summary.asof)} → ${formatDeskDate(preview?.last_date ?? summary.simulation_end)}`,
               },
               {
-                label: "S0 / Drift",
+                label: "Current Nifty Spot · Mean Drift",
                 value:
                   preview?.spot0 != null
-                    ? `${formatNum(preview.spot0, 2)} / ${formatNum(preview.drift ?? 0, 6)}`
+                    ? `${formatNum(preview.spot0, 2)} · ${formatNum(preview.drift ?? 0, 6)}`
                     : meta?.spot0 != null
-                      ? `${formatNum(meta.spot0, 2)} / ${formatNum(meta.drift ?? 0, 6)}`
+                      ? `${formatNum(meta.spot0, 2)} · ${formatNum(meta.drift ?? 0, 6)}`
                       : "—",
               },
             ].map((m) => (
@@ -158,7 +156,7 @@ export default function MonteCarloMatrixPage() {
           ) : null}
           {preview?.truncated ? (
             <p className="mt-3 text-xs text-[var(--ar-muted)] font-ui">
-              Preview shows the first {preview.preview_paths} paths × {preview.preview_dates}{" "}
+              Preview shows the first {preview.preview_paths} paths and {preview.preview_dates}{" "}
               dates. Download Excel for the full matrix.
             </p>
           ) : null}
@@ -170,7 +168,7 @@ export default function MonteCarloMatrixPage() {
       ) : (
         <SheetTable
           title="Monte Carlo · Nifty Paths"
-          subtitle="Vertical = path number · Horizontal = forward trading dates"
+          subtitle="Vertical path number · Horizontal forward trading dates"
           headers={headers}
           rows={tableRows}
           filename={`monte-carlo-preview-${jobId}.xlsx`}

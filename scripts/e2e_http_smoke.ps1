@@ -51,6 +51,18 @@ $d1 = Invoke-RestMethod "$base/api/forwardtest/$job/paths/$($paths.paths[0].path
 $d2 = Invoke-RestMethod "$base/api/forwardtest/$job/paths/$($paths.paths[1].path_id)"
 Check 'path_market' (($d1.nifty.Count -gt 100) -and ($d1.rolls.Count -gt 0) -and ($d1.monthly_expiries.Count -gt 0)) "n=$($d1.nifty.Count) r=$($d1.rolls.Count) e=$($d1.monthly_expiries.Count)"
 
+$h1 = Invoke-RestMethod "$base/api/forwardtest/$job/paths/$($paths.paths[0].path_id)/horizon-market"
+$h2 = Invoke-RestMethod "$base/api/forwardtest/$job/paths/$($paths.paths[1].path_id)/horizon-market"
+Check 'horizon_full' (($h1.n_trading_days -eq $sum.mc_matrix.n_dates) -and ($h1.n_trading_days -gt 1500)) "days=$($h1.n_trading_days) matrix=$($sum.mc_matrix.n_dates)"
+Check 'horizon_nifty_diff' ([math]::Abs([double]$h1.nifty[50] - [double]$h2.nifty[50]) -gt 1e-6) ''
+$hr1 = @{}
+foreach ($r in $h1.rolls) { $hr1[$r.shift_date] = $r.roll_cost }
+$hRollDiff = $false
+foreach ($r in $h2.rolls) {
+  if ($hr1.ContainsKey($r.shift_date) -and [math]::Abs($hr1[$r.shift_date] - $r.roll_cost) -gt 1e-6) { $hRollDiff = $true; break }
+}
+Check 'horizon_rolls_diff' $hRollDiff "rolls=$($h1.n_rolls) exp=$($h1.n_expiries)"
+
 $r1 = @{}
 foreach ($r in $d1.rolls) { $r1[$r.shift_date] = $r.roll_cost }
 $rollDiff = $false

@@ -21,7 +21,7 @@ from sse_starlette.sse import EventSourceResponse
 from app.db import mongo
 from app.engine.forwardtest import ForwardTestCancelled, compute_single_path_detail, run_forwardtest
 from app.engine.gbm import GBM_BASE_SEED, GbmParams, estimate_gbm_params
-from app.engine.market import load_market, clear_market_cache
+from app.engine.market import clear_market_cache, load_market, path_nifty_on, path_roll_vector
 from app.engine.market_sync import sync_market_to_present
 from app.engine.mc_matrix import (
     build_mc_matrix,
@@ -29,6 +29,7 @@ from app.engine.mc_matrix import (
     matrix_meta,
     matrix_preview,
     save_mc_matrix,
+    slice_path_spots,
     write_mc_matrix_xlsx,
 )
 from app.engine.paths import build_forward_market, path_from_window
@@ -1089,6 +1090,92 @@ def job_mc_matrix_xlsx(job_id: str, max_paths: int | None = None) -> FileRespons
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         filename=f"monte-carlo-nifty-paths-{job_id}.xlsx",
     )
+
+
+def _path_horizon_market(job_id: str, path_id: int) -> dict[str, Any]:
+    """Full as-of → Simulation End Path Market sheet for one Monte Carlo path.
+
+    Uses the saved MC matrix row — not the tenure-window path detail — so Intel
+    shows Nifty / last-Tuesday expiries / month-end rolls from today through
+    Simulation End with path-local prices and roll points.
+    """
+    job = _get_job(job_id)
+    if not job or job.get("status") != "done" or not job.get("result"):
+        raise HTTPException(404, "Forward test result expired. Please run again.")
+    summary_rows = job["result"].get("summary") or []
+    row = next((s for s in summary_rows if int(s["path_id"]) == int(path_id)), None)
+    if not row:
+        raise HTTPException(404, f"Path {path_id} was not found in this forward test.")
+
+    payload = _mc_matrix_payload(job_id)
+    dates: list[date] = payload["dates"]
+    if not dates:
+        raise HTTPException(404, "Monte Carlo horizon dates missing.")
+    try:
+        spots = slice_path_spots(payload["matrix"], dates, dates, int(path_id))
+    except Exception as e:
+        raise HTTPException(404, f"Could not read Monte Carlo row for path {path_id}: {e}") from e
+
+    product = _product_for_job(job)
+    base = load_market()
+    sim_end_raw = (job.get("result") or {}).get("simulation_end")
+    if sim_end_raw:
+        sim_end = date.fromisoformat(str(sim_end_raw)[:10])
+    else:
+        sim_end = resolved_simulation_end(base.last_date, product)
+    fwd_market, _ = build_forward_market(
+        base,
+        sim_end,
+        product.tenure_days,
+        observation_months=product.observation_months,
+    )
+
+    start, end = dates[0], dates[-1]
+    _, roll_by = path_roll_vector(dates, spots, fwd_market.roll_shifts)
+    rolls = [
+        {"shift_date": d.isoformat(), "roll_cost": float(roll_by[d])}
+        for d in sorted(roll_by)
+    ]
+    monthly_expiries = []
+    for e in sorted(fwd_market.monthly_last_expiries):
+        if e < start or e > end:
+            continue
+        monthly_expiries.append(
+            {
+                "expiry_date": e.isoformat(),
+                "weekday": e.strftime("%A"),
+                "is_monthly_last": True,
+                "nifty_close": path_nifty_on(dates, spots, e),
+            }
+        )
+
+    return {
+        "ok": True,
+        "path_id": int(path_id),
+        "tenure_start": row["start"],
+        "tenure_end": row["end"],
+        "horizon_start": start.isoformat(),
+        "horizon_end": end.isoformat(),
+        "asof": payload.get("asof"),
+        "simulation_end": end.isoformat(),
+        "dates": [d.isoformat() for d in dates],
+        "nifty": [float(x) for x in spots],
+        "rolls": rolls,
+        "monthly_expiries": monthly_expiries,
+        "n_trading_days": len(dates),
+        "n_rolls": len(rolls),
+        "n_expiries": len(monthly_expiries),
+        "spot0": float(payload["spot0"]),
+        "layout": {
+            "scope": "as-of through Simulation End",
+            "source": "Monte Carlo matrix row for this path_id",
+        },
+    }
+
+
+@app.get("/api/forwardtest/{job_id}/paths/{path_id}/horizon-market")
+async def job_path_horizon_market(job_id: str, path_id: int) -> dict:
+    return await asyncio.to_thread(_path_horizon_market, job_id, path_id)
 
 
 @app.get("/api/forwardtest/{job_id}/paths/{path_id}")

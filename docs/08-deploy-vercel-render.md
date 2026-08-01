@@ -138,7 +138,7 @@ Confirm on `main`:
 
 Service → **Environment** → add the Render table from the master list above → **Save** → redeploy if prompted.
 
-Password tip: `Sb@04052003` → `Sb%4004052003` inside the URI.
+Password tip: encode `@` in the password as `%40` inside the URI. Example pattern: `P@ss` → `P%40ss`.
 
 ### 1.3 Verify API
 

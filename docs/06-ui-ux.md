@@ -147,8 +147,8 @@ Path picker on both subtabs.
 
 | Subtab | Content |
 |--------|---------|
-| **Path Market** | Selected path: Simulated Nifty · Monthly Expiries · Futures Roll Costs (path-local) |
-| **Monte Carlo Matrix** | Full as-of → Simulation End grid (rows = path #, columns = trading dates) + Excel download |
+| **Path Market** | Selected path full horizon as-of → Simulation End: Simulated Nifty · Monthly Expiries · Futures Roll Costs from that path's Monte Carlo row |
+| **Monte Carlo Matrix** | Full as-of → Simulation End grid — rows = path number, columns = trading dates — plus Excel download |
 | **Logic Atlas** | Module rail + Active Pipeline step cards |
 
 **Path Market tabs:**

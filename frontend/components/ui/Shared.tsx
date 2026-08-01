@@ -517,7 +517,7 @@ export function EmptyRunHint() {
     >
       <div className="mx-auto mb-4 h-1 w-24 rounded-full bg-gradient-to-r from-[var(--ar-maroon)] via-[var(--ar-gold)] to-[var(--ar-maroon)]" />
       <p className="text-xs tracking-[0.28em] text-[var(--ar-subtle)] font-ui">Desk Ready</p>
-      <h2 className="mt-2 font-display text-3xl text-[var(--ar-maroon)] md:text-4xl">
+      <h2 className="mt-2 font-display text-2xl text-[var(--ar-maroon)] md:text-3xl">
         Run A Forward Test To Illuminate The Desk
       </h2>
       <p className="mx-auto mt-3 max-w-xl text-sm leading-relaxed text-[var(--ar-muted)] font-ui">

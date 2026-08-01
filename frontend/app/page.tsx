@@ -43,8 +43,8 @@ export default function HomePage() {
         <div className="border-b border-[var(--ar-border)] bg-gradient-to-r from-[var(--ar-table-head-from)] to-transparent px-6 py-5">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
             <div>
-              <p className="text-xs uppercase tracking-[0.22em] text-[var(--ar-subtle)] font-ui">GIFT City · Cat-III AIF</p>
-              <h2 className="font-display text-3xl text-[var(--ar-maroon)] md:text-5xl">{displayName}</h2>
+              <p className="text-xs uppercase tracking-[0.22em] text-[var(--ar-subtle)] font-ui">GIFT City · Category III AIF</p>
+              <h2 className="font-display text-2xl text-[var(--ar-maroon)] md:text-3xl">{displayName}</h2>
               <p className="mt-2 max-w-2xl text-sm leading-relaxed text-[var(--ar-muted)] font-ui">
                 Forward paths from today&apos;s close through Simulation End, each a full product tenure under
                 Geometric Brownian Motion.
@@ -102,8 +102,8 @@ export default function HomePage() {
                   Estimation {formatDeskDate(gbmEstStart)} → {formatDeskDate(gbmEstEnd)}
                 </p>
                 <p className="mt-1 max-w-2xl text-sm leading-relaxed text-[var(--ar-muted)] font-ui">
-                  Live μ and σ from Nifty history through today&apos;s as-of close. Path spots step only on
-                  Mon–Fri sessions.
+                  Live daily average return and daily standard deviation from Nifty history through
+                  today&apos;s as-of close. Path spots step only on weekday sessions.
                 </p>
               </div>
               <div className="horizontal-rail-fill px-6 py-5">

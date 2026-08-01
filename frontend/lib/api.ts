@@ -599,6 +599,32 @@ export const client = {
     api<ForwardTestSummary>(`/api/forwardtest/${id}/summary`, { timeoutMs: API_TIMEOUTS.summary }),
   pathDetail: (jobId: string, pathId: number) =>
     api<PathDetail>(`/api/forwardtest/${jobId}/paths/${pathId}`, { timeoutMs: API_TIMEOUTS.pathDetail }),
+  pathHorizonMarket: (jobId: string, pathId: number) =>
+    api<{
+      ok: boolean;
+      path_id: number;
+      tenure_start: string;
+      tenure_end: string;
+      horizon_start: string;
+      horizon_end: string;
+      asof?: string;
+      simulation_end: string;
+      dates: string[];
+      nifty: number[];
+      rolls: Array<{ shift_date: string; roll_cost: number | null }>;
+      monthly_expiries: Array<{
+        expiry_date: string;
+        weekday?: string;
+        is_monthly_last?: boolean;
+        nifty_close?: number | null;
+      }>;
+      n_trading_days: number;
+      n_rolls: number;
+      n_expiries: number;
+      spot0: number;
+    }>(`/api/forwardtest/${jobId}/paths/${pathId}/horizon-market`, {
+      timeoutMs: API_TIMEOUTS.pathDetail,
+    }),
   mcMatrixMeta: (jobId: string) =>
     api<{
       ok: boolean;
