@@ -86,7 +86,7 @@ export default function MonteCarloMatrixPage() {
               <p className="text-xs uppercase tracking-[0.22em] text-[var(--ar-subtle)] font-ui">
                 Intel · Monte Carlo Matrix
               </p>
-              <h2 className="font-display text-2xl text-[var(--ar-maroon)] md:text-3xl">
+              <h2 className="font-display text-3xl text-[var(--ar-maroon)] md:text-4xl">
                 Path × Date Nifty Grid
               </h2>
               <p className="mt-1 max-w-3xl text-sm leading-relaxed text-[var(--ar-muted)] font-ui">
@@ -101,21 +101,24 @@ export default function MonteCarloMatrixPage() {
               </p>
             </div>
             <div className="flex flex-wrap gap-2">
-              <Link href="/intel" className="nav-sub-pill">
+              <Link
+                href="/intel"
+                className="rounded-lg border border-[rgba(212,178,76,0.45)] px-3 py-1.5 text-xs font-semibold text-[var(--ar-maroon)] font-ui"
+              >
                 Path Market
               </Link>
               <button
                 type="button"
-                className="nav-sub-pill inline-flex items-center gap-1.5"
+                className="rounded-lg border border-[rgba(212,178,76,0.45)] px-3 py-1.5 text-xs font-semibold text-[var(--ar-maroon)] disabled:opacity-50 font-ui inline-flex items-center gap-1.5"
                 onClick={() => void load()}
                 disabled={loading}
               >
                 <RefreshCw className="h-3.5 w-3.5" />
-                Refresh
+                {loading ? "Refreshing…" : "Refresh"}
               </button>
               <button
                 type="button"
-                className="nav-sub-pill nav-sub-pill-active inline-flex items-center gap-1.5"
+                className="rounded-lg border border-[rgba(212,178,76,0.45)] bg-[var(--ar-maroon)] px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-50 font-ui inline-flex items-center gap-1.5"
                 onClick={() => void onDownload()}
                 disabled={downloading}
               >

@@ -260,7 +260,7 @@ export function ProductSpecTables({ product }: { product: ProductSpec }) {
           <p className="text-[10px] tracking-[0.2em] text-[var(--ar-subtle)] font-ui">Product Options Book</p>
           <h3 className="font-serif text-lg text-[var(--ar-maroon)]">Options Book</h3>
           <p className="mt-1 text-xs text-[var(--ar-muted)] font-ui">
-            {activeCount} Active Legs · Product Input Order · Strike As Percent Of Spot (137 = 137%)
+            {activeCount} Active Legs · Product Input Order · Strike As Percent Of Spot
           </p>
         </div>
         <div className="overflow-x-auto">

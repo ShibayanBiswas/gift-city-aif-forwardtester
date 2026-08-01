@@ -43,11 +43,11 @@ export default function HomePage() {
         <div className="border-b border-[var(--ar-border)] bg-gradient-to-r from-[var(--ar-table-head-from)] to-transparent px-6 py-5">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
             <div>
-              <p className="text-xs uppercase tracking-[0.22em] text-[var(--ar-subtle)] font-ui">GIFT City · Category III AIF</p>
-              <h2 className="font-display text-2xl text-[var(--ar-maroon)] md:text-3xl">{displayName}</h2>
+              <p className="text-xs uppercase tracking-[0.22em] text-[var(--ar-subtle)] font-ui">GIFT City · Cat-III AIF</p>
+              <h2 className="font-display text-3xl text-[var(--ar-maroon)] md:text-5xl">{displayName}</h2>
               <p className="mt-2 max-w-2xl text-sm leading-relaxed text-[var(--ar-muted)] font-ui">
-                Forward paths from today&apos;s close through Simulation End, each a full product tenure under
-                Geometric Brownian Motion.
+                Structured units forward-tested from today&apos;s Nifty close through Simulation End. Upload a product
+                sheet, pick a path frequency, and run the Monte Carlo desk engine.
               </p>
             </div>
             <div className="flex flex-wrap gap-2 font-ui text-sm">
@@ -102,8 +102,8 @@ export default function HomePage() {
                   Estimation {formatDeskDate(gbmEstStart)} → {formatDeskDate(gbmEstEnd)}
                 </p>
                 <p className="mt-1 max-w-2xl text-sm leading-relaxed text-[var(--ar-muted)] font-ui">
-                  Live daily average return and daily standard deviation from Nifty history through
-                  today&apos;s as-of close. Path spots step only on weekday sessions.
+                  Live daily average return and daily standard deviation from Nifty history through today&apos;s as-of
+                  close. Path spots step only on weekday sessions.
                 </p>
               </div>
               <div className="horizontal-rail-fill px-6 py-5">
@@ -112,11 +112,9 @@ export default function HomePage() {
                     {
                       label: "Current Nifty Spot",
                       hint: (
-                        <>
-                          <span className="font-serif italic">
-                            S<sub>0</sub>
-                          </span>
-                        </>
+                        <span className="font-serif italic">
+                          S<sub>0</sub>
+                        </span>
                       ),
                       value: formatNum(summary.gbm.spot0, 2),
                     },
@@ -139,25 +137,12 @@ export default function HomePage() {
                       ),
                       value: summary.gbm.drift.toFixed(6),
                     },
-                  ].map((card, i) => (
-                    <motion.div
-                      key={card.label}
-                      className="rail-card-fill glass glass-glow-cyan min-w-0 flex-1 rounded-2xl p-4"
-                      initial={{ opacity: 0, y: 10 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ delay: 0.05 * i }}
-                      whileHover={{ y: -3, scale: 1.01 }}
-                    >
-                      <p className="text-[10px] tracking-[0.16em] text-[var(--ar-subtle)] font-ui">
-                        {card.label}{" "}
-                        <span className="normal-case tracking-normal text-[var(--ar-gold-dark)]">
-                          {card.hint}
-                        </span>
-                      </p>
-                      <p className="mt-1 font-display text-xl tabular-nums text-[var(--ar-maroon)] md:text-2xl">
-                        {card.value}
-                      </p>
-                    </motion.div>
+                  ].map((c) => (
+                    <div key={c.label} className="rail-card-fill glass min-w-0 flex-1 rounded-2xl px-4 py-3">
+                      <p className="text-[10px] tracking-[0.16em] text-[var(--ar-subtle)] font-ui">{c.label}</p>
+                      <p className="mt-0.5 text-xs text-[var(--ar-muted)] font-ui">{c.hint}</p>
+                      <p className="mt-1 font-display text-lg tabular-nums text-[var(--ar-maroon)]">{c.value}</p>
+                    </div>
                   ))}
                 </div>
               </div>

@@ -8,27 +8,27 @@ import { useForwardTest } from "@/lib/store";
 import { EmptyRunHint, PathSelect, SubPageTabs } from "@/components/ui/Shared";
 import { SheetTable } from "@/components/SheetTable";
 
-type TabId = "nifty" | "expiries" | "rolls";
+type TabId = "rolls" | "expiries" | "nifty";
 
 type HorizonMarket = Awaited<ReturnType<typeof client.pathHorizonMarket>>;
 
 export default function IntelPage() {
-  const { summary, pathId, product, jobId } = useForwardTest();
-  const [tab, setTab] = useState<TabId>("nifty");
-  const [market, setMarket] = useState<HorizonMarket | null>(null);
+  const { summary, pathId, product, jobId, market } = useForwardTest();
+  const [tab, setTab] = useState<TabId>("rolls");
+  const [horizon, setHorizon] = useState<HorizonMarket | null>(null);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     if (!jobId || !pathId) return;
     setLoading(true);
-    setError(null);
+    setLoadError(null);
     try {
       const data = await client.pathHorizonMarket(jobId, pathId);
-      setMarket(data);
-    } catch (e) {
-      setMarket(null);
-      setError(e instanceof Error ? e.message : "Failed to load path market horizon");
+      setHorizon(data);
+    } catch (err) {
+      setHorizon(null);
+      setLoadError(err instanceof Error ? err.message : String(err));
     } finally {
       setLoading(false);
     }
@@ -38,45 +38,47 @@ export default function IntelPage() {
     void load();
   }, [load]);
 
+  const rollRows = useMemo(
+    () =>
+      (horizon?.rolls ?? [])
+        .filter((r) => isPlausibleTradingDate(r.shift_date))
+        .map((r, i) => [
+          i + 1,
+          formatDeskDate(r.shift_date),
+          r.roll_cost == null ? "—" : formatNum(r.roll_cost, 3),
+        ]),
+    [horizon],
+  );
+
+  const expiryRows = useMemo(
+    () =>
+      (horizon?.monthly_expiries ?? [])
+        .filter((r) => isPlausibleTradingDate(r.expiry_date))
+        .map((r, i) => [
+          i + 1,
+          formatDeskDate(r.expiry_date),
+          r.weekday ?? "—",
+          "Monthly",
+          r.nifty_close == null ? "—" : formatNum(r.nifty_close, 2),
+        ]),
+    [horizon],
+  );
+
   const niftyRows = useMemo(() => {
-    const dates = market?.dates ?? [];
-    const nifty = market?.nifty ?? [];
+    const dates = horizon?.dates ?? [];
+    const nifty = horizon?.nifty ?? [];
     return dates
       .map((d, i) => ({ d, c: nifty[i] }))
       .filter((r) => isPlausibleTradingDate(r.d) && r.c != null && Number.isFinite(Number(r.c)))
       .map((r) => [formatDeskDate(r.d), formatNum(Number(r.c), 2)]);
-  }, [market]);
-
-  const expiryRows = useMemo(() => {
-    return (market?.monthly_expiries ?? [])
-      .filter((r) => isPlausibleTradingDate(r.expiry_date))
-      .map((r, i) => [
-        i + 1,
-        formatDeskDate(r.expiry_date),
-        r.weekday ?? "—",
-        "Monthly",
-        r.nifty_close == null ? "—" : formatNum(r.nifty_close, 2),
-      ]);
-  }, [market]);
-
-  const rollRows = useMemo(() => {
-    return (market?.rolls ?? [])
-      .filter((r) => isPlausibleTradingDate(r.shift_date))
-      .map((r, i) => [
-        i + 1,
-        formatDeskDate(r.shift_date),
-        r.roll_cost == null ? "—" : formatNum(r.roll_cost, 3),
-      ]);
-  }, [market]);
+  }, [horizon]);
 
   if (!summary || !jobId) return <EmptyRunHint />;
 
-  const horizonStart = market?.horizon_start ? formatDeskDate(market.horizon_start) : "—";
-  const horizonEnd = market?.horizon_end ? formatDeskDate(market.horizon_end) : "—";
-  const tenureLabel =
-    market?.tenure_start && market?.tenure_end
-      ? `${formatDeskDate(market.tenure_start)} → ${formatDeskDate(market.tenure_end)}`
-      : "—";
+  const asOf = horizon?.horizon_start ?? market?.asof ?? market?.last_date ?? "—";
+  const simEnd = horizon?.horizon_end ?? market?.simulation_end ?? "—";
+  const asOfLabel = formatDeskDate(asOf);
+  const simEndLabel = formatDeskDate(simEnd);
 
   return (
     <div className="page-enter space-y-6">
@@ -88,58 +90,65 @@ export default function IntelPage() {
         <div className="border-b border-[var(--ar-border)] bg-gradient-to-r from-[var(--ar-table-head-from)] to-transparent px-6 py-5">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
-              <p className="text-xs uppercase tracking-[0.22em] text-[var(--ar-subtle)] font-ui">
-                Intel · Path Market
-              </p>
-              <h2 className="font-display text-2xl text-[var(--ar-maroon)] md:text-3xl">
-                Simulated Path Market Sheet
-              </h2>
+              <p className="text-xs uppercase tracking-[0.22em] text-[var(--ar-subtle)] font-ui">Intel · Path Market</p>
+              <h2 className="font-display text-3xl text-[var(--ar-maroon)] md:text-4xl">Simulated Path Market Sheet</h2>
               <p className="mt-1 max-w-3xl text-sm leading-relaxed text-[var(--ar-muted)] font-ui">
-                Full horizon from as-of through Simulation End for the selected path. Nifty closes
-                come from that path&apos;s Geometric Brownian Motion row. Monthly expiries use the
-                last Tuesday of each month with holiday snap. Futures roll points use this path&apos;s
-                simulated spots, so different paths show different roll costs on the same shift date.
+                Excel-style sheets for futures rolls, monthly last-Tuesday option expiries, and simulated Nifty closes
+                from as-of through Simulation End for the selected Geometric Brownian Motion path. Different paths show
+                different Nifty levels and roll points on the same trading date.
               </p>
             </div>
-            <Link href="/intel/matrix" className="nav-sub-pill nav-sub-pill-active shrink-0">
-              Monte Carlo Matrix
-            </Link>
+            <div className="flex flex-wrap gap-2">
+              <Link
+                href="/intel/matrix"
+                className="rounded-lg border border-[rgba(212,178,76,0.45)] px-3 py-1.5 text-xs font-semibold text-[var(--ar-maroon)] font-ui"
+              >
+                Monte Carlo Matrix
+              </Link>
+              <button
+                type="button"
+                onClick={() => void load()}
+                disabled={loading}
+                className="rounded-lg border border-[rgba(212,178,76,0.45)] px-3 py-1.5 text-xs font-semibold text-[var(--ar-maroon)] disabled:opacity-50 font-ui"
+              >
+                {loading ? "Refreshing…" : "Refresh Path Market"}
+              </button>
+            </div>
           </div>
           <div className="mt-4">
             <PathSelect className="w-full" showMeta />
           </div>
-          <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
             {[
-              { label: "Selected Path", value: String(pathId) },
-              { label: "Market Horizon", value: `${horizonStart} → ${horizonEnd}` },
+              { label: "As Of Today", value: asOfLabel },
+              { label: "Simulation End", value: simEndLabel },
               {
-                label: "Trading Sessions",
-                value: market?.n_trading_days != null ? String(market.n_trading_days) : "—",
+                label: "Trading Days",
+                value: horizon?.n_trading_days != null ? String(horizon.n_trading_days) : "—",
               },
-              { label: "Product Tenure Window", value: tenureLabel },
+              {
+                label: "Selected Path",
+                value: String(pathId),
+              },
+              {
+                label: "Product Roll Rate",
+                value:
+                  product?.roll_rate != null ? `${(product.roll_rate * 100).toFixed(2)}%` : "—",
+              },
             ].map((m) => (
               <div key={m.label} className="glass rounded-2xl p-3">
-                <p className="text-[10px] uppercase tracking-[0.16em] text-[var(--ar-subtle)] font-ui">
-                  {m.label}
-                </p>
+                <p className="text-[10px] uppercase tracking-[0.16em] text-[var(--ar-subtle)] font-ui">{m.label}</p>
                 <p className="font-display text-lg tabular-nums text-[var(--ar-maroon)]">{m.value}</p>
               </div>
             ))}
           </div>
-          {product?.roll_rate != null ? (
-            <p className="mt-3 text-xs text-[var(--ar-muted)] font-ui">
-              Product roll rate {((product.roll_rate ?? 0) * 100).toFixed(2)}% scales roll points inside
-              NAV; table values are index points before that scale.
-            </p>
-          ) : null}
-          {error ? <p className="mt-3 text-sm text-[var(--ar-maroon)] font-ui">{error}</p> : null}
         </div>
         <div className="px-6 py-4">
           <SubPageTabs
             tabs={[
-              { id: "nifty", label: "Simulated Nifty Closes" },
-              { id: "expiries", label: "Monthly Expiries" },
               { id: "rolls", label: "Futures Roll Costs" },
+              { id: "expiries", label: "Nifty Option Expiries" },
+              { id: "nifty", label: "Nifty Daily Closes" },
             ]}
             active={tab}
             onChange={(id) => setTab(id as TabId)}
@@ -147,53 +156,57 @@ export default function IntelPage() {
         </div>
       </motion.section>
 
-      {loading && !market ? (
-        <p className="px-1 text-sm text-[var(--ar-muted)] font-ui">Loading path market horizon…</p>
-      ) : (
-        <>
-          {tab === "nifty" ? (
-            <SheetTable
-              title={`Path ${pathId} · Simulated Nifty Closes`}
-              subtitle={`Geometric Brownian Motion closes on weekday sessions · ${horizonStart} → ${horizonEnd}`}
-              headers={["Trading Date", "Simulated Nifty"]}
-              rows={niftyRows}
-              filename={`path-${pathId}-horizon-nifty.xlsx`}
-              sheetName="Simulated Nifty"
-              columnTypes={["date", "number"]}
-              minWidth={420}
-              maxHeight={560}
-            />
-          ) : null}
+      {loading && !horizon ? (
+        <p className="text-sm text-[var(--ar-muted)] font-ui">Loading path market sheets…</p>
+      ) : null}
+      {loadError ? (
+        <div className="ar-panel ar-band p-6 text-sm text-[var(--ar-muted)] font-ui">
+          <p className="font-display text-xl text-[var(--ar-maroon)]">Could Not Load Path Market Tables</p>
+          <p className="mt-2">{loadError}</p>
+        </div>
+      ) : null}
 
-          {tab === "expiries" ? (
-            <SheetTable
-              title={`Path ${pathId} · Monthly Expiries`}
-              subtitle={`Last Tuesday of each month with holiday snap · Nifty from this path · ${horizonStart} → ${horizonEnd}`}
-              headers={["Row", "Expiry Date", "Weekday", "Contract", "Simulated Nifty"]}
-              rows={expiryRows}
-              filename={`path-${pathId}-horizon-expiries.xlsx`}
-              sheetName="Monthly Expiries"
-              columnTypes={["integer", "date", "text", "text", "number"]}
-              minWidth={720}
-              maxHeight={560}
-            />
-          ) : null}
+      {!loading && !loadError && horizon && tab === "rolls" ? (
+        <SheetTable
+          title="Futures · Monthly Shift Dates"
+          subtitle={`Monthly futures shift dates through ${simEndLabel} · path ${pathId} roll points.`}
+          headers={["Row", "Futures Shift Date", "Roll Cost In Index Points"]}
+          rows={rollRows}
+          filename={`path-${pathId}-futures-rolls.xlsx`}
+          sheetName="Futures Rolls"
+          columnTypes={["integer", "date", "number"]}
+          minWidth={640}
+          maxHeight={560}
+        />
+      ) : null}
 
-          {tab === "rolls" ? (
-            <SheetTable
-              title={`Path ${pathId} · Futures Roll Costs`}
-              subtitle={`Month-end futures shifts · roll points from this path average spot × seven percent × day fraction · ${horizonStart} → ${horizonEnd}`}
-              headers={["Row", "Futures Shift Date", "Roll Cost In Index Points"]}
-              rows={rollRows}
-              filename={`path-${pathId}-horizon-rolls.xlsx`}
-              sheetName="Futures Rolls"
-              columnTypes={["integer", "date", "number"]}
-              minWidth={640}
-              maxHeight={560}
-            />
-          ) : null}
-        </>
-      )}
+      {!loading && !loadError && horizon && tab === "expiries" ? (
+        <SheetTable
+          title="Nifty Option Expiries · Monthly Last Tuesday"
+          subtitle={`Last-Tuesday monthly calendar from ${asOfLabel} through ${simEndLabel}. ${horizon.n_expiries} rows.`}
+          headers={["Row", "Expiry Date", "Weekday", "Contract", "Nifty Closing Level"]}
+          rows={expiryRows}
+          filename={`path-${pathId}-option-expiries.xlsx`}
+          sheetName="Option Expiries"
+          columnTypes={["integer", "date", "text", "text", "number"]}
+          minWidth={720}
+          maxHeight={560}
+        />
+      ) : null}
+
+      {!loading && !loadError && horizon && tab === "nifty" ? (
+        <SheetTable
+          title="Nifty · Daily Closing Levels"
+          subtitle={`Simulated spot series from ${asOfLabel} through ${simEndLabel} · path ${pathId}`}
+          headers={["Trading Date", "Nifty Closing Level"]}
+          rows={niftyRows}
+          filename={`path-${pathId}-nifty-closes.xlsx`}
+          sheetName="Nifty Closes"
+          columnTypes={["date", "number"]}
+          minWidth={420}
+          maxHeight={560}
+        />
+      ) : null}
     </div>
   );
 }

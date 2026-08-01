@@ -207,7 +207,7 @@ export default function HedgingPage() {
               <section className="space-y-4">
                 <SheetTable
                   title="Quantity At Underlying Return Level"
-                  subtitle="Product Input Row Order · Strike 137 = 137% Of Spot · Return +37%"
+                  subtitle="Product Input Row Order · Strike As Percent Of Spot"
                   headers={UNIQUE_BOOK_HEADERS}
                   rows={uniqueBookRows}
                   exportRows={uniqueBookExportRows}

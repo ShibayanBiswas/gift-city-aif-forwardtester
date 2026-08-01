@@ -517,19 +517,19 @@ export function EmptyRunHint() {
     >
       <div className="mx-auto mb-4 h-1 w-24 rounded-full bg-gradient-to-r from-[var(--ar-maroon)] via-[var(--ar-gold)] to-[var(--ar-maroon)]" />
       <p className="text-xs tracking-[0.28em] text-[var(--ar-subtle)] font-ui">Desk Ready</p>
-      <h2 className="mt-2 font-display text-2xl text-[var(--ar-maroon)] md:text-3xl">
+      <h2 className="mt-2 font-display text-3xl text-[var(--ar-maroon)] md:text-4xl">
         Run A Forward Test To Illuminate The Desk
       </h2>
       <p className="mx-auto mt-3 max-w-xl text-sm leading-relaxed text-[var(--ar-muted)] font-ui">
-        Choose path frequency, upload a product sheet if needed, then press Run. Paths start from
-        today through Simulation End; each window is one full product tenure.
+        Choose path frequency, upload a product sheet if needed, then press Run. Paths start from today through
+        Simulation End and will populate every desk surface.
       </p>
     </motion.div>
   );
 }
 
 export function KpiBand() {
-  const { filteredKpis, filteredSummary, sinceYear, frequency, product, summary } = useForwardTest();
+  const { filteredKpis, filteredSummary, sinceYear, frequency, product } = useForwardTest();
   if (!filteredKpis) return null;
   const principalCr = product?.principal_cr ?? 100;
   const principalLabel =
@@ -538,12 +538,7 @@ export function KpiBand() {
       : formatNum(principalCr, 2);
   const items = [
     {
-      label: `Total Paths · ${FREQUENCY_LABELS[frequency] ?? frequency}`,
-      mean: String(summary?.path_count ?? filteredSummary.length),
-      median: null as string | null,
-    },
-    {
-      label: `Paths From ${sinceYear}`,
+      label: `Paths Since ${sinceYear}`,
       mean: String(filteredSummary.length),
       median: null as string | null,
     },
