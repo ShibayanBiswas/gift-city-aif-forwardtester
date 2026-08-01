@@ -332,7 +332,10 @@ def _run_serial(
             _emit(
                 on_progress,
                 5.0 + 90.0 * i / n,
-                f"Path {i} of {n}",
+                (
+                    f"Path {i} of {n} · path {path.path_id} · "
+                    f"{path.start.isoformat()} → {path.end.isoformat()}"
+                ),
             )
     return summaries, details
 
@@ -404,7 +407,10 @@ def _run_parallel_processes(
                     _emit(
                         on_progress,
                         5.0 + 90.0 * done / n,
-                        f"Path {done} of {n}",
+                        (
+                            f"Path {done} of {n} · path {summary.path_id} · "
+                            f"{summary.start} → {summary.end}"
+                        ),
                     )
     finally:
         try:
@@ -474,7 +480,10 @@ def _run_parallel_threads(
                 _emit(
                     on_progress,
                     5.0 + 90.0 * done / n,
-                    f"Path {done} of {n}",
+                    (
+                        f"Path {done} of {n} · path {path.path_id} · "
+                        f"{path.start.isoformat()} → {path.end.isoformat()}"
+                    ),
                 )
     missing = [p.path_id for p in paths if p.path_id not in summaries_by_id]
     if missing:
