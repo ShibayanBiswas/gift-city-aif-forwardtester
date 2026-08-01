@@ -332,10 +332,7 @@ def _run_serial(
             _emit(
                 on_progress,
                 5.0 + 90.0 * i / n,
-                (
-                    f"Path {i} of {n} · path {path.path_id} · "
-                    f"{path.start.isoformat()} → {path.end.isoformat()}"
-                ),
+                f"Path {i} of {n}",
             )
     return summaries, details
 
@@ -403,20 +400,11 @@ def _run_parallel_processes(
                     ) from e
                 summaries_by_id[summary.path_id] = summary
                 done += 1
-                last_meta = (
-                    summary.path_id,
-                    date.fromisoformat(summary.start),
-                    date.fromisoformat(summary.end),
-                )
                 if done % progress_every == 0 or done == n:
-                    pid, start_d, end_d = last_meta
                     _emit(
                         on_progress,
                         5.0 + 90.0 * done / n,
-                        (
-                            f"Path {done} of {n} · path {pid} · "
-                            f"{start_d.isoformat()} → {end_d.isoformat()}"
-                        ),
+                        f"Path {done} of {n}",
                     )
     finally:
         try:
@@ -486,10 +474,7 @@ def _run_parallel_threads(
                 _emit(
                     on_progress,
                     5.0 + 90.0 * done / n,
-                    (
-                        f"Path {done} of {n} · path {path.path_id} · "
-                        f"{path.start.isoformat()} → {path.end.isoformat()}"
-                    ),
+                    f"Path {done} of {n}",
                 )
     missing = [p.path_id for p in paths if p.path_id not in summaries_by_id]
     if missing:
@@ -514,7 +499,7 @@ def run_forwardtest(
         raise ValueError("Product must define at least one observation month")
     if not product.active_legs:
         raise ValueError("Product must have at least one active option leg")
-    _emit(on_progress, 2.0, "Estimating GBM parameters & building forward calendar…")
+    _emit(on_progress, 2.0, "Estimating parameters and building calendar…")
 
     sim_end = resolved_simulation_end(market.last_date, product)
     # Don't attach spots during build_paths — slice from the full MC matrix below
@@ -544,10 +529,7 @@ def run_forwardtest(
     _emit(
         on_progress,
         3.5,
-        (
-            f"Building Monte Carlo Nifty matrix · {n_paths} paths × "
-            f"{len(horizon_dates)} dates · S0={params.spot0:,.2f}"
-        ),
+        f"Building Monte Carlo Nifty matrix · {n_paths} paths",
     )
     mc_matrix = build_mc_matrix(params, horizon_dates, n_paths, base_seed=base_seed)
     for p in paths:
@@ -567,11 +549,7 @@ def run_forwardtest(
     _emit(
         on_progress,
         5.0,
-        (
-            f"Running {n} GBM {frequency} paths · "
-            f"{params.asof} → {horizon.isoformat()} · S0={params.spot0:,.2f} · "
-            f"μ={params.mean_return * 100:.4f}% · σ={params.std_dev * 100:.2f}%"
-        ),
+        f"Running {n} {frequency} paths",
     )
 
     if mode == "serial" or workers == 1:
