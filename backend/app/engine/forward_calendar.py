@@ -10,7 +10,7 @@ Forward event calendars (months strictly after as-of, complete months only):
   - **Monthly Nifty option expiry** = last Tuesday of each calendar month,
     snapped to the previous trading session when that Tuesday is a holiday.
 
-Horizon end is **as-of + Simulation End Days** from Product Input (default 3650).
+Horizon end is **as-of + Simulation End Days** from Product Input (default 7300).
 Optional Path-1 GBM fill is legacy/debug only. Production uses per-path GBM spots
 and ``path_roll_vector`` for roll points — there is no shared forward price workbook.
 Historical expiries / rolls / closes are preserved through as-of unchanged.

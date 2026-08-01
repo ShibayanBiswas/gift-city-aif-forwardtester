@@ -37,10 +37,11 @@ No hidden sheets in WF1. Notes workbook has a single sheet **Notes**.
 | Item | Rule |
 |------|------|
 | Path 1 | Starts on **as-of** = latest Nifty session (dynamic after deploy / `/api/sync`) |
-| Simulation End | `asof + Simulation End Days` (product input, default **3650**); **final path ends** on last Mon–Fri on/before this date |
+| Simulation End | `asof + Simulation End Days` (product input, default **7300**); **final path ends** on last Mon–Fri on/before this date |
 | Tenure end | Same Backtester `path_end_calendar` rule for intermediate windows |
 | Trading days | Mon–Fri only on the forward pad; Sat/Sun never priced |
-| Spots | Per-path GBM from live S₀ along path trading days |
+| Spots | Per-path GBM from live S₀ along path trading days; μ/σ from **2001-01-01 → as-of** each Run |
+| Matrix Excel | Home **Download Simulated Nifty Paths** / Intel MC Matrix → columns = trading **dates** |
 | Pins | **None** — no `macro_path_windows.csv` |
 
 ### Frequencies

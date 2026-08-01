@@ -1,5 +1,7 @@
 # 08 — Complete Deployment Guide (Vercel + Render)
 
+**Who this is for:** Anyone who can click through a website — no coding required beyond copy-paste.
+
 End-to-end production deploy for **Gift City AIF Forwardtester**.
 
 | Piece | Host | Root directory |
@@ -10,7 +12,9 @@ End-to-end production deploy for **Gift City AIF Forwardtester**.
 
 **Source repo:** https://github.com/ShibayanBiswas/gift-city-aif-forwardtester
 
-After deploy, smoke-test with [07-verification.md](07-verification.md).
+**Do this in order:** (1) optional Mongo → (2) Render API → (3) Vercel website → (4) smoke-test with [07-verification.md](07-verification.md).
+
+Template for local secrets: [`.env.example`](../.env.example) — **never commit** a real `.env`.
 
 ---
 
@@ -209,7 +213,8 @@ Optional: `NEXT_PUBLIC_BACKEND_URL` = same URL.
 2. **Sample Input** → download product Excel.
 3. Set path frequency (e.g. **Daily** or **Monthly**). Path count = f(frequency, Simulation End Days, tenure) — not a fixed 235 Macro Paths list.
 4. **Run**.
-5. Check **Home** GBM band, **Desk → Hedging / Computation**, **Intel → Path Market** (per-path simulated Nifty / expiries / rolls), **Intel → MC Matrix** (full path×date grid + Excel download).
+5. Check **Home**: GBM band (μ/σ from **2001 → as-of**) + **Download Simulated Nifty Paths** (path×date Excel).
+6. Check **Desk → Hedging / Computation**, **Intel → Path Market**, **Intel → MC Matrix**.
 
 ---
 
@@ -262,12 +267,13 @@ Auto-extends through latest Nifty session on:
 curl -s https://YOUR-SERVICE.onrender.com/api/sync
 ```
 
-Expect `market.first_date` ≈ `2001-01-01`, `market.last_date` = latest session, plus horizon fields for Simulation End.
+Expect `market.first_date` ≈ `2001-01-01`, `market.last_date` = latest session, plus horizon fields for Simulation End. GBM μ / σ are re-estimated from that full history on every Run.
 
 Free Render disk is ephemeral; git `data/*.csv` are the seed; startup re-extends.
 
 Header chips: As Of Today · Simulation End · Simulation End Days · Trading Days · Monthly Expiries.  
-Intel · Path Market is **per path** after a Run (no shared forward price workbook).
+Intel · Path Market is **per path** after a Run (no shared forward price workbook).  
+Home **Download Simulated Nifty Paths** exports the shared Monte Carlo path×date grid.
 
 ---
 
@@ -276,7 +282,7 @@ Intel · Path Market is **per path** after a Run (no shared forward price workbo
 ### Infrastructure
 
 - [ ] Render `/api/health` → ok
-- [ ] Render `/api/sync` → current as-of
+- [ ] Render `/api/sync` → current as-of; first_date ≈ 2001-01-01
 - [ ] Vercel site loads (Anand Rathi header)
 - [ ] Vercel `/api/health` → 200 (confirms `BACKEND_URL`)
 - [ ] Vercel `/api/wake` → ok (optional cold-start check)
@@ -285,11 +291,12 @@ Intel · Path Market is **per path** after a Run (no shared forward price workbo
 
 - [ ] Sample Input downloads
 - [ ] Run completes for chosen frequency
-- [ ] Home shows GBM S₀ / μ / σ / drift after Run
+- [ ] Home shows GBM S₀ / μ / σ / drift after Run (estimation 2001→as-of)
+- [ ] Home **Download Simulated Nifty Paths** opens Excel with date columns
 - [ ] Hedging Sheet + Computation populate for a path
 - [ ] Intel → Path Market: Simulated Nifty / Monthly Expiries / Rolls for selected path
 - [ ] Intel → MC Matrix: preview table + Download Excel (`/api/forwardtest/{job}/mc-matrix.xlsx`)
-- [ ] Header chips show live Simulation End Days (default 3650)
+- [ ] Header chips show live Simulation End Days (default 7300)
 
 ### Resilience
 
@@ -312,6 +319,7 @@ Intel · Path Market is **per path** after a Run (no shared forward price workbo
 | Mongo auth failed | Bad password / `@` not encoded | Use `%40`; check Atlas network |
 | Daily run slow on free tier | Many paths + small CPU | Retry; `FORWARDTEST_MODE=threads`, `FORWARDTEST_WORKERS=2` |
 | CORS in browser | Calling Render from browser incorrectly | Prefer same-origin `/api/*` via Vercel proxy |
+| MC Excel missing dates | Old deploy | Redeploy backend with current `mc_matrix.py` |
 
 ### Debug sequence
 
@@ -342,6 +350,7 @@ Vercel (Next.js)  ── /api/* rewrite ──►  Render (FastAPI + GBM engine 
 | Sample product | `Product_Input_File.xlsx` in git |
 | Uploaded products | Mongo (optional) + ephemeral upload |
 | Forward-test results | In-memory + optional Mongo summary; path ledgers on demand |
+| MC path×date matrix | `data/jobs/{id}/mc_matrix.npz` + Excel download |
 | WF1 / Notes Excel | Local only (gitignored) — not needed in production |
 
 ---
@@ -351,11 +360,11 @@ Vercel (Next.js)  ── /api/* rewrite ──►  Render (FastAPI + GBM engine 
 1. Push to `main`.
 2. Render auto-deploys backend; Vercel auto-deploys frontend.
 3. Wait for Render before trusting new engine / CSV behaviour.
-4. Smoke: Sample → Run → Computation + Path Market.
+4. Smoke: Sample → Run → Home download + Computation + Path Market.
 
 | Changed | Re-verify |
 |---------|-----------|
-| `gbm.py` / `paths.py` | Path Market Nifty differs by path; final path ends on Simulation End |
+| `gbm.py` / `mc_matrix.py` / `paths.py` | Home Excel: 2001→as-of params + date columns; Path Market differs by path |
 | `nav.py` / `hedge.py` | Path totals / hedge rows |
 | `product.py` | Simulation End Days + six-leg book |
 | `next.config.ts` / env | Proxy `/api/health` |
@@ -368,6 +377,7 @@ Vercel (Next.js)  ── /api/* rewrite ──►  Render (FastAPI + GBM engine 
 | Doc | Purpose |
 |-----|---------|
 | [07-verification.md](07-verification.md) | Smoke + parity |
-| [05-architecture.md](05-architecture.md) | API surface |
+| [05-architecture.md](05-architecture.md) | API surface + env table |
 | [04-forwardtest-engine.md](04-forwardtest-engine.md) | GBM + path atlas |
+| [06-ui-ux.md](06-ui-ux.md) | Home download + Intel |
 | [docs/README.md](README.md) | Index |

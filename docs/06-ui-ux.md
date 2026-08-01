@@ -25,7 +25,7 @@ The Gift City AIF Forward Tester desk UI follows **Anand Rathi Wealth Primary SP
 | **Upload** | `POST /api/product/upload` — becomes current product for next Run |
 | **Run** | Starts forward test; cancels prior job if running |
 | Theme toggle | Light / dark desk palette |
-| Market strip | **As Of Today** · **Simulation End** · **Simulation End Days** · **Trading Days** · **Monthly Expiries** — responsive **grid** (no horizontal scroll sheen / slide animations). Trading Days / Monthly Expiries count **as-of → Simulation End** only. Default Simulation End Days = **3650** (legacy 7300 uploads are migrated on API startup). |
+| Market strip | **As Of Today** · **Simulation End** · **Simulation End Days** · **Trading Days** · **Monthly Expiries** — responsive **grid**. Trading Days / Monthly Expiries count **as-of → Simulation End** only. Default Simulation End Days = **7300**. |
 
 **Naming:** Excel “As per HS” → UI **Hedging Sheet** (URL `/hedging` unchanged). Headings, tabs, and short button labels use **Title Case**.
 
@@ -67,7 +67,7 @@ Path 1 starts on **as-of** (latest Nifty session). The final path ends on **Simu
 |---------|---------|
 | Product strip | Principal · Tenure · Obs · Legs · Simulation End Days · Simulation End — horizontal card rail |
 | KPI band | After Run: **Total Paths · frequency**, Paths Since year, mean/median terminal, hit rate, IRR — horizontal card rail |
-| GBM band | Estimation **2001-01-01 → As Of Today**; cards for S₀ · μ · σ · drift (no Simulation End / path-count subtitle) |
+| Nifty Path Parameters | Date range + cards for spot · daily return · stdev · drift; desk **Download Excel** (Parameters + Simulated Nifty sheets) |
 | Yearly chart | Mean / median terminal by start year (filtered by Since year) |
 
 Empty state: **Desk Ready** hint — upload / sample + Run.
@@ -148,7 +148,7 @@ Path picker on both subtabs.
 | Subtab | Content |
 |--------|---------|
 | **Path Market** | Selected path full horizon as-of → Simulation End: Simulated Nifty · Monthly Expiries · Futures Roll Costs from that path's Monte Carlo row |
-| **Monte Carlo Matrix** | Full as-of → Simulation End grid — rows = path number, columns = trading dates — plus Excel download |
+| **Monte Carlo Matrix** | Full as-of → Simulation End grid — rows = path number, columns = **trading dates** — plus Excel download (identical to Home button) |
 | **Logic Atlas** | Module rail + Active Pipeline step cards |
 
 **Path Market tabs:**
@@ -161,7 +161,7 @@ Path picker on both subtabs.
 
 Requires a completed Run. PathSelect drives all three tabs. There is no shared forward price database.
 
-**GBM reminder:** path rows are independent. For the same trading date, Path 2’s simulated Nifty is generally not Path 1’s — matching `Nifty Simulations.xlsx` (vertical = path number, horizontal = day).
+**GBM reminder:** path rows are independent. For the same trading date, Path 2’s simulated Nifty is generally not Path 1’s. μ / σ are recomputed from **2001-01-01 → as-of** on every Run.
 
 ## Logic Atlas vs Product Spec
 
@@ -213,14 +213,15 @@ Authority note shown in Atlas copy: **WF1 > Notes** for BS rates (6.6%/7.6%/Near
 
 ## Excel Downloads
 
-All desk exports use `lib/download.ts`
+All desk exports use `lib/download.ts` **except** the Monte Carlo matrix, which streams from the API (`client.downloadMcMatrix` → `/api/forwardtest/{id}/mc-matrix.xlsx`).
 
 | Feature | Detail |
 |---------|--------|
-| Branding | Anand Rathi logo header block |
+| Branding | Anand Rathi logo header block (most desk tables) |
 | Typing | Native Excel number / date / percent cell types |
 | `exportRows` / `columnTypes` | UI display formatting vs raw typed export values |
 | Triggers | Per-table **Download Excel**; Computation path packs |
+| **Simulated Nifty Paths** | Home single button + Intel MC Matrix — params block + `Path \\ Date` × ISO dates |
 
 ---
 
@@ -251,12 +252,13 @@ All desk exports use `lib/download.ts`
 ## Desk Verification Flow (UI)
 
 1. **Sample Input** → Product tab: 6 puts, obs **38…56**, Fwd/Disc/vols match [03-product-input-spec.md](03-product-input-spec.md).
-2. **Run** (monthly for Excel pin check) → Path 1 Total ≈ **180.77** on Computation Result.
-3. Hedging Sheet Path 1: expiries `2004-03-25 … 2005-09-29`, Spot₀ **1254.3**.
-4. Intel Logic Atlas: confirm pipeline order matches engine.
-5. Full script checklist: [07-verification.md](07-verification.md).
+2. **Run** → Home GBM band shows estimation **2001-01-01 → As Of Today**; μ / σ / drift populated.
+3. **Download Excel** on Nifty Path Parameters → branded Parameters + Simulated Nifty sheets.
+4. Hedging Sheet / Computation for selected path; Intel Path Market differs by path.
+5. Intel Logic Atlas: confirm pipeline order matches engine.
+6. Full script checklist: [07-verification.md](07-verification.md). Deploy: [08-deploy-vercel-render.md](08-deploy-vercel-render.md).
 
-**Excel caveat:** Do not compare UI Computation to a stale Excel Computation paste; trust the live engine vs Summary Path 1 / Path 10 anchors.
+**Excel caveat:** Do not compare UI Computation to a stale Excel Computation paste; trust the live engine vs Summary Path 1 / Path 10 anchors (Backtester historical gold).
 
 ---
 

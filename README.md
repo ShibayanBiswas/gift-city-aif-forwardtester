@@ -10,7 +10,7 @@ Same hedging sheet, computation NAV, roll cost, delta, and product desk as the [
 
 1. Load Nifty closes from **2001-01-01 → latest session** (Yahoo sync keeps this current).
 2. Compute daily returns → **μ** (mean), **σ** (stdev), **drift = μ − ½σ²**.
-3. Resolve **Simulation End** = as-of + **Simulation End Days** (default **3650**, must exceed product tenure). That date is the **final path’s end**.
+3. Resolve **Simulation End** = as-of + **Simulation End Days** (default **7300**, must exceed product tenure). That date is the **final path’s end**.
 4. Build staggered tenure windows by path frequency:
    - Path 1: as-of → tenure end
    - Intermediate starts by frequency through the last start
@@ -34,13 +34,22 @@ cd "C:\Users\shiba\OneDrive\Desktop\Gift AIF Forwardtester"
 
 ## Desk controls
 
-- **Header strip**: As Of Today · Simulation End · Simulation End Days · Trading Days · Monthly Expiries (as-of → Simulation End; compact horizontal scroll)
+- **Header strip**: As Of Today · Simulation End · Simulation End Days · Trading Days · Monthly Expiries (as-of → Simulation End)
 - **Path frequency**: Daily / Weekly / Monthly / Quarterly / Semi-annually
-- **Path count**: computed from frequency and Simulation End Days — no fixed dropdown
-- **Simulation End Days**: Product Input field (default **3650**)
+- **Path count**: computed from frequency, Simulation End Days, tenure, and observations — no fixed dropdown
+- **Simulation End Days**: Product Input field (default **7300**)
 - Product upload (same `Product_Input_File.xlsx` format as the product desk)
-- **GBM band** (after Run): Estimation from 2001-01-01 through today’s as-of; S₀ / μ / σ / drift cards
-- **Intel**: Futures rolls · Option expiries · Nifty closes — columns match Backtester (no Source)
+- **Nifty Path Parameters** (after Run): S₀ / daily return / standard deviation / drift from **2001-01-01 → as-of**, plus desk **Download Excel**
+- **Intel**: Path Market · Simulated Nifty Paths · Logic Atlas
+
+## Simulated Nifty Excel
+
+| Sheet | Content |
+|-------|---------|
+| Parameters | S₀, μ, σ, drift, estimation window, path/date counts |
+| Simulated Nifty | Rows = path numbers; columns = trading dates (as-of → Simulation End) |
+
+Home and Intel both use `GET /api/forwardtest/{job_id}/mc-matrix.xlsx`.
 
 ## Backtester parity (locked)
 
@@ -62,14 +71,15 @@ cd "C:\Users\shiba\OneDrive\Desktop\Gift AIF Forwardtester"
 
 Full set under [`docs/`](docs/README.md). Deploy guide: [`docs/08-deploy-vercel-render.md`](docs/08-deploy-vercel-render.md).
 
-## Deploy (Vercel + Render)
+## Deploy (Vercel + Render) — layman summary
 
-Full guide with **every environment variable**: [`docs/08-deploy-vercel-render.md`](docs/08-deploy-vercel-render.md).
+Step-by-step with **every environment variable**: [`docs/08-deploy-vercel-render.md`](docs/08-deploy-vercel-render.md).
 
-| Piece | Host | Root / key env |
-|-------|------|----------------|
-| API | [Render](https://render.com) Web Service | Root `backend` · `MONGODB_URI`, `MONGODB_DB` · optional `FORWARDTEST_*` |
-| UI | [Vercel](https://vercel.com) | Root `frontend` · **`BACKEND_URL`** = `https://YOUR-SERVICE.onrender.com` (no trailing slash) |
-| Optional | Vercel | `NEXT_PUBLIC_BACKEND_URL` = same Render URL (faster cold wakes) |
+| Piece | Host | Root directory | Environment variables |
+|-------|------|----------------|------------------------|
+| API | [Render](https://render.com) Web Service | `backend` | **`MONGODB_URI`**, **`MONGODB_DB`** (recommended) · optional `FORWARDTEST_WORKERS` / `FORWARDTEST_MODE` / `FORWARDTEST_CONSTRAINED` |
+| UI | [Vercel](https://vercel.com) | `frontend` | **`BACKEND_URL`** = `https://YOUR-SERVICE.onrender.com` (required, no trailing slash) · optional `NEXT_PUBLIC_BACKEND_URL` (same URL) |
 
-**Never put Mongo credentials on Vercel.** Never commit real `.env` secrets.
+**Render start command:** `uvicorn app.main:app --host 0.0.0.0 --port $PORT`
+
+**Do not put Mongo credentials on Vercel.** Never commit real `.env` secrets. Template: [`.env.example`](.env.example).

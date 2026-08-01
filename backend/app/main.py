@@ -201,7 +201,7 @@ def _prune_old_jobs() -> None:
 
 
 def _load_default_product():
-    """Load current upload, migrating legacy Simulation End Days=7300 → sample 3650."""
+    """Load current upload, or seed from Product_Input_File.xlsx (default Simulation End Days = 7300)."""
     global _current_product
     dest = UPLOADS / "current_product.xlsx"
     UPLOADS.mkdir(parents=True, exist_ok=True)
@@ -213,14 +213,6 @@ def _load_default_product():
 
     if dest.exists():
         _current_product = _parse(dest)
-        # Legacy desk default was 7300; sample + engine default are now 3650.
-        # Refresh the upload copy from the tracked sample so header/Intel stay consistent.
-        if (
-            _current_product.simulation_end_days == 7300
-            and DEFAULT_PRODUCT.exists()
-        ):
-            shutil.copy2(DEFAULT_PRODUCT, dest)
-            _current_product = _parse(dest)
     elif DEFAULT_PRODUCT.exists():
         shutil.copy2(DEFAULT_PRODUCT, dest)
         _current_product = _parse(dest)
@@ -1081,17 +1073,20 @@ def job_mc_matrix_preview(
 
 @app.get("/api/forwardtest/{job_id}/mc-matrix.xlsx")
 def job_mc_matrix_xlsx(job_id: str, max_paths: int | None = None) -> FileResponse:
-    payload = _mc_matrix_payload(job_id)
-    dest = JOBS / job_id / "Monte_Carlo_Nifty_Paths.xlsx"
-    cap = None if max_paths is None else max(1, int(max_paths))
-    if cap is None and payload["n_paths"] * payload["n_dates"] > 2_500_000:
-        cap = min(payload["n_paths"], 500)
-    write_mc_matrix_xlsx(payload, dest, max_paths=cap)
-    return FileResponse(
-        dest,
-        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        filename=f"monte-carlo-nifty-paths-{job_id}.xlsx",
-    )
+    try:
+        payload = _mc_matrix_payload(job_id)
+        dest = JOBS / job_id / "Simulated_Nifty_Paths.xlsx"
+        cap = None if max_paths is None else max(1, int(max_paths))
+        write_mc_matrix_xlsx(payload, dest, max_paths=cap)
+        return FileResponse(
+            dest,
+            media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            filename="Simulated_Nifty_Paths.xlsx",
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(500, f"Could not build Simulated Nifty Excel: {e}") from e
 
 
 def _path_horizon_market(job_id: str, path_id: int) -> dict[str, Any]:

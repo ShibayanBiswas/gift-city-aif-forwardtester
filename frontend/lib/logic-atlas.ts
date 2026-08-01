@@ -325,7 +325,7 @@ export const logicModules: LogicModule[] = [
         ],
         steps: [
           "forward_asof(market) → latest Nifty session.",
-          "Simulation End = asof + Simulation End Days (product, default 3650).",
+          "Simulation End = asof + Simulation End Days (product, default 7300).",
           "Pool trading days [asof, s_last]; emit starts by frequency.",
         ],
       },
@@ -403,7 +403,7 @@ export const logicModules: LogicModule[] = [
       },
     ],
     defaults: [
-      { label: "Simulation End Days", value: "3650" },
+      { label: "Simulation End Days", value: "7300" },
       { label: "Path 1", value: "As-Of → Tenure End" },
       { label: "Sessions", value: "Mon–Fri · No Weekends" },
     ],
@@ -434,7 +434,7 @@ export const logicModules: LogicModule[] = [
         title: "Tenure vs Simulation End",
         body: "Intermediate paths use the Backtester anniversary tenure end. The final path is forced to the last trading day on/before asof + Simulation End Days.",
         bullets: [
-          "Default Simulation End Days = 3650",
+          "Default Simulation End Days = 7300",
           "Must be greater than tenure_days",
         ],
       },

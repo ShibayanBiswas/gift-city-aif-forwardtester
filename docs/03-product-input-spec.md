@@ -15,7 +15,7 @@ The Product Input workbook is the **sole desk-controlled input** to the Forward 
 | `POST /api/product/upload` | Header **Upload** — accepts `.xlsx` / `.xlsm` |
 | `GET /api/product/current` | Returns parsed spec for Product tab |
 | `data/uploads/current_product.xlsx` | Gitignored copy of last upload |
-| Mongo (optional) | Product upsert + upload log when `MONGODB_URI` set |
+| Mongo (optional) | Product upsert + upload log when `MONGODB_URI` set on **Render** (never on Vercel) |
 
 Upload flow: file copied to `data/uploads/` → parsed → optional Mongo upsert → next **Run** uses new spec. Prior job may be cancelled when a new run starts ([05-architecture.md](05-architecture.md)).
 
@@ -39,7 +39,7 @@ The parser (`backend/app/engine/product.py`) scans the **first sheet** that look
 | GST Rate | `GST Rate` | WF1 AG = AF × rate (sample **18%**); cash AF currently 0 |
 | Futures Roll Rate | `Futures Roll Rate` | Sample **7%** — scales `roll_costs.csv` (built at 7%) |
 | Tax Benefit On Roll | `Tax Benefit On Roll` | Sample **42.744%** of roll cost |
-| Simulation End Days | `Simulation End Days` / `Horizon Days` | Calendar days from as-of to **final path end**. Default **3650** if omitted. Must exceed Tenure Days. Changing this rebuilds header horizon, Intel sheets, and path atlas on next Run / upload. |
+| Simulation End Days | `Simulation End Days` / `Horizon Days` | Calendar days from as-of to **final path end**. default **7300** if omitted. Must exceed Tenure Days. Changing this rebuilds header horizon, Intel sheets, and path atlas on next Run / upload. |
 | Observation months | Column under an `Observation` header | Offsets in `[1, 120]`; sample: **38, 41, 44, 47, 50, 53, 56** |
 | Options book | Header row with `Qty` / `Quantity` | One row per strike level; signed quantities |
 
@@ -128,7 +128,7 @@ Observation months (separate column): **38, 41, 44, 47, 50, 53, 56**.
 | `principal_cr` | Derived: principal / 1e7 |
 | `cash_buffer_cr` / `gsec_opening_cr` | Derived: principal_cr × cash_pct / gsec_pct |
 | `n_obs` | `len(observation_months)` — divisor for contract qty (7 for sample) |
-| `simulation_end_days` | Optional Excel int; `to_dict()` always exposes **resolved** days (default **3650**) |
+| `simulation_end_days` | Optional Excel int; `to_dict()` always exposes **resolved** days (default **7300**) |
 | `simulation_end_days_source` | `"excel"` if workbook set the field; else `"default"` |
 
 Each `OptionLegSpec` carries: `quantity`, strike/return, `option_type`, `forward_rate`, `discount_rate`, `vol_near`, `vol`, `include`.

@@ -30,7 +30,7 @@ gift-city-aif-forwardtester/   # https://github.com/ShibayanBiswas/gift-city-aif
 │   └── app/
 │       ├── main.py
 │       ├── db/mongo.py
-│       └── engine/            # paths, gbm, forward_calendar, hedge, nav, …
+│       └── engine/            # paths, gbm, mc_matrix, forward_calendar, hedge, nav, …
 ├── frontend/                  # Next.js 15 App Router
 └── scripts/                   # verify_*, sync_market_data, build_product_input
 ```
@@ -50,7 +50,8 @@ gift-city-aif-forwardtester/   # https://github.com/ShibayanBiswas/gift-city-aif
 | Market sync | `market_sync.py` | Yahoo API, CSVs | Updated CSVs through present (as-of) |
 | Calendar (hist) | `calendar_build.py` | Overrides, NSE eras, **`pin_current_month_roll_to_latest`** | Historical expiries / open-month roll pin |
 | Forward calendar | `forward_calendar.py` | Hist market, horizon | Mon–Fri pad, month-end rolls, last-Tue expiries |
-| GBM | `gbm.py` | Historical returns | μ/σ, `gbm_spots` |
+| GBM | `gbm.py` | Historical returns **2001→as-of** | μ/σ/drift (dynamic each Run), `gbm_spots` |
+| MC matrix | `mc_matrix.py` | GbmParams, horizon dates, n_paths | Path×date matrix, `.npz`, Excel export |
 | Paths | `paths.py` | Market, product, frequency | Forward `PathSpec[]` (as-of → Simulation End) |
 | Hedge | `hedge.py` | Product, path, market | `req_delta`, legs, observations |
 | Black–Scholes | `black_scholes.py` | Spot, strike, τ, σ, rates | Price, central delta |
@@ -121,16 +122,36 @@ Bootstrap: frontend calls `/api/sync` first to wake sleeping Render instance and
 | GET | `/api/forwardtest/{id}/summary` | All-path KPIs + rows |
 | GET | `/api/forwardtest/{id}/paths/{pathId}` | Computation detail + series |
 | GET | `/api/forwardtest/{id}/paths/{pathId}/hedging` | Hedging Sheet payload |
+| GET | `/api/forwardtest/{id}/paths/{pathId}/horizon-market` | Full as-of→Simulation End Path Market sheets |
+| GET | `/api/forwardtest/{id}/mc-matrix` | Matrix meta (n_paths, n_dates, GBM params) |
+| GET | `/api/forwardtest/{id}/mc-matrix/preview` | Truncated grid for Intel UI |
+| GET | `/api/forwardtest/{id}/mc-matrix.xlsx` | Full Excel download (Home + Intel) |
 
 **Job lifecycle:**
 
 1. `POST /api/forwardtest/run` — default UI frequency **daily**
 2. Poll `/status` until `done` (or `cancelled` / `error`)
-3. Load `/summary` then `/paths/{pathId}` for detail
+3. Load `/summary` then `/paths/{pathId}` for detail; optionally download `/mc-matrix.xlsx`
 
-Starting a new run **cancels** any prior queued/running job. `GET /api/sync` refreshes market through present (6352 sessions as of 2026-07-24 verify).
+Starting a new run **cancels** any prior queued/running job. `GET /api/sync` refreshes market through present (session count moves with Yahoo sync).
 
 ---
+
+## Environment Variables (production)
+
+Full layman guide: [08-deploy-vercel-render.md](08-deploy-vercel-render.md). Template: `.env.example`.
+
+| Host | Variable | Required? | Purpose |
+|------|----------|-----------|---------|
+| **Render** | `MONGODB_URI` | Recommended | Atlas URI (`MONGO_URI` alias OK) |
+| **Render** | `MONGODB_DB` | Recommended | Default `gift_aif_forwardtester` |
+| **Render** | `FORWARDTEST_WORKERS` | Optional | Cap workers (legacy: `BACKTEST_WORKERS`) |
+| **Render** | `FORWARDTEST_MODE` | Optional | `serial` / `threads` / `processes` (legacy: `BACKTEST_MODE`) |
+| **Render** | `FORWARDTEST_CONSTRAINED` | Optional | Force free-tier mode (legacy: `BACKTEST_CONSTRAINED`) |
+| **Vercel** | `BACKEND_URL` | **Yes** | Render base URL, no trailing slash |
+| **Vercel** | `NEXT_PUBLIC_BACKEND_URL` | Optional | Same URL for faster cold wakes |
+
+Render injects `PORT`, `RENDER`, `RENDER_SERVICE_ID` — do not set manually. Never put Mongo secrets on Vercel.
 
 ## Frontend Structure
 
@@ -139,7 +160,7 @@ Starting a new run **cancels** any prior queued/running job. `GET /api/sync` ref
 | `lib/store.tsx` | Product, job, path selection, progress, filtered KPIs, cancel-safe runs |
 | `lib/download.ts` | Branded `.xlsx` — logo, typed number/date/percent cells |
 | `components/ui/Shared.tsx` | Path picker, KpiBand (mean + median), tabs |
-| `app/page.tsx` | Home — product strip, KPIs, yearly chart |
+| `app/page.tsx` | Home — product strip, KPIs, GBM band, **Download Simulated Nifty Paths**, yearly chart |
 | `app/product` | Spec tables + observation map |
 | `app/paths` | Trading calendar |
 | `app/hedging` | Hedging Sheet |
@@ -160,7 +181,7 @@ Theme: Cormorant Garamond display + Source Sans 3 UI; AR maroon/gold tokens in `
 | `data/nifty_daily.csv` | Historical Nifty closes for GBM μ/σ |
 | Header `/api/market/meta` | As Of Today, Simulation End, horizon Trading Days & Monthly Expiries | Live |
 | `data/uploads/` | Current product workbook | Ignored |
-| `data/jobs/` | Slim forward-test results (~12 newest kept) | Ignored |
+| `data/jobs/` | Slim forward-test results + `mc_matrix.npz` (~12 newest kept) | Ignored |
 | Mongo (optional) | Product upsert, upload log, job KPI snapshot | Cloud |
 
 Jobs reload from disk on API restart; unknown job IDs return clear errors to UI.
@@ -189,13 +210,14 @@ Status polling interval: **~180–280ms** (faster while warming).
 | Local (ample RAM) | Process pool for daily | ~10–15s daily; ~2–5s monthly |
 | Render free / constrained | Threads or serial | Higher; avoids OOM |
 
-Env: `BACKTEST_CONSTRAINED`, `BACKTEST_WORKERS`, `BACKTEST_MODE`.
+Env: prefer `FORWARDTEST_CONSTRAINED`, `FORWARDTEST_WORKERS`, `FORWARDTEST_MODE` (legacy `BACKTEST_*` still accepted).
 
-| Frequency | Path count (approx.) |
-|-----------|---------------------:|
-| Monthly | 250 (235 pins + dynamic) |
-| Daily | ~5119 |
-| Weekly | ~1074 |
+| Frequency | Path count |
+|-----------|------------|
+| Any | **f(frequency, Simulation End Days, tenure, observations)** — not a fixed dropdown |
+| Example (7300 end days, sample tenure) | Daily / weekly / monthly counts change with as-of and product |
+
+Do **not** hardcode “235 Macro Paths” or fixed daily counts in ops docs — the Forwardtester atlas is horizon-driven.
 
 ---
 
@@ -206,9 +228,9 @@ Env: `BACKTEST_CONSTRAINED`, `BACKTEST_WORKERS`, `BACKTEST_MODE`.
 | Default product book | −91.5@137 … +1@70 (six puts) |
 | Observation months | 38, 41, 44, 47, 50, 53, 56 |
 | BS Forward / Discount | 6.6% / 7.6% |
-| Path 1 Total | ≈ 180.7724 Cr |
-| WF1 pin count | 235 |
-| Engine monthly extension | Through market last date (Path 250 @ 2026-07-24 verify) |
+| Path 1 Total | ≈ 180.7724 Cr (WF1 / Backtester historical gold — hedge/NAV parity) |
+| Forward path count | Frequency × horizon driven — no fixed 235 Macro Path pin file |
+| Open-month hist roll | `pin_current_month_roll_to_latest` through latest Nifty session |
 
 ---
 
@@ -225,9 +247,10 @@ Env: `BACKTEST_CONSTRAINED`, `BACKTEST_WORKERS`, `BACKTEST_MODE`.
 
 ## Security and Ops Notes
 
-- `.env` holds `MONGODB_URI` — never commit; encode `@` in passwords as `%40`
+- `.env` holds `MONGODB_URI` / `BACKEND_URL` — never commit; encode `@` in passwords as `%40`
 - Product upload accepts `.xlsx`/`.xlsm` only; stored under `data/uploads/`
 - No authentication layer in v1 — desk deployment assumes private URL / network
 - Market sync requires outbound HTTPS to Yahoo Finance
+- Production: Render (API) + Vercel (UI) — see [08-deploy-vercel-render.md](08-deploy-vercel-render.md)
 
 Public repo: https://github.com/ShibayanBiswas/gift-city-aif-forwardtester

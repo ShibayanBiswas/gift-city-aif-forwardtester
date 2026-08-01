@@ -507,20 +507,20 @@ print('Book OK', qs)
 
 ## 16. One-Line Conclusion
 
-**Gift City AIF Forward Tester formulas = Working File 1 As per HS + Computation methodology (Backtester-identical `nav` / `black_scholes`):** six-leg put book at 6.6%/7.6% + Near/Far vols; 7% roll with 19-day first gap (≈4.7713 pts) and open-month pin; forward paths use GBM from As Of Today through Simulation End (default 3650 days). Notes prose is structural reference only where it diverges from WF1 BS rates.
+**Gift City AIF Forward Tester formulas = Working File 1 As per HS + Computation methodology (Backtester-identical `nav` / `black_scholes`):** six-leg put book at 6.6%/7.6% + Near/Far vols; 7% roll with 19-day first gap (≈4.7713 pts) and open-month pin; forward paths use GBM from As Of Today through Simulation End (default 7300 days) with μ/σ estimated dynamically from **2001-01-01 → as-of**. Notes prose is structural reference only where it diverges from WF1 BS rates.
 
 
 ### GBM step (Monte Carlo)
 
-Authority: desk file `Nifty Simulations.xlsx` + `gbm.py`.
+Authority: desk Monte Carlo Excel layout + `gbm.py` / `mc_matrix.py`.
 
-**Parameters** (estimated from `nifty_daily.csv` through as-of):
+**Parameters** — estimated **dynamically every Run** from `nifty_daily.csv` closes **2001-01-01 through As Of Today** (latest synced session). Not hard-coded constants; the sample grows as `/api/sync` advances as-of.
 
 | Symbol | Definition |
 |--------|------------|
 | \(S_0\) | As-of Nifty close |
-| \(\mu\) | Mean daily simple return |
-| \(\sigma\) | Sample stdev of daily returns (`STDEV`) |
+| \(\mu\) | Mean daily simple return over **2001 → as-of** |
+| \(\sigma\) | Sample stdev of daily returns (`STDEV` / `ddof=1`) |
 | \(\mathrm{drift}\) | \(\mu - \tfrac12\sigma^2\) |
 
 **Recurrence** (one Mon–Fri session):
@@ -538,10 +538,13 @@ S_t = S_{t-1} · exp(drift + σ · Z)
 =prev * EXP($drift + $sigma * NORM.INV(RAND(), 0, 1))
 ```
 
-**Path matrix (Excel layout):**
+**Path matrix (download / Excel layout):**
 
 - Vertical \(1,2,3,\ldots\) = **path numbers**
-- Horizontal \(1,2,3,\ldots\) = **day indices**
-- For a fixed day (or calendar date), Path \(i\) and Path \(j\) generally show **different** Nifty levels
+- Horizontal = forward **trading dates** (ISO `YYYY-MM-DD`) from as-of through Simulation End
+- Params block above the grid: S₀, μ, σ (%), drift, Estimation Start/End, path & date counts, formula
+- For a fixed calendar date, Path \(i\) and Path \(j\) generally show **different** Nifty levels
+
+**Desk downloads:** Home **Download Simulated Nifty Paths** and Intel → Monte Carlo Matrix both call `GET /api/forwardtest/{job_id}/mc-matrix.xlsx`.
 
 Independent RNG per `path_id`. Shared forward calendar supplies expiry / futures-shift **dates** only; **levels and roll points** always come from that path’s simulated series. There is no shared forward price workbook.

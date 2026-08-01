@@ -24,11 +24,12 @@ The web app is a **live reimplementation** of `Gift AIF Working File 1.xlsm` hed
 | Historical roll calendar | Same as Backtester: finished months = monthly option expiry; open month pinned via `pin_current_month_roll_to_latest` |
 | Header horizon strip | **As Of Today** · Simulation End · Simulation End Days · Trading Days · Monthly Expiries (calendar counts as-of→horizon) |
 | Intel · Path Market | Selected path: simulated Nifty · monthly expiries · futures roll points from that path's GBM spots |
-| GBM paths | Matrix like `Nifty Simulations.xlsx`: vertical path ids; \(S_t = S_{t-1}\cdot\exp(\mathrm{drift}+\sigma Z)\); same date ⇒ different prices by path |
+| GBM paths | Matrix like desk Monte Carlo Excel: vertical path ids; columns = **trading dates**; \(S_t = S_{t-1}\cdot\exp(\mathrm{drift}+\sigma Z)\); μ/σ from **2001→as-of** every Run |
+| Home Excel download | **Download Excel** on Nifty Path Parameters → branded Parameters + Simulated Nifty path×date sheets |
 | Desk UX | Full-form labels, Title Case, branded Excel downloads, Backtester-parity glass / meta-chip layouts |
 | Ops | Local `./start.ps1`, optional MongoDB Atlas, Vercel + Render · repo https://github.com/ShibayanBiswas/gift-city-aif-forwardtester |
 
-Default UI / API path frequency: **Daily**. Simulation End Days default: **3650**. See [04-forwardtest-engine.md](04-forwardtest-engine.md).
+Default UI / API path frequency: **Daily**. Simulation End Days default: **7300**. See [04-forwardtest-engine.md](04-forwardtest-engine.md).
 
 ---
 
@@ -70,18 +71,19 @@ Product_Input_File.xlsx (or upload)
                          · month-end futures shifts
  │
  ▼
- paths.py → staggered forward tenure windows (Path 1 = as-of … final path ends on Simulation End)
-            per-path GBM lognormal spots on trading days only
+ paths.py + mc_matrix.py → staggered forward tenure windows + shared path×date GBM matrix
+            μ / σ / drift estimated from Nifty **2001-01-01 → as-of** (dynamic)
+            per-path spots sliced from the matrix for hedge / NAV
  │
  ├─► path_roll_vector → 7% roll points from that path's spots
  ├─► hedge.py → observations · legs · req_delta[]   (obs Nifty from path spots)
  └─► nav.py → daily Computation · summary · IRR     (path-local rolls)
  │
  ▼
- FastAPI job → KPIs · yearly rollup · on-demand path detail
+ FastAPI job → KPIs · yearly rollup · on-demand path detail · mc-matrix.xlsx
  │
  ▼
- Next.js desk → Home · Analytics · Desk · Intel
+ Next.js desk → Home (Nifty Path Parameters · Download Excel) · Analytics · Desk · Intel
 ```
 
 Sheet-level mirror map: [02-excel-sheet-logic.md](02-excel-sheet-logic.md). Module map: [04-forwardtest-engine.md](04-forwardtest-engine.md), [05-architecture.md](05-architecture.md).
@@ -135,7 +137,7 @@ BS inputs: Forward **6.6%**, Discount **7.6%**, Vol Near on observation 1, Vol F
 | [05-architecture.md](05-architecture.md) | Repo layout, API, persistence, performance |
 | [06-ui-ux.md](06-ui-ux.md) | Desk tabs, path picker, Logic Atlas |
 | [07-verification.md](07-verification.md) | Smoke tests, parity anchors, regen scripts |
-| [08-deploy-vercel-render.md](08-deploy-vercel-render.md) | Production deployment |
+| [08-deploy-vercel-render.md](08-deploy-vercel-render.md) | Layman production deploy (Vercel + Render + all env vars) |
 | [09-formulas-and-product-books.md](09-formulas-and-product-books.md) | Complete formula reference, six-leg book, gold pins |
 
 Master index: [README.md](README.md).
@@ -146,6 +148,7 @@ Master index: [README.md](README.md).
 
 1. Open UI → **Sample Input** (or upload custom product) → confirm Product tab shows six put legs and observation months **38…56**.
 2. Set **Path Frequency** (default **Daily**) → **Run**.
-3. Spot-check **Path 1** on Hedging Sheet (observations, Fwd/Disc/Vols) and Computation result block (Total ≈ **180.77**).
-4. Use Analytics Yearly Lab / Path Summary for distribution; Intel Logic Atlas for pipeline map.
+3. On **Home**: confirm Nifty Path Parameters → **Download Excel** for the path×date workbook.
+4. Spot-check **Path 1** on Hedging Sheet and Computation; use Analytics for distribution; Intel · Path Market / MC Matrix / Logic Atlas as needed.
 5. After engine changes, run verification in [07-verification.md](07-verification.md).
+6. Production deploy: follow the layman guide [08-deploy-vercel-render.md](08-deploy-vercel-render.md).

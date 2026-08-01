@@ -199,8 +199,10 @@ def matrix_preview(
 
 
 def write_mc_matrix_xlsx(payload: dict[str, Any], dest: Path, *, max_paths: int | None = None) -> Path:
-    """Wide Excel: Path | date1 | date2 | … (Excel Monte Carlo layout with date headers)."""
+    """Branded desk Excel: Parameters sheet + Simulated Nifty path×date grid."""
     from openpyxl import Workbook
+    from openpyxl.cell import WriteOnlyCell
+    from openpyxl.styles import Alignment, Font, PatternFill
 
     mat: np.ndarray = payload["matrix"]
     dates: list[date] = payload["dates"]
@@ -209,33 +211,90 @@ def write_mc_matrix_xlsx(payload: dict[str, Any], dest: Path, *, max_paths: int 
     mean_ret = float(payload["mean_return"])
     std_dev = float(payload["std_dev"])
     asof = str(payload.get("asof") or "")
-    # Prefer explicit history window when present (2001 → today).
     hist_first = str(payload.get("first_date") or payload.get("estimation_start") or "2001-01-01")
     hist_last = str(payload.get("last_date") or payload.get("estimation_end") or asof)
 
+    maroon_fill = PatternFill("solid", fgColor="7A1E2C")
+    white_font = Font(name="Calibri", size=10, bold=True, color="FFFFFF")
+    title_font = Font(name="Calibri", size=14, bold=True, color="7A1E2C")
+    sub_font = Font(name="Calibri", size=9, italic=True, color="6B5E55")
+    label_font = Font(name="Calibri", size=10, bold=True, color="1F1612")
+    ink_font = Font(name="Calibri", size=10, color="1F1612")
+    center = Alignment(vertical="center", horizontal="center")
+
     wb = Workbook(write_only=True)
-    ws = wb.create_sheet("Monte Carlo Nifty")
-    # Params block — matches Excel Monte Carlo.xlsx Raw Data / Monte Carlo sheet.
-    ws.append(["Current Nifty Level (S0)", float(payload["spot0"])])
-    ws.append(["Daily Average Return (μ)", mean_ret])
-    ws.append(["Daily Average Return %", mean_ret * 100.0])
-    ws.append(["Daily Standard Dev (σ)", std_dev])
-    ws.append(["Daily Standard Dev %", std_dev * 100.0])
-    ws.append(["Mean Drift (μ − ½σ²)", float(payload["drift"])])
-    ws.append(["Estimation Start", hist_first])
-    ws.append(["Estimation End / As Of", hist_last])
-    ws.append(["Simulation First Date", dates[0].isoformat() if dates else ""])
-    ws.append(["Simulation Last Date", dates[-1].isoformat() if dates else ""])
-    ws.append(["Number Of Paths", int(n_paths)])
-    ws.append(["Number Of Trading Dates", int(n_dates)])
-    ws.append(["Formula", "S_t = S_{t-1} * EXP(drift + sigma * Z), Z ~ N(0,1)"])
+
+    # Parameters — same desk tone as other branded exports.
+    ws_p = wb.create_sheet("Parameters")
+    c = WriteOnlyCell(ws_p, value="Anand Rathi Wealth · Gift City AIF Forwardtester")
+    c.font = title_font
+    ws_p.append([c, None])
+    c = WriteOnlyCell(ws_p, value="Simulated Nifty Paths · Parameters")
+    c.font = sub_font
+    ws_p.append([c, None])
+    ws_p.append([])
+    h1 = WriteOnlyCell(ws_p, value="Parameter")
+    h2 = WriteOnlyCell(ws_p, value="Value")
+    for h in (h1, h2):
+        h.font = white_font
+        h.fill = maroon_fill
+        h.alignment = center
+    ws_p.append([h1, h2])
+    for label, value in (
+        ("Current Nifty Spot", float(payload["spot0"])),
+        ("Daily Average Return", mean_ret),
+        ("Daily Average Return %", mean_ret * 100.0),
+        ("Daily Standard Deviation", std_dev),
+        ("Daily Standard Deviation %", std_dev * 100.0),
+        ("Mean Drift", float(payload["drift"])),
+        ("Estimation Start", hist_first),
+        ("Estimation End", hist_last),
+        ("Simulation First Date", dates[0].isoformat() if dates else ""),
+        ("Simulation Last Date", dates[-1].isoformat() if dates else ""),
+        ("Number Of Paths", int(n_paths)),
+        ("Number Of Trading Dates", int(n_dates)),
+    ):
+        a = WriteOnlyCell(ws_p, value=label)
+        a.font = label_font
+        b = WriteOnlyCell(ws_p, value=value)
+        b.font = ink_font
+        ws_p.append([a, b])
+
+    # Simulated Nifty — path rows × trading-date columns.
+    ws = wb.create_sheet("Simulated Nifty")
+    t1 = WriteOnlyCell(ws, value="Anand Rathi Wealth · Gift City AIF Forwardtester")
+    t1.font = title_font
+    ws.append([t1])
+    t2 = WriteOnlyCell(ws, value="Simulated Nifty Paths")
+    t2.font = Font(name="Calibri", size=12, bold=True, color="7A1E2C")
+    ws.append([t2])
+    t3 = WriteOnlyCell(
+        ws,
+        value=(
+            f"{n_paths} paths · {n_dates} trading dates · "
+            f"{dates[0].isoformat() if dates else ''} → {dates[-1].isoformat() if dates else ''}"
+        ),
+    )
+    t3.font = sub_font
+    ws.append([t3])
     ws.append([])
-    # Rows = path numbers; columns = forward trading dates.
-    ws.append(["Path \\ Date"] + [d.isoformat() for d in dates])
+
+    header_cells = [WriteOnlyCell(ws, value="Path")]
+    header_cells[0].font = white_font
+    header_cells[0].fill = maroon_fill
+    header_cells[0].alignment = center
+    for d in dates:
+        cell = WriteOnlyCell(ws, value=d.isoformat())
+        cell.font = white_font
+        cell.fill = maroon_fill
+        cell.alignment = center
+        header_cells.append(cell)
+    ws.append(header_cells)
+
     for i in range(n_paths):
-        ws.append([i + 1] + [round(float(mat[i, j]), 6) for j in range(n_dates)])
+        ws.append([i + 1] + [round(float(mat[i, j]), 4) for j in range(n_dates)])
     if n_paths < mat.shape[0]:
-        ws.append([f"(truncated — showing first {n_paths} of {mat.shape[0]} paths)"])
+        ws.append([f"(Showing first {n_paths} of {mat.shape[0]} paths)"])
 
     dest.parent.mkdir(parents=True, exist_ok=True)
     wb.save(dest)

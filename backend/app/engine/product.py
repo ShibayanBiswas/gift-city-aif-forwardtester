@@ -33,11 +33,11 @@ DEFAULT_RATE_SWITCH_DATE = date(2024, 10, 31)
 ROLL_COST_BASE_RATE = 0.07
 
 # Forward-tester simulation horizon: calendar days from as-of to final path end.
-DEFAULT_SIMULATION_END_DAYS = 3650
+DEFAULT_SIMULATION_END_DAYS = 7300
 
 
 def resolved_simulation_end_days(product: "ProductSpec | None" = None) -> int:
-    """Resolve Simulation End Days; default 3650; must exceed product tenure."""
+    """Resolve Simulation End Days; default 7300; must exceed product tenure."""
     raw = product.simulation_end_days if product is not None else None
     days = int(raw) if raw is not None else DEFAULT_SIMULATION_END_DAYS
     if days <= 0:
@@ -136,7 +136,7 @@ class ProductSpec:
     cash_gst_rate: float = DEFAULT_CASH_GST_RATE
     # Legacy — unused by nav (brokerage card throughout).
     rate_switch_date: date = DEFAULT_RATE_SWITCH_DATE
-    # Forward-tester: calendar days from as-of to final path end (None → 3650).
+    # Forward-tester: calendar days from as-of to final path end (None → 7300).
     simulation_end_days: int | None = None
 
     def __post_init__(self) -> None:

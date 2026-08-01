@@ -368,6 +368,8 @@ export const API_TIMEOUTS = {
   marketHeavy: 90_000,
   upload: 60_000,
   sample: 45_000,
+  /** Wide path×date Excel can take several minutes on large horizons. */
+  mcMatrixDownload: 600_000,
 } as const;
 
 function mergeAbortSignals(a?: AbortSignal | null, b?: AbortSignal | null): AbortSignal | undefined {
@@ -665,23 +667,35 @@ export const client = {
     ),
   downloadMcMatrix: async (jobId: string) => {
     const ctrl = new AbortController();
-    const timer = setTimeout(() => ctrl.abort(), API_TIMEOUTS.summary);
+    const timer = setTimeout(() => ctrl.abort(), API_TIMEOUTS.mcMatrixDownload);
     try {
       const res = await fetch(apiUrl(`/api/forwardtest/${jobId}/mc-matrix.xlsx`), {
         signal: ctrl.signal,
         cache: "no-store",
       });
-      if (!res.ok) throw new Error("Monte Carlo matrix download failed");
+      if (!res.ok) {
+        let detail = `Download failed (${res.status})`;
+        try {
+          const body = (await res.json()) as { detail?: string };
+          if (body?.detail) detail = String(body.detail);
+        } catch {
+          /* keep status text */
+        }
+        throw new Error(detail);
+      }
       const blob = await res.blob();
+      if (!blob.size) throw new Error("Download returned an empty file. Run again, then retry.");
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `monte-carlo-nifty-paths-${jobId}.xlsx`;
+      a.download = "Simulated_Nifty_Paths.xlsx";
+      document.body.appendChild(a);
       a.click();
+      a.remove();
       URL.revokeObjectURL(url);
     } catch (e) {
       if (e instanceof DOMException && e.name === "AbortError") {
-        throw new Error("Monte Carlo matrix download timed out. Retry in a moment.");
+        throw new Error("Download timed out. Please retry — large path grids can take a few minutes.");
       }
       throw e;
     } finally {

@@ -57,7 +57,7 @@ $env:PYTHONPATH = "backend"
 
 ## Forward Calendar (desk rules — must pass)
 
-Horizon = **As Of Today** + **Simulation End Days** from Product Input (default **3650**). Final path ends on that date’s last Mon–Fri session.
+Horizon = **As Of Today** + **Simulation End Days** from Product Input (default **7300**). Final path ends on that date’s last Mon–Fri session.
 
 | Rule | Expected |
 |------|----------|
@@ -78,7 +78,16 @@ $env:PYTHONPATH = "backend"
 .\.venv\Scripts\python.exe scripts\verify_roll_costs.py
 ```
 
-Intel `/api/market/{nifty,expiries,rolls}` returns **calendar / estimation** surfaces (hist Nifty for μ/σ; forward expiry & shift *dates*). Simulated prices and roll points are per path — use Intel · Path Market after a Run.
+Intel `/api/market/{nifty,expiries,rolls}` returns **calendar / estimation** surfaces (hist Nifty for μ/σ; forward expiry & shift *dates*). Simulated prices and roll points are per path — use Intel · Path Market after a Run. Full path×date grid: Home **Download Simulated Nifty Paths** or `GET /api/forwardtest/{id}/mc-matrix.xlsx`.
+
+### GBM estimation (must be dynamic)
+
+| Check | Expected |
+|-------|----------|
+| Window | First Nifty date ≈ **2001-01-01** through **As Of Today** |
+| Recompute | Every Run / after `/api/sync` advances as-of — μ, σ, drift are not hard-coded constants |
+| Excel params | Download lists Estimation Start / Estimation End / As Of matching that window |
+| Columns | Header row `Path \\ Date` then ISO trading dates as-of → Simulation End |
 
 ---
 
@@ -342,16 +351,17 @@ Expect PASS for every observation count **1…7** (prefix + suffix schedules), e
 
 ## Manual Desk Checks
 
-After `./start.sh` or production deploy
+After `./start.ps1` / `./start.sh` or production deploy
 
 1. **Product tab** — six As-per-HS legs; Observation months **38, 41, 44, 47, 50, 53, 56**; no Maturity Value column in sample.
-2. **Run → Monthly** — Path 1 Total ≈ **180.77** Cr; Path 10 ≈ **216.47** Cr.
-3. **Desk → Hedging Sheet** — Path 1: observations, Forward/Discount/Vols match WF1; Req. Delta rail populated.
-4. **Desk → Computation** — Path 1 result block: Invt 100 · MTM ~48.82 · Cash ~7.09 · Gsec ~33.21 · Tx ~−0.85 · Fees ~−7.50 · Total ~180.77.
-5. **Desk → Daily Ledger** — charts render for selected path; no junk pre-2001 dates.
-6. **Intel → Path Market** — pick a path; Simulated Nifty differs across paths; roll points use that path's spots; monthly expiries use last-Tuesday calendar + path Nifty.
-7. **Path picker** — Start Date, End Date, Trading Days, Calendar Days visible.
+2. **Run** — Home GBM band: Estimation **2001-01-01 → As Of Today**; S₀ / μ / σ / drift present.
+3. **Home → Download Simulated Nifty Paths** — Excel has params + path rows × date columns through Simulation End.
+4. **Desk → Hedging Sheet / Computation** — selected path populates; sample monthly gold Path 1 Total ≈ **180.77** Cr only when feeding historical Backtester windows (parity engines).
+5. **Desk → Daily Ledger** — charts render for selected path.
+6. **Intel → Path Market** — pick a path; Simulated Nifty differs across paths; roll points use that path's spots.
+7. **Intel → Monte Carlo Matrix** — preview + Download Excel matches Home file.
 8. **Header strip** — As Of Today · Simulation End · Simulation End Days · Trading Days · Monthly Expiries (horizon counts).
+9. **Production** — follow [08-deploy-vercel-render.md](08-deploy-vercel-render.md); Vercel `/api/health` proxies to Render.
 
 ---
 
@@ -361,10 +371,12 @@ After `./start.sh` or production deploy
 |--------|----------------|
 | `nav.py`, `hedge.py`, roll logic | Smoke Path 1 + Path 10 + `verify_monthly_excel.py` + `verify_roll_costs.py` |
 | `calendar_build` pin / market sync | Open-month roll = last Nifty date; first roll ≈ 4.7713 |
-| `product.py` / Product Input sample | Six-leg book guard + Path 1 total + Simulation End Days default 3650 |
+| `product.py` / Product Input sample | Six-leg book guard + Path 1 total + Simulation End Days default 7300 |
 | Market CSVs / sync | `/api/sync` meta + first roll cost ≈ 4.7713 |
 | Path builder / tenure / forward calendar | `verify_forward_calendar.py` + dynamic product suite |
+| `gbm.py` / `mc_matrix.py` | Home download Excel: 2001→as-of params + date columns; Path Market differs by path |
 | Intel / UI | Path Market per path; header horizon meta from live product calendar |
+| Deploy / env | Render `/api/health` + Vercel `/api/health` with `BACKEND_URL` |
 
 ---
 
@@ -376,3 +388,4 @@ After `./start.sh` or production deploy
 | [09-formulas-and-product-books.md](09-formulas-and-product-books.md) | Stage formulas and live book |
 | [02-excel-sheet-logic.md](02-excel-sheet-logic.md) | WF1 sheet mirror |
 | [04-forwardtest-engine.md](04-forwardtest-engine.md) | Engine pipeline |
+| [08-deploy-vercel-render.md](08-deploy-vercel-render.md) | Layman Vercel + Render + all env vars |

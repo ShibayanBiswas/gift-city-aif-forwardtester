@@ -38,7 +38,7 @@ export default function HomePage() {
 
   const downloadSimulatedPaths = async () => {
     if (!jobId) {
-      setDownloadError("Run a forward test first to generate simulated Nifty paths.");
+      setDownloadError("Run a forward test first.");
       return;
     }
     setDownloadError(null);
@@ -63,7 +63,7 @@ export default function HomePage() {
               <h2 className="font-display text-3xl text-[var(--ar-maroon)] md:text-5xl">{displayName}</h2>
               <p className="mt-2 max-w-2xl text-sm leading-relaxed text-[var(--ar-muted)] font-ui">
                 Structured units forward-tested from today&apos;s Nifty close through Simulation End. Upload a product
-                sheet, pick a path frequency, and run the Monte Carlo desk engine.
+                sheet, pick a path frequency, and run the desk engine.
               </p>
             </div>
             <div className="flex flex-wrap gap-2 font-ui text-sm">
@@ -105,84 +105,48 @@ export default function HomePage() {
         <>
           <KpiBand />
           {summary.gbm ? (
-            <motion.section
-              initial={{ opacity: 0, y: 8 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="ar-panel overflow-hidden"
-            >
-              <div className="border-b border-[var(--ar-border)] bg-gradient-to-r from-[var(--ar-table-head-from)] to-transparent px-6 py-5">
-                <div className="flex flex-wrap items-start justify-between gap-3">
-                  <div>
-                    <p className="font-ui text-xs uppercase tracking-[0.22em] text-[var(--ar-subtle)]">
-                      Geometric Brownian Motion
-                    </p>
-                    <p className="mt-1 font-display text-2xl text-[var(--ar-maroon)] md:text-3xl">
-                      Estimation {formatDeskDate(gbmEstStart)} → {formatDeskDate(gbmEstEnd)}
-                    </p>
-                    <p className="mt-1 max-w-2xl text-sm leading-relaxed text-[var(--ar-muted)] font-ui">
-                      Daily average return and daily standard deviation are recalculated from Nifty history from
-                      01-Jan-2001 through today&apos;s as-of close. Download the full path × date simulated Nifty
-                      grid in Excel Monte Carlo format.
-                    </p>
-                  </div>
-                  <DownloadButton
-                    label="Download Simulated Nifty Paths"
-                    onClick={downloadSimulatedPaths}
-                    className="shrink-0 bg-[var(--ar-maroon)] text-white hover:bg-[var(--ar-maroon)] hover:border-[var(--ar-gold)]"
-                  />
-                </div>
-                {downloadError ? (
-                  <p className="mt-3 text-sm text-[var(--ar-maroon)] font-ui">{downloadError}</p>
-                ) : null}
-                {summary.mc_matrix ? (
-                  <p className="mt-3 text-xs text-[var(--ar-muted)] font-ui">
-                    Excel layout · {summary.mc_matrix.n_paths} paths × {summary.mc_matrix.n_dates} trading dates ·
-                    rows = path number · columns = dates · {formatDeskDate(summary.asof)} →{" "}
-                    {formatDeskDate(summary.simulation_end)}
+            <section className="sheet-card overflow-hidden">
+              <div className="flex flex-wrap items-end justify-between gap-3 border-b border-[var(--ar-border)] bg-gradient-to-r from-[var(--ar-table-head-from)] to-transparent px-5 py-4">
+                <div>
+                  <p className="text-[10px] uppercase tracking-[0.2em] text-[var(--ar-subtle)] font-ui">Parameters</p>
+                  <h3 className="font-display text-xl text-[var(--ar-maroon)]">Nifty Path Parameters</h3>
+                  <p className="mt-1 text-sm text-[var(--ar-muted)] font-ui">
+                    {formatDeskDate(gbmEstStart)} → {formatDeskDate(gbmEstEnd)}
                   </p>
-                ) : null}
+                </div>
+                <DownloadButton label="Download Excel" onClick={downloadSimulatedPaths} />
               </div>
-              <div className="horizontal-rail-fill px-6 py-5">
+              {downloadError ? (
+                <p className="px-5 pt-3 text-sm text-[var(--ar-maroon)] font-ui">{downloadError}</p>
+              ) : null}
+              <div className="horizontal-rail-fill px-5 py-4">
                 <div className="horizontal-rail-fill-inner flex w-full gap-3">
                   {[
                     {
                       label: "Current Nifty Spot",
-                      hint: (
-                        <span className="font-serif italic">
-                          S<sub>0</sub>
-                        </span>
-                      ),
                       value: formatNum(summary.gbm.spot0, 2),
                     },
                     {
                       label: "Daily Average Return",
-                      hint: <span className="font-serif italic">μ</span>,
                       value: `${formatNum(summary.gbm.mean_return_pct ?? summary.gbm.mean_return * 100, 4)}%`,
                     },
                     {
                       label: "Daily Standard Deviation",
-                      hint: <span className="font-serif italic">σ</span>,
                       value: `${formatNum(summary.gbm.std_dev_pct ?? summary.gbm.std_dev * 100, 2)}%`,
                     },
                     {
                       label: "Mean Drift",
-                      hint: (
-                        <span className="font-serif italic">
-                          μ − ½σ<sup>2</sup>
-                        </span>
-                      ),
                       value: summary.gbm.drift.toFixed(6),
                     },
                   ].map((c) => (
                     <div key={c.label} className="rail-card-fill glass min-w-0 flex-1 rounded-2xl px-4 py-3">
                       <p className="text-[10px] tracking-[0.16em] text-[var(--ar-subtle)] font-ui">{c.label}</p>
-                      <p className="mt-0.5 text-xs text-[var(--ar-muted)] font-ui">{c.hint}</p>
                       <p className="mt-1 font-display text-lg tabular-nums text-[var(--ar-maroon)]">{c.value}</p>
                     </div>
                   ))}
                 </div>
               </div>
-            </motion.section>
+            </section>
           ) : null}
           <ChartFrame
             title="Yearly Mean And Median Terminal Value"

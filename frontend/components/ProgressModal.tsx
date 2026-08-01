@@ -3,7 +3,6 @@
 import { AnimatePresence, motion } from "framer-motion";
 import { createPortal } from "react-dom";
 import { useEffect, useState } from "react";
-import { client, formatDeskDate, formatNum } from "@/lib/api";
 
 function cleanProgressCopy(raw: string): string {
   return raw
@@ -11,10 +10,6 @@ function cleanProgressCopy(raw: string): string {
     .replace(/tqdm/gi, "")
     .replace(/\s{2,}/g, " ")
     .trim();
-}
-
-function Glyph({ children }: { children: React.ReactNode }) {
-  return <span className="font-serif italic text-[var(--ar-maroon)]">{children}</span>;
 }
 
 export function ProgressModal({
@@ -31,33 +26,7 @@ export function ProgressModal({
   onDismiss?: () => void;
 }) {
   const [mounted, setMounted] = useState(false);
-  const [gbm, setGbm] = useState<{
-    spot0: number;
-    mean_return_pct?: number;
-    mean_return: number;
-    std_dev_pct?: number;
-    std_dev: number;
-    drift: number;
-    asof: string;
-  } | null>(null);
-
   useEffect(() => setMounted(true), []);
-
-  useEffect(() => {
-    if (!open || error) return;
-    let cancelled = false;
-    void client
-      .gbmParams()
-      .then((r) => {
-        if (!cancelled && r.gbm) setGbm(r.gbm);
-      })
-      .catch(() => {
-        /* keep prior */
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [open, error]);
 
   if (!mounted) return null;
 
@@ -93,43 +62,6 @@ export function ProgressModal({
                   : "Computing Forward Paths"}
               </h2>
               <p className="mt-2 min-h-[1.25rem] text-sm text-[var(--ar-muted)] font-ui">{copy}</p>
-
-              {!failed && gbm ? (
-                <div className="mt-4 space-y-2 rounded-xl border border-[var(--ar-border)] bg-[var(--ar-panel)]/60 px-4 py-3 font-ui text-sm">
-                  <p className="text-[10px] uppercase tracking-[0.16em] text-[var(--ar-subtle)]">
-                    Geometric Brownian Motion · As-Of {formatDeskDate(gbm.asof)}
-                  </p>
-                  <p className="leading-relaxed text-[var(--ar-ink)]">
-                    Current Nifty Spot <Glyph>S<sub>0</sub></Glyph>
-                    <span className="float-right tabular-nums font-semibold text-[var(--ar-maroon)]">
-                      {gbm.spot0.toLocaleString("en-IN", { maximumFractionDigits: 2 })}
-                    </span>
-                  </p>
-                  <div className="clear-both" />
-                  <p className="leading-relaxed text-[var(--ar-ink)]">
-                    Daily Average Return <Glyph>μ</Glyph>
-                    <span className="float-right tabular-nums font-semibold text-[var(--ar-maroon)]">
-                      {formatNum(gbm.mean_return_pct ?? gbm.mean_return * 100, 4)}%
-                    </span>
-                  </p>
-                  <div className="clear-both" />
-                  <p className="leading-relaxed text-[var(--ar-ink)]">
-                    Daily Standard Deviation <Glyph>σ</Glyph>
-                    <span className="float-right tabular-nums font-semibold text-[var(--ar-maroon)]">
-                      {formatNum(gbm.std_dev_pct ?? gbm.std_dev * 100, 2)}%
-                    </span>
-                  </p>
-                  <div className="clear-both" />
-                  <p className="leading-relaxed text-[var(--ar-ink)]">
-                    Mean Drift <Glyph>μ − ½σ²</Glyph>
-                    <span className="float-right tabular-nums font-semibold text-[var(--ar-maroon)]">
-                      {gbm.drift.toFixed(6)}
-                    </span>
-                  </p>
-                  <div className="clear-both" />
-                </div>
-              ) : null}
-
               {!failed ? (
                 <>
                   <div className="mt-5 h-3 overflow-hidden rounded-full bg-black/5 dark:bg-white/10">
