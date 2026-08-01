@@ -87,7 +87,7 @@ export default function MonteCarloMatrixPage() {
                 href="/intel"
                 className="rounded-full border border-[var(--ar-border)] bg-[var(--ar-surface)] px-3.5 py-1.5 text-xs font-semibold uppercase tracking-wide text-[var(--ar-maroon)] font-ui hover:border-[var(--ar-gold)]"
               >
-                Path Market
+                Market Calendar
               </Link>
               <button
                 type="button"

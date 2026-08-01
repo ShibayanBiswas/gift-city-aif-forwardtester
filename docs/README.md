@@ -11,7 +11,7 @@ Gift City AIF Forwardtester projects structured-unit outcomes from **As Of Today
 | [03-product-input-spec.md](03-product-input-spec.md) | Product Input + Simulation End Days |
 | [04-forwardtest-engine.md](04-forwardtest-engine.md) | Path atlas, GBM, Mon–Fri pad, hedge/NAV Backtester parity |
 | [05-architecture.md](05-architecture.md) | Next.js + FastAPI + GitHub layout |
-| [06-ui-ux.md](06-ui-ux.md) | Desk UI, Home download, Intel · Path Market / MC Matrix |
+| [06-ui-ux.md](06-ui-ux.md) | Desk UI, Home download, Intel · Market Calendar / MC Matrix |
 | [07-verification.md](07-verification.md) | Checks, roll verify, forward calendar, MC Excel |
 | [08-deploy-vercel-render.md](08-deploy-vercel-render.md) | **Layman** Vercel + Render deploy + **all** env vars |
 | [09-formulas-and-product-books.md](09-formulas-and-product-books.md) | Formulas + forward calendars + roll 7% + GBM |
@@ -29,7 +29,7 @@ Gift City AIF Forwardtester projects structured-unit outcomes from **As Of Today
 | GBM μ / σ | **Dynamic** every Run from Nifty **2001-01-01 → today’s as-of** (`estimate_gbm_params`) |
 | GBM matrix | Rows = path \(1,2,3,\ldots\); cols = **trading dates** as-of→Simulation End; \(S_t = S_{t-1}\cdot\exp(\mathrm{drift}+\sigma Z)\) |
 | Home download | **Download Excel** → branded Parameters + Simulated Nifty sheets |
-| Intel · Path Market | Per-path simulated Nifty · monthly expiries · path-local roll points (no shared forward price DB) |
+| Intel · Market Calendar | Shared futures shift / monthly expiry **dates** only (path Nifty & roll points on MC Matrix / Hedging / Computation) |
 | Intel · MC Matrix | Preview table + same Excel download as Home |
 | Card rails | Backtester-parity glass / meta-chip / equal header grid |
 | Per-path rolls | Calendar shift dates shared; roll points = 7% × path avg spot × day fraction |

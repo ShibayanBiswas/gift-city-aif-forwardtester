@@ -24,7 +24,7 @@ const DESK_LINKS = [
   { href: "/hedging", label: "Hedging Sheet" },
   { href: "/computation", label: "Computation" },
   { href: "/analytics", label: "Analytics" },
-  { href: "/intel", label: "Path Market" },
+  { href: "/intel", label: "Market Calendar" },
   { href: "/intel/matrix", label: "Monte Carlo Matrix" },
 ] as const;
 

@@ -398,7 +398,7 @@ export const logicModules: LogicModule[] = [
         steps: [
           "Return (paths, forward_market, gbm_params, simulation_end).",
           "forwardtest.run_forwardtest evaluates each path.",
-          "Intel · Path Market reads that path's nifty / rolls / expiries.",
+          "Intel · Market Calendar shows shared shift / expiry dates; path Nifty and roll points are on Hedging, Computation, and the Monte Carlo Matrix.",
         ],
       },
     ],
@@ -472,7 +472,7 @@ export const logicModules: LogicModule[] = [
         kind: "input",
         description: "Historical CSV through as-of for GBM estimation; each path then carries its own lognormal simulated closes.",
         detail:
-          "load_market builds historical dates/closes through present (as-of). estimate_gbm_params reads μ and σ from that history. Path evaluation uses gbm_spots(S0, μ, σ, path_id) on Mon–Fri sessions — Intel · Path Market shows that path's series, not a Path-1 shared DB.",
+          "load_market builds historical dates/closes through present (as-of). estimate_gbm_params reads μ and σ from that history. Path evaluation uses gbm_spots(S0, μ, σ, path_id) on Mon–Fri sessions — per-path series appear on Hedging / Computation / MC Matrix; Intel · Market Calendar is dates only.",
         bullets: [
           "As-of = latest Nifty session after /api/sync",
           "Forward sessions: Mon–Fri only (calendar pad)",
@@ -679,11 +679,11 @@ export const logicModules: LogicModule[] = [
       },
       {
         id: "intel",
-        label: "Intel · Path Market",
+        label: "Intel · Market Calendar",
         kind: "lookup",
         description: "Per-path simulated Nifty, monthly expiries, and roll points for the selected GBM path.",
         detail:
-          "There is no shared forward price workbook. Intel · Path Market binds to PathSelect: Simulated Nifty = path.spots; Monthly Expiries = last-Tuesday calendar dates in the path window with path Nifty; Futures Rolls = path_roll_vector points on month-end shifts.",
+          "There is no shared forward price workbook. Intel · Market Calendar lists futures shift dates and monthly last-Tuesday expiries only. Simulated Nifty and path_roll_vector points differ by path — see MC Matrix, Hedging, and Computation.",
         bullets: [
           "Requires a completed Run + selected path",
           "Calendar dates shared; prices/points path-local",
@@ -708,7 +708,7 @@ export const logicModules: LogicModule[] = [
       "Observation targets use m × 30.5 calendar days from path start before expiry mapping.",
       "Forward futures shifts are month-end trading days; monthly option expiries are last Tuesdays — dates may differ.",
       "expiry_overrides.csv optional layer sits first in the resolver priority stack.",
-      "Intel · Path Market shows one path's simulated market sheet — not a shared Path-1 database.",
+      "Intel · Market Calendar is shared dates only; simulated levels live per path on MC Matrix / Hedging / Computation.",
     ],
     noteCards: [
       {
@@ -731,7 +731,7 @@ export const logicModules: LogicModule[] = [
       },
       {
         title: "Two expiry lists",
-        body: "MarketDB.expiries is monthly-last for hedge. Forward weeklies are not a shared price DB — Intel · Path Market shows monthly expiries with that path's simulated Nifty.",
+        body: "MarketDB.expiries is monthly-last for hedge. Intel · Market Calendar shows those expiry dates only; simulated Nifty on expiry is path-specific on Hedging / Computation.",
       },
       {
         title: "Rebuild and sync",

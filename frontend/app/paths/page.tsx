@@ -8,22 +8,24 @@ import { DownloadButton } from "@/components/DownloadButton";
 import { downloadExcel } from "@/lib/download";
 import { formatDeskDate, formatNum, formatPct, isPlausibleTradingDate } from "@/lib/api";
 
+const DESK_MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+function formatDeskMonth(isoDate: string): string {
+  const [y, m] = isoDate.slice(0, 7).split("-").map(Number);
+  if (!y || !m || m < 1 || m > 12) return isoDate.slice(0, 7);
+  return `${DESK_MONTHS[m - 1]}-${y}`;
+}
+
 export default function PathsPage() {
   const { summary, pathDetail, pathId, product } = useForwardTest();
   if (!summary) return <EmptyRunHint />;
 
   const obsSet = new Set(pathDetail?.observations ?? []);
   const plausibleDates = (pathDetail?.dates ?? []).filter((d) => isPlausibleTradingDate(d));
-  const calendarRows = plausibleDates.map((d, i) => [
-    i + 1,
-    formatDeskDate(d),
-    d.slice(0, 7),
-    obsSet.has(d) ? "Observation" : "Trading",
-  ]);
   const calendarExportRows = plausibleDates.map((d, i) => [
     i + 1,
     d,
-    d.slice(0, 7),
+    formatDeskMonth(d),
     obsSet.has(d) ? "Observation" : "Trading",
   ]);
 
@@ -95,7 +97,9 @@ export default function PathsPage() {
                       {
                         sheetName: "Trading Calendar",
                         title: `Trading Calendar · Path ${pathId}`,
-                        subtitle: `${plausibleDates.length} Sessions · ${pathDetail.observations.length} Observations`,
+                        subtitle: `${plausibleDates.length} Sessions · ${pathDetail.observations.length} Observations${
+                          product?.name ? ` · ${product.name}` : ""
+                        }`,
                         columnTypes: ["integer", "date", "text", "text"],
                       },
                     )

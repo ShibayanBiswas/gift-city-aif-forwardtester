@@ -36,7 +36,7 @@ Product Excel (Product_Input_File.xlsx or upload)
  forwardtest.py run_forwardtest · KPIs · mc-matrix.xlsx · Intel desk market through Simulation End
 ```
 
-Shared `/api/market/*` exposes **calendar horizon** (and historical Nifty for μ/σ). Simulated prices and roll points live on each path — Intel · Path Market reads path detail. Home and Intel · Monte Carlo Matrix download the full grid via `/api/forwardtest/{id}/mc-matrix.xlsx`.
+Shared `/api/market/*` exposes **calendar horizon** (and historical Nifty for μ/σ). Simulated prices and roll points live on each path — Hedging / Computation / MC Matrix. Intel · Market Calendar is dates only. Home and Intel · Monte Carlo Matrix download the full grid via `/api/forwardtest/{id}/mc-matrix.xlsx`.
 
 Sheet mirror reference: [02-excel-sheet-logic.md](02-excel-sheet-logic.md). API wiring: [05-architecture.md](05-architecture.md).
 
@@ -168,7 +168,7 @@ Therefore:
 
 - **No** shared “Market Reference Workbook” of forward Nifty closes
 - **Yes** shared calendar rules (Mon–Fri sessions, last-Tuesday expiries, month-end roll *dates*)
-- **Yes** path-local Nifty, expiry marks, and roll *points* (Intel · Path Market)
+- **Yes** path-local Nifty, expiry marks, and roll *points* (Hedging / Computation / MC Matrix)
 
 There are **no** Macro Paths CSV pins (235 historical windows). Those belong to the Backtester.
 
@@ -232,19 +232,17 @@ Same daily ledger as the Backtester: futures inventory, MTM, 7% rolls (gated aft
 
 | Sheet | Range | Columns (no Source) | Content |
 |-------|-------|---------------------|---------|
-| Futures rolls | as-of → Simulation End | Row · Shift Date · Roll Cost pts | Forward = month-end TDs + 7% model |
-| Monthly expiries | as-of → Simulation End | Row · Expiry · Weekday · Contract · Nifty | Forward = last Tuesdays |
-| Path Market · Nifty | selected path full horizon | Trading Date · Simulated Close | Per-path GBM on Mon–Fri |
-| Path Market · Expiries | path horizon | Expiry · Weekday · Simulated Nifty | Last-Tuesday dates + path spots |
-| Path Market · Rolls | path horizon | Shift Date · Roll Points | Month-end dates + path_roll_vector |
-| Monte Carlo Matrix | all paths × all horizon dates | Path \\ Date · `YYYY-MM-DD`… | Full grid + Excel (same as Home download) |
+| Market Calendar · Futures shifts | as-of → Simulation End | Row · Shift Date · Weekday | Month-end trading days (dates only) |
+| Market Calendar · Expiries | as-of → Simulation End | Row · Expiry · Weekday · Contract | Last Tuesdays (dates only) |
+| Monte Carlo Matrix | all paths × all horizon dates | Path \\ Date · desk dates | Full grid + Excel (same as Home download) |
+| Hedging / Computation | selected path tenure | Path Nifty · roll points · obs marks | Per-path GBM + `path_roll_vector` |
 
-UI meta cards on Intel use a **compact** grid (As Of / Simulation End / Days / Roll Rate). See [06-ui-ux.md](06-ui-ux.md).
+UI meta cards on Market Calendar: As Of / Simulation End / shift count / expiry count. See [06-ui-ux.md](06-ui-ux.md).
 
 See [02-excel-sheet-logic.md](02-excel-sheet-logic.md) for WF1 sheet names vs engine modules.
 
 
-## Path Market vs shared calendar
+## Market Calendar vs shared prices
 
 | Layer | Shared? | Contents |
 |-------|---------|----------|

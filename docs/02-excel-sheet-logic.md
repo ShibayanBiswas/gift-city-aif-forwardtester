@@ -145,7 +145,7 @@ Full forward calendar: [04-forwardtest-engine.md](04-forwardtest-engine.md).
 
 - Full weekly + monthly option calendar also built for Intel (`nifty_all_expiries.csv`): weeklies from Feb-2019 (Thu era) and Sep-2025+ (Tue era).
 - Hedging Sheet uses **monthly expiries only** for observation mapping.
-- Intel · Path Market shows **one selected path's** simulated Nifty, monthly expiries, and roll points — not a shared forward workbook.
+- Intel · Market Calendar shows **shared expiry / futures-shift dates only**. Path Nifty and roll points live on Hedging / Computation / MC Matrix.
 
 ### Hedging observation mapping
 
@@ -390,7 +390,7 @@ Path 5     25,583.00   25,924.99   25,771.45  …
 **Same day index ⇒ different prices across paths.** Path 1 Day 1 ≠ Path 2 Day 1.
 Each path draws its own \(Z\) sequence (engine seed keyed by `path_id`), so the whole Nifty series for path \(i\) is independent of path \(j\).
 
-Desk Forwardtester maps that idea onto **calendar dates** (Mon–Fri only): for a fixed trading date \(D\), simulated closes generally differ by path. That is why there is **no shared forward price database / Market Reference Workbook** — only shared **calendar rules** (when expiries and roll *dates* fall). Nifty levels, monthly-expiry marks, and roll *points* are always taken from the selected path’s column of the matrix (Intel · Path Market).
+Desk Forwardtester maps that idea onto **calendar dates** (Mon–Fri only): for a fixed trading date \(D\), simulated closes generally differ by path. That is why there is **no shared forward price database / Market Reference Workbook** — only shared **calendar rules** (when expiries and roll *dates* fall). Nifty levels and roll *points* are taken from the selected path’s column of the matrix (MC Matrix / Hedging / Computation).
 
 ### Desk vs Excel day-0
 
@@ -407,4 +407,4 @@ Desk Forwardtester maps that idea onto **calendar dates** (Mon–Fri only): for 
 | Hedging Sheet obs Nifty | That path’s simulated close on/before expiry |
 | Futures roll points | `path_roll_vector` on that path’s spots |
 | Computation MTM / NAV | That path’s daily simulated Nifty |
-| Intel · Path Market | One selected path’s Nifty · expiries · rolls |
+| Intel · Market Calendar | Shared futures-shift / monthly-expiry **dates** only |

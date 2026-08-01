@@ -135,7 +135,7 @@ Each `OptionLegSpec` carries: `quantity`, strike/return, `option_type`, `forward
 
 Defaults when rate cells blank (WF1 HS): Forward **6.6%**, Discount **7.6%**. UI shows `—` when absent rather than inventing display rates.
 
-Changing Simulation End Days (or any product field) refreshes header horizon meta; a prior Run is cleared when the product fingerprint no longer matches. Path Market sheets rebuild on the next Run (per-path GBM Nifty / rolls / expiries).
+Changing Simulation End Days (or any product field) refreshes header horizon meta; a prior Run is cleared when the product fingerprint no longer matches. Market Calendar dates refresh with the product horizon; per-path GBM Nifty / rolls rebuild on the next Run.
 
 ---
 

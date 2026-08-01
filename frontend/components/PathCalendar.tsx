@@ -1,7 +1,15 @@
 "use client";
 
 import { useMemo } from "react";
-import { cn } from "@/lib/api";
+import { cn, formatDeskDate } from "@/lib/api";
+
+const DESK_MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+function formatDeskMonth(isoYm: string): string {
+  const [y, m] = isoYm.slice(0, 7).split("-").map(Number);
+  if (!y || !m || m < 1 || m > 12) return isoYm;
+  return `${DESK_MONTHS[m - 1]}-${y}`;
+}
 
 export function PathCalendar({
   dates,
@@ -37,7 +45,7 @@ export function PathCalendar({
           {byMonth.map(([month, days]) => (
             <div key={month}>
               <div className="mb-2 flex items-center gap-3">
-                <span className="text-sm font-medium tracking-wide font-ui">{month}</span>
+                <span className="text-sm font-medium tracking-wide font-ui">{formatDeskMonth(month)}</span>
                 <div className="ar-gold-rule flex-1" />
                 <span className="text-xs text-[var(--ar-subtle)]">{days.length}d</span>
               </div>
@@ -47,7 +55,7 @@ export function PathCalendar({
                   return (
                     <span
                       key={d}
-                      title={d}
+                      title={formatDeskDate(d)}
                       className={cn(
                         "inline-flex h-8 min-w-8 items-center justify-center rounded-md px-1.5 text-xs tabular-nums font-ui",
                         isObs

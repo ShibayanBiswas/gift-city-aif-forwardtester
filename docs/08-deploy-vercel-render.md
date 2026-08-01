@@ -214,7 +214,7 @@ Optional: `NEXT_PUBLIC_BACKEND_URL` = same URL.
 3. Set path frequency (e.g. **Daily** or **Monthly**). Path count = f(frequency, Simulation End Days, tenure) — not a fixed 235 Macro Paths list.
 4. **Run**.
 5. Check **Home**: GBM band (μ/σ from **2001 → as-of**) + **Download Simulated Nifty Paths** (path×date Excel).
-6. Check **Desk → Hedging / Computation**, **Intel → Path Market**, **Intel → MC Matrix**.
+6. Check **Desk → Hedging / Computation**, **Intel → Market Calendar**, **Intel → MC Matrix**.
 
 ---
 
@@ -272,7 +272,7 @@ Expect `market.first_date` ≈ `2001-01-01`, `market.last_date` = latest session
 Free Render disk is ephemeral; git `data/*.csv` are the seed; startup re-extends.
 
 Header chips: As Of Today · Simulation End · Simulation End Days · Trading Days · Monthly Expiries.  
-Intel · Path Market is **per path** after a Run (no shared forward price workbook).  
+Intel · Market Calendar is **shared dates** (no forward prices). Path Nifty / rolls: Hedging / MC Matrix.  
 Home **Download Simulated Nifty Paths** exports the shared Monte Carlo path×date grid.
 
 ---
@@ -294,7 +294,7 @@ Home **Download Simulated Nifty Paths** exports the shared Monte Carlo path×dat
 - [ ] Home shows GBM S₀ / μ / σ / drift after Run (estimation 2001→as-of)
 - [ ] Home **Download Simulated Nifty Paths** opens Excel with date columns
 - [ ] Hedging Sheet + Computation populate for a path
-- [ ] Intel → Path Market: Simulated Nifty / Monthly Expiries / Rolls for selected path
+- [ ] Intel → Market Calendar: Futures shift dates + monthly expiry dates (no price columns)
 - [ ] Intel → MC Matrix: preview table + Download Excel (`/api/forwardtest/{job}/mc-matrix.xlsx`)
 - [ ] Header chips show live Simulation End Days (default 7300)
 
@@ -360,11 +360,11 @@ Vercel (Next.js)  ── /api/* rewrite ──►  Render (FastAPI + GBM engine 
 1. Push to `main`.
 2. Render auto-deploys backend; Vercel auto-deploys frontend.
 3. Wait for Render before trusting new engine / CSV behaviour.
-4. Smoke: Sample → Run → Home download + Computation + Path Market.
+4. Smoke: Sample → Run → Home download + Computation + Market Calendar.
 
 | Changed | Re-verify |
 |---------|-----------|
-| `gbm.py` / `mc_matrix.py` / `paths.py` | Home Excel: 2001→as-of params + date columns; Path Market differs by path |
+| `gbm.py` / `mc_matrix.py` / `paths.py` | Home Excel: 2001→as-of params + date columns; MC Matrix differs by path |
 | `nav.py` / `hedge.py` | Path totals / hedge rows |
 | `product.py` | Simulation End Days + six-leg book |
 | `next.config.ts` / env | Proxy `/api/health` |

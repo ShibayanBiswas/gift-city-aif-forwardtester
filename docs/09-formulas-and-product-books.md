@@ -226,7 +226,7 @@ Roll Cost + Paths uses a **7% futures carry model** on monthly **futures shift**
 | Trading sessions | **Mon–Fri only** through Simulation End (Sat/Sun closed; leap/30/31 via real calendar) |
 | Futures shift | **Last trading day of each month** |
 | Monthly option expiry | **Last Tuesday of each month** |
-| Roll points | Same 7% formula on **each path's** GBM closes via `path_roll_vector` (Intel Path Market = same points) |
+| Roll points | Same 7% formula on **each path's** GBM closes via `path_roll_vector` (Hedging / Computation; calendar dates on Market Calendar) |
 | As-of | Latest Nifty session after deploy sync — horizon = as-of + Simulation End Days |
 
 Historical months through as-of keep CSV / NSE builder behaviour, including **`pin_current_month_roll_to_latest`** (open month = latest Nifty session) — same as Gift AIF Backtester. See [04-forwardtest-engine.md](04-forwardtest-engine.md).

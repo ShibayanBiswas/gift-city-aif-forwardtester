@@ -7,7 +7,7 @@ import os
 import shutil
 import threading
 import uuid
-from datetime import date
+from datetime import date, datetime, timezone
 from pathlib import Path
 from typing import Any, Literal
 
@@ -84,6 +84,9 @@ _active_job_id: str | None = None
 _client_run_jobs: dict[str, str] = {}
 _MAX_JOB_FILES = 12
 _run_lock: asyncio.Lock | None = None
+_desk_cache_key: tuple[Any, ...] | None = None
+_desk_cache: dict[str, Any] | None = None
+_market_synced_at: str | None = None
 
 
 def _get_run_lock() -> asyncio.Lock:
@@ -92,6 +95,12 @@ def _get_run_lock() -> asyncio.Lock:
     if _run_lock is None:
         _run_lock = asyncio.Lock()
     return _run_lock
+
+
+def _invalidate_desk_cache() -> None:
+    global _desk_cache_key, _desk_cache
+    _desk_cache_key = None
+    _desk_cache = None
 
 
 def _ensure_product() -> ProductSpec:
@@ -108,11 +117,19 @@ def _desk_market():
     Calendar only for desk meta (Trading Days / Monthly Expiries). Simulated
     Nifty prices and roll *points* live on each GBM path — there is no shared
     Path-1 price workbook for the forward horizon.
+
+    Cached by (as-of, simulation_end_days, tenure, obs months) so header / Intel
+    meta stay snappy on Render free tier.
     """
+    global _desk_cache_key, _desk_cache
     base = load_market()
     product = _ensure_product()
-    sim_end = resolved_simulation_end(base.last_date, product)
     days = resolved_simulation_end_days(product)
+    obs_key = tuple(float(m) for m in (product.observation_months or []))
+    key = (base.last_date.isoformat(), days, int(product.tenure_days), obs_key)
+    if _desk_cache is not None and _desk_cache_key == key:
+        return _desk_cache
+    sim_end = resolved_simulation_end(base.last_date, product)
     fwd, params = build_forward_market(
         base,
         sim_end,
@@ -121,7 +138,7 @@ def _desk_market():
         fill_gbm=False,
     )
     asof = base.last_date
-    return {
+    desk = {
         "base": base,
         "market": fwd,
         "params": params,
@@ -130,6 +147,9 @@ def _desk_market():
         "simulation_end_days": days,
         "product": product,
     }
+    _desk_cache_key = key
+    _desk_cache = desk
+    return desk
 
 
 def _horizon_meta(desk: dict[str, Any]) -> dict[str, Any]:
@@ -366,8 +386,12 @@ def _startup() -> None:
             pass
 
     def _bg_market_sync() -> None:
+        global _market_synced_at
         try:
             sync_market_to_present()
+            clear_market_cache()
+            _invalidate_desk_cache()
+            _market_synced_at = datetime.now(timezone.utc).isoformat()
             if mongo.is_configured():
                 try:
                     mongo.save_market_snapshot(_horizon_meta(_desk_market()))
@@ -375,6 +399,7 @@ def _startup() -> None:
                     pass
         except Exception:
             clear_market_cache()
+            _invalidate_desk_cache()
             try:
                 load_market()
             except Exception:
@@ -397,11 +422,23 @@ class CancelRequest(BaseModel):
 @app.get("/api/health")
 def health() -> dict:
     mongo_status = mongo.ping()
+    # As-of is always the last Nifty session (weekends / holidays → prior close).
+    try:
+        m = load_market()
+        asof = m.last_date.isoformat()
+        # closes may be a numpy array — never use truthiness on the whole array
+        spot0 = float(m.closes[-1]) if len(m.closes) else None
+    except Exception:
+        asof = None
+        spot0 = None
     return {
         "ok": True,
         "service": SERVICE_NAME,
         "version": APP_VERSION,
         "mongo": mongo_status,
+        "asof": asof,
+        "spot0": spot0,
+        "market_synced_at": _market_synced_at,
     }
 
 
@@ -431,11 +468,17 @@ def sync_status(force: bool = False) -> dict:
     Pass ``force=true`` to rebuild roll/expiry calendars even when no new Nifty
     rows were appended (desk “refresh calendars” control).
     """
+    global _market_synced_at
     try:
         synced = sync_market_to_present(force=force)
+        clear_market_cache()
+        _invalidate_desk_cache()
+        if synced.get("ok"):
+            _market_synced_at = datetime.now(timezone.utc).isoformat()
     except Exception as e:
         synced = {"ok": False, "error": str(e)}
         clear_market_cache()
+        _invalidate_desk_cache()
     desk = _desk_market()
     meta = _horizon_meta(desk)
     mongo_status = mongo.ping()
@@ -451,6 +494,8 @@ def sync_status(force: bool = False) -> dict:
         "market_sync": synced,
         "mongo": mongo_status,
         "product_loaded": _current_product is not None,
+        "market_synced_at": _market_synced_at,
+        "asof": meta.get("asof"),
     }
 
 
@@ -468,8 +513,8 @@ def get_market_meta() -> dict:
 def get_nifty(limit: int = 0) -> dict:
     """Historical Nifty through as-of only (GBM estimation sample).
 
-    Forward simulated closes are path-specific — use path detail ``nifty`` /
-    Intel · Path Market, not a shared workbook.
+    Forward simulated closes are path-specific — use path detail / Hedging /
+    Computation / Monte Carlo Matrix, not a shared workbook.
     """
     desk = _desk_market()
     base = desk["base"]
@@ -488,7 +533,7 @@ def get_nifty(limit: int = 0) -> dict:
         "asof": asof.isoformat(),
         "simulation_end": sim_end.isoformat(),
         "simulation_end_days": desk["simulation_end_days"],
-        "note": "Historical closes through as-of for μ/σ estimation. Simulated Nifty is per GBM path.",
+        "note": "Historical closes through as-of for μ/σ estimation. Simulated Nifty is per GBM path (MC Matrix / Hedging / Computation).",
     }
 
 
@@ -526,7 +571,7 @@ def get_expiries(full: bool = True) -> dict:
         "asof": asof.isoformat(),
         "simulation_end": sim_end.isoformat(),
         "simulation_end_days": desk["simulation_end_days"],
-        "note": "Calendar dates only. Pair with a path's simulated Nifty on Intel · Path Market.",
+        "note": "Calendar dates only. Simulated Nifty on each expiry is path-specific (Hedging / Computation / MC Matrix).",
     }
 
 
@@ -551,7 +596,7 @@ def get_rolls() -> dict:
         "asof": asof.isoformat(),
         "simulation_end": sim_end.isoformat(),
         "simulation_end_days": desk["simulation_end_days"],
-        "note": "Shift dates from the shared calendar. Roll points are path-specific.",
+        "note": "Shift dates from the shared calendar. Roll cost points are path-specific (Hedging / Computation).",
     }
 
 @app.get("/api/product/current")
@@ -596,6 +641,7 @@ async def upload_product(file: UploadFile = File(...)) -> dict:
     # Keep a stable current copy
     shutil.copy2(dest, UPLOADS / "current_product.xlsx")
     _current_product = product
+    _invalidate_desk_cache()
     payload = product.to_dict()
     try:
         mongo.upsert_current_product(payload)

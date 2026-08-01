@@ -23,7 +23,7 @@ The web app is a **live reimplementation** of `Gift AIF Working File 1.xlsm` hed
 | Computation | MTM, rolls, cash, G-Sec, fees, tx, NAV, IRR — same formulas; Forwardtester feeds **path-local** roll points |
 | Historical roll calendar | Same as Backtester: finished months = monthly option expiry; open month pinned via `pin_current_month_roll_to_latest` |
 | Header horizon strip | **As Of Today** · Simulation End · Simulation End Days · Trading Days · Monthly Expiries (calendar counts as-of→horizon) |
-| Intel · Path Market | Selected path: simulated Nifty · monthly expiries · futures roll points from that path's GBM spots |
+| Intel · Market Calendar | Shared futures shift dates · monthly last-Tuesday expiries (no path prices) |
 | GBM paths | Matrix like desk Monte Carlo Excel: vertical path ids; columns = **trading dates**; \(S_t = S_{t-1}\cdot\exp(\mathrm{drift}+\sigma Z)\); μ/σ from **2001→as-of** every Run |
 | Home Excel download | **Download Excel** on Nifty Path Parameters → branded Parameters + Simulated Nifty path×date sheets |
 | Desk UX | Full-form labels, Title Case, branded Excel downloads, Backtester-parity glass / meta-chip layouts |
@@ -149,6 +149,6 @@ Master index: [README.md](README.md).
 1. Open UI → **Sample Input** (or upload custom product) → confirm Product tab shows six put legs and observation months **38…56**.
 2. Set **Path Frequency** (default **Daily**) → **Run**.
 3. On **Home**: confirm Nifty Path Parameters → **Download Excel** for the path×date workbook.
-4. Spot-check **Path 1** on Hedging Sheet and Computation; use Analytics for distribution; Intel · Path Market / MC Matrix / Logic Atlas as needed.
+4. Spot-check **Path 1** on Hedging Sheet and Computation; use Analytics for distribution; Intel · Market Calendar / MC Matrix / Logic Atlas as needed.
 5. After engine changes, run verification in [07-verification.md](07-verification.md).
 6. Production deploy: follow the layman guide [08-deploy-vercel-render.md](08-deploy-vercel-render.md).

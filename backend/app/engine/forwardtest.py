@@ -235,6 +235,7 @@ def _init_worker(payload: dict[str, Any]) -> None:
         sim_end,
         _WORKER_PRODUCT.tenure_days,
         observation_months=_WORKER_PRODUCT.observation_months,
+        fill_gbm=False,
     )
     _WORKER_MARKET = fwd
     raw_dates = payload.get("horizon_dates") or []

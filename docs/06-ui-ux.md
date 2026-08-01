@@ -13,7 +13,7 @@ The Gift City AIF Forward Tester desk UI follows **Anand Rathi Wealth Primary SP
 | Home | — | `/` |
 | Analytics | Yearly Lab · Path Summary | `/analytics`, `/analytics/summary` |
 | Desk | Product · Paths · Hedging Sheet · Computation · Daily Ledger | `/product`, `/paths`, `/hedging`, `/computation`, `/computation/ledger` |
-| Intel | Path Market · Monte Carlo Matrix · Logic Atlas | `/intel`, `/intel/matrix`, `/intel/logic` |
+| Intel | Market Calendar · Monte Carlo Matrix · Logic Atlas | `/intel`, `/intel/matrix`, `/intel/logic` |
 
 ### Header controls (global)
 
@@ -147,19 +147,18 @@ Path picker on both subtabs.
 
 | Subtab | Content |
 |--------|---------|
-| **Path Market** | Selected path full horizon as-of → Simulation End: Simulated Nifty · Monthly Expiries · Futures Roll Costs from that path's Monte Carlo row |
+| **Market Calendar** | Shared forward **dates only** (as-of → Simulation End): futures month-end shift dates · monthly last-Tuesday option expiries. No Nifty levels or roll cost points (those vary by path). |
 | **Monte Carlo Matrix** | Full as-of → Simulation End grid — rows = path number, columns = **trading dates** — plus Excel download (identical to Home button) |
 | **Logic Atlas** | Module rail + Active Pipeline step cards |
 
-**Path Market tabs:**
+**Market Calendar tabs:**
 
 | Tab | Columns | Source |
 |-----|---------|--------|
-| Simulated Nifty Closes | Trading Date · Simulated Nifty | `pathDetail.dates` / `nifty` |
-| Monthly Expiries | Row · Expiry · Weekday · Contract · Simulated Nifty | `pathDetail.monthly_expiries` |
-| Futures Roll Costs | Row · Futures Shift Date · Roll Cost (index pts) | `pathDetail.rolls` (`path_roll_vector`) |
+| Futures Shift Dates | Row · Futures Shift Date · Weekday | `GET /api/market/rolls` (dates; `roll_cost` always null) |
+| Nifty Option Expiries | Row · Expiry · Weekday · Contract | `GET /api/market/expiries` (dates; `nifty_close` always null) |
 
-Requires a completed Run. PathSelect drives all three tabs. There is no shared forward price database.
+Available without a Run. Path-specific simulated Nifty and roll points: **Monte Carlo Matrix**, **Hedging Sheet**, **Computation**.
 
 **GBM reminder:** path rows are independent. For the same trading date, Path 2’s simulated Nifty is generally not Path 1’s. μ / σ are recomputed from **2001-01-01 → as-of** on every Run.
 
@@ -254,7 +253,7 @@ All desk exports use `lib/download.ts` **except** the Monte Carlo matrix, which 
 1. **Sample Input** → Product tab: 6 puts, obs **38…56**, Fwd/Disc/vols match [03-product-input-spec.md](03-product-input-spec.md).
 2. **Run** → Home GBM band shows estimation **2001-01-01 → As Of Today**; μ / σ / drift populated.
 3. **Download Excel** on Nifty Path Parameters → branded Parameters + Simulated Nifty sheets.
-4. Hedging Sheet / Computation for selected path; Intel Path Market differs by path.
+4. Hedging Sheet / Computation for selected path; MC Matrix for full path×date Nifty; Market Calendar for shared dates.
 5. Intel Logic Atlas: confirm pipeline order matches engine.
 6. Full script checklist: [07-verification.md](07-verification.md). Deploy: [08-deploy-vercel-render.md](08-deploy-vercel-render.md).
 

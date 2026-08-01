@@ -70,7 +70,7 @@ Horizon = **As Of Today** + **Simulation End Days** from Product Input (default 
 | Open-month hist roll | Pinned to latest Nifty session (Backtester `pin_current_month_roll_to_latest`) |
 | Path spots | GBM on path trading days only; hedge/NAV = Backtester engines |
 | Dynamic as-of | After deploy / `/api/sync`, as-of and horizon advance with latest Nifty |
-| Intel UI | Path Market bound to PathSelect; path-local Nifty / rolls / expiries |
+| Intel UI | Market Calendar = shared dates; path Nifty / rolls on Hedging / MC Matrix |
 
 ```powershell
 $env:PYTHONPATH = "backend"
@@ -78,7 +78,7 @@ $env:PYTHONPATH = "backend"
 .\.venv\Scripts\python.exe scripts\verify_roll_costs.py
 ```
 
-Intel `/api/market/{nifty,expiries,rolls}` returns **calendar / estimation** surfaces (hist Nifty for μ/σ; forward expiry & shift *dates*). Simulated prices and roll points are per path — use Intel · Path Market after a Run. Full path×date grid: Home **Download Simulated Nifty Paths** or `GET /api/forwardtest/{id}/mc-matrix.xlsx`.
+Intel `/api/market/{nifty,expiries,rolls}` returns **calendar / estimation** surfaces (hist Nifty for μ/σ; forward expiry & shift *dates*). Simulated prices and roll points are per path — Hedging / Computation / MC Matrix after a Run. Full path×date grid: Home **Download Simulated Nifty Paths** or `GET /api/forwardtest/{id}/mc-matrix.xlsx`.
 
 ### GBM estimation (must be dynamic)
 
@@ -358,7 +358,7 @@ After `./start.ps1` / `./start.sh` or production deploy
 3. **Home → Download Simulated Nifty Paths** — Excel has params + path rows × date columns through Simulation End.
 4. **Desk → Hedging Sheet / Computation** — selected path populates; sample monthly gold Path 1 Total ≈ **180.77** Cr only when feeding historical Backtester windows (parity engines).
 5. **Desk → Daily Ledger** — charts render for selected path.
-6. **Intel → Path Market** — pick a path; Simulated Nifty differs across paths; roll points use that path's spots.
+6. **Intel → Market Calendar** — futures shift / expiry **dates** only (no Nifty or roll-cost columns).
 7. **Intel → Monte Carlo Matrix** — preview + Download Excel matches Home file.
 8. **Header strip** — As Of Today · Simulation End · Simulation End Days · Trading Days · Monthly Expiries (horizon counts).
 9. **Production** — follow [08-deploy-vercel-render.md](08-deploy-vercel-render.md); Vercel `/api/health` proxies to Render.
@@ -374,8 +374,8 @@ After `./start.ps1` / `./start.sh` or production deploy
 | `product.py` / Product Input sample | Six-leg book guard + Path 1 total + Simulation End Days default 7300 |
 | Market CSVs / sync | `/api/sync` meta + first roll cost ≈ 4.7713 |
 | Path builder / tenure / forward calendar | `verify_forward_calendar.py` + dynamic product suite |
-| `gbm.py` / `mc_matrix.py` | Home download Excel: 2001→as-of params + date columns; Path Market differs by path |
-| Intel / UI | Path Market per path; header horizon meta from live product calendar |
+| `gbm.py` / `mc_matrix.py` | Home download Excel: 2001→as-of params + date columns; MC Matrix differs by path |
+| Intel / UI | Market Calendar = dates; header horizon meta from live product calendar |
 | Deploy / env | Render `/api/health` + Vercel `/api/health` with `BACKEND_URL` |
 
 ---

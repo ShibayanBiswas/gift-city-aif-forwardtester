@@ -366,7 +366,12 @@ function writeSheet(
 
   const subCell = ws.getCell(3, 3);
   ws.mergeCells(3, 3, 3, colCount);
-  subCell.value = spec.subtitle?.trim() || `Exported ${new Date().toISOString().slice(0, 10)}`;
+  const exportDay = (() => {
+    const n = new Date();
+    const iso = `${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, "0")}-${String(n.getDate()).padStart(2, "0")}`;
+    return formatDeskDate(iso);
+  })();
+  subCell.value = spec.subtitle?.trim() || `Exported ${exportDay}`;
   subCell.font = { name: "Calibri", size: 10, color: { argb: BRAND.muted } };
   subCell.alignment = { vertical: "middle", wrapText: true };
   subCell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: BRAND.softGold } };
@@ -490,7 +495,7 @@ function writeSheet(
   ws.mergeCells(FOOTER_ROW, 1, FOOTER_ROW, dataCols);
   const footerCell = ws.getCell(FOOTER_ROW, 1);
   const nData = emptyPlaceholder ? 0 : spec.rows.length;
-  footerCell.value = `Anand Rathi Wealth · Gift City AIF · ${nData.toLocaleString("en-IN")} data row${nData === 1 ? "" : "s"} · Exported ${new Date().toISOString().slice(0, 10)}`;
+  footerCell.value = `Anand Rathi Wealth · Gift City AIF · ${nData.toLocaleString("en-IN")} data row${nData === 1 ? "" : "s"} · Exported ${exportDay}`;
   footerCell.font = { name: "Calibri", size: 8, italic: true, color: { argb: BRAND.muted } };
   footerCell.alignment = { vertical: "middle", horizontal: "left" };
 

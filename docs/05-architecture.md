@@ -122,7 +122,7 @@ Bootstrap: frontend calls `/api/sync` first to wake sleeping Render instance and
 | GET | `/api/forwardtest/{id}/summary` | All-path KPIs + rows |
 | GET | `/api/forwardtest/{id}/paths/{pathId}` | Computation detail + series |
 | GET | `/api/forwardtest/{id}/paths/{pathId}/hedging` | Hedging Sheet payload |
-| GET | `/api/forwardtest/{id}/paths/{pathId}/horizon-market` | Full as-of→Simulation End Path Market sheets |
+| GET | `/api/forwardtest/{id}/paths/{pathId}/horizon-market` | Full as-of→Simulation End path market payload (API; UI calendar uses `/api/market/*`) |
 | GET | `/api/forwardtest/{id}/mc-matrix` | Matrix meta (n_paths, n_dates, GBM params) |
 | GET | `/api/forwardtest/{id}/mc-matrix/preview` | Truncated grid for Intel UI |
 | GET | `/api/forwardtest/{id}/mc-matrix.xlsx` | Full Excel download (Home + Intel) |
@@ -167,7 +167,7 @@ Render injects `PORT`, `RENDER`, `RENDER_SERVICE_ID` — do not set manually. Ne
 | `app/computation` | Result, Buy/Sell, Brokerage/GST, Daily Rows, Trade Cost Ledger |
 | `app/computation/ledger` | Daily Ledger charts (NAV + Req. Delta) |
 | `app/analytics` | Yearly Lab + Path Summary |
-| `app/intel` | Path Market + Monte Carlo Matrix + Logic Atlas |
+| `app/intel` | Market Calendar + Monte Carlo Matrix + Logic Atlas |
 
 Theme: Cormorant Garamond display + Source Sans 3 UI; AR maroon/gold tokens in `globals.css`. Full UX spec: [06-ui-ux.md](06-ui-ux.md).
 
