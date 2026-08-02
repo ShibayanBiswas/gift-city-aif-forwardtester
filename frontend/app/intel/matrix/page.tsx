@@ -121,13 +121,21 @@ export default function MonteCarloMatrixPage() {
             </div>
           </div>
 
-          <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
             {[
               { label: "Paths", value: String(nPaths) },
               { label: "Trading Dates", value: String(nDates) },
               {
-                label: "Horizon",
-                value: `${formatDeskDate(preview?.first_date ?? summary.asof)} → ${formatDeskDate(preview?.last_date ?? summary.simulation_end)}`,
+                label: "Start",
+                value: formatDeskDate(
+                  preview?.first_date ?? meta?.first_date ?? summary.asof,
+                ),
+              },
+              {
+                label: "End",
+                value: formatDeskDate(
+                  preview?.last_date ?? meta?.last_date ?? summary.simulation_end,
+                ),
               },
               {
                 label: "Current Nifty Spot",

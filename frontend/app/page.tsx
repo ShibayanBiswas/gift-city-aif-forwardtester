@@ -146,9 +146,6 @@ export default function HomePage() {
                 <div>
                   <p className="text-[10px] uppercase tracking-[0.2em] text-[var(--ar-subtle)] font-ui">Parameters</p>
                   <h3 className="font-display text-xl text-[var(--ar-maroon)]">Nifty Path Parameters</h3>
-                  <p className="mt-1 text-sm text-[var(--ar-muted)] font-ui">
-                    {formatDeskDate(gbmEstStart)} → {formatDeskDate(gbmEstEnd)}
-                  </p>
                 </div>
                 <DownloadButton label="Download Excel" onClick={downloadSimulatedPaths} />
               </div>
@@ -163,6 +160,14 @@ export default function HomePage() {
               >
                 <div className="horizontal-rail-fill-inner flex w-full gap-3">
                   {[
+                    {
+                      label: "Start",
+                      value: formatDeskDate(gbmEstStart),
+                    },
+                    {
+                      label: "End",
+                      value: formatDeskDate(gbmEstEnd),
+                    },
                     {
                       label: "Current Nifty Spot",
                       value: formatNum(summary.gbm.spot0, 2),

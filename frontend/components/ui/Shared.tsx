@@ -419,15 +419,14 @@ export function PathSelect({
             <div className="min-w-0 flex-1">
               <p className="text-[10px] tracking-[0.18em] text-[var(--ar-subtle)]">Active Path</p>
               <p className="font-display text-xl text-[var(--ar-maroon)] md:text-2xl">Path {active.path_id}</p>
-              <p className="mt-1 truncate text-xs text-[var(--ar-muted)] md:text-sm">
-                {formatLongDate(active.start)} → {formatLongDate(active.end)}
-              </p>
             </div>
             <motion.span animate={{ rotate: open ? 180 : 0 }} className="mt-1 shrink-0 text-[var(--ar-gold-dark)]">
               <ChevronDown className="h-5 w-5" />
             </motion.span>
           </div>
           <div className="mt-3 flex w-full flex-wrap gap-2">
+            <span className="path-pill">Start {formatLongDate(active.start)}</span>
+            <span className="path-pill">End {formatLongDate(active.end)}</span>
             <span className="path-pill">{active.n_trading_days ?? "—"} Trading Days</span>
             <span className="path-pill">{calendarDays(active.start, active.end)} Calendar Days</span>
             <span className="path-pill">Start Nifty {formatNum(active.start_nifty, 0)}</span>
