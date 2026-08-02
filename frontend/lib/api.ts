@@ -251,6 +251,8 @@ export type ForwardTestSummary = {
     std_dev?: number;
     mean_return?: number;
     asof?: string;
+    first_date?: string | null;
+    last_date?: string | null;
     layout?: {
       rows?: string;
       columns?: string;
