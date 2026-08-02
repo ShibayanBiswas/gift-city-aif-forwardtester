@@ -7,7 +7,7 @@ import { LayoutDashboard, BarChart3, Calculator, Sparkles, Moon, Sun, Upload, Pl
 import { mainSections, resolveNav } from "@/lib/navigation";
 import { cn, client, FREQUENCY_ORDER, FREQUENCY_LABELS } from "@/lib/api";
 import { useForwardTest } from "@/lib/store";
-import { deskSpring, tapPress } from "@/lib/motion";
+import { deskSpring } from "@/lib/motion";
 
 const icons = {
   home: LayoutDashboard,
@@ -59,11 +59,7 @@ export function SiteNav() {
                     transition={deskSpring}
                   />
                 ) : null}
-                <motion.span
-                  className="relative inline-flex"
-                  whileHover={{ scale: 1.12, rotate: -6 }}
-                  transition={deskSpring}
-                >
+                <motion.span className="relative inline-flex" whileHover={{ scale: 1.1, rotate: -4 }}>
                   <Icon className="h-4 w-4" />
                 </motion.span>
                 <span className="relative">{item.label}</span>
@@ -93,26 +89,20 @@ export function SiteNav() {
             title={
               running
                 ? "Wait for the current simulation to finish"
-                : "Path Frequency · Daily grids take longer on free hosts"
+                : pathCounts
+                  ? `Path Frequency · Daily ${pathCounts.daily?.toLocaleString("en-IN") ?? "—"} · Weekly ${pathCounts.weekly?.toLocaleString("en-IN") ?? "—"} · Monthly ${pathCounts.monthly?.toLocaleString("en-IN") ?? "—"}`
+                  : "Path Frequency · Daily grids take longer on free hosts"
             }
           >
-            {FREQUENCY_ORDER.map((f) => {
-              const n = pathCounts?.[f];
-              const label = FREQUENCY_LABELS[f];
-              return (
-                <option key={f} value={f}>
-                  {n != null && Number.isFinite(n)
-                    ? `${label} · ${n.toLocaleString("en-IN")} paths`
-                    : label}
-                </option>
-              );
-            })}
+            {FREQUENCY_ORDER.map((f) => (
+              <option key={f} value={f}>
+                {FREQUENCY_LABELS[f]}
+              </option>
+            ))}
           </select>
-          <motion.button
+          <button
             type="button"
-            className="desk-btn inline-flex items-center gap-1.5 rounded-full border border-[var(--ar-border)] px-3 py-1.5 text-xs"
-            whileHover={{ y: -1 }}
-            whileTap={tapPress}
+            className="inline-flex items-center gap-1.5 rounded-full border border-[var(--ar-border)] px-3 py-1.5 text-xs hover:border-[var(--ar-gold)]"
             onClick={() => {
               void client.downloadSample().catch((e) => {
                 setError(e instanceof Error ? e.message : String(e));
@@ -121,12 +111,8 @@ export function SiteNav() {
           >
             <Download size={14} />
             <span className="hidden md:inline">Sample Input</span>
-          </motion.button>
-          <motion.label
-            className="desk-btn inline-flex cursor-pointer items-center gap-1.5 rounded-full border border-[var(--ar-border)] px-3 py-1.5 text-xs"
-            whileHover={{ y: -1 }}
-            whileTap={tapPress}
-          >
+          </button>
+          <label className="inline-flex cursor-pointer items-center gap-1.5 rounded-full border border-[var(--ar-border)] px-3 py-1.5 text-xs hover:border-[var(--ar-gold)]">
             <Upload size={14} />
             <span className="hidden md:inline">Upload</span>
             <input
@@ -138,46 +124,23 @@ export function SiteNav() {
                 if (f) void upload(f);
               }}
             />
-          </motion.label>
-          <motion.button
+          </label>
+          <button
             type="button"
             disabled={running || !product}
             onClick={() => void run()}
-            className="desk-btn desk-btn-primary desk-btn-run inline-flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-xs font-semibold"
-            whileHover={running || !product ? undefined : { scale: 1.04, y: -1 }}
-            whileTap={running || !product ? undefined : tapPress}
+            className="inline-flex items-center gap-1.5 rounded-full bg-[var(--ar-maroon)] px-3 py-1.5 text-xs text-white disabled:opacity-50"
           >
-            <motion.span
-              animate={running ? { rotate: 360 } : { rotate: 0 }}
-              transition={running ? { duration: 1.2, repeat: Infinity, ease: "linear" } : undefined}
-              className="inline-flex"
-            >
-              <Play size={14} fill="currentColor" />
-            </motion.span>
-            Run
-          </motion.button>
-          <motion.button
+            <Play size={14} /> Run
+          </button>
+          <button
             type="button"
             aria-label="Toggle theme"
             onClick={() => setDark(!dark)}
-            className="desk-btn rounded-full border border-[var(--ar-border)] p-2"
-            whileHover={{ rotate: 18, scale: 1.08 }}
-            whileTap={tapPress}
-            transition={deskSpring}
+            className="rounded-full border border-[var(--ar-border)] p-2"
           >
-            <AnimatePresence mode="wait" initial={false}>
-              <motion.span
-                key={dark ? "sun" : "moon"}
-                initial={{ opacity: 0, rotate: -40, scale: 0.6 }}
-                animate={{ opacity: 1, rotate: 0, scale: 1 }}
-                exit={{ opacity: 0, rotate: 40, scale: 0.6 }}
-                transition={{ duration: 0.2 }}
-                className="inline-flex"
-              >
-                {dark ? <Sun size={14} /> : <Moon size={14} />}
-              </motion.span>
-            </AnimatePresence>
-          </motion.button>
+            {dark ? <Sun size={14} /> : <Moon size={14} />}
+          </button>
         </div>
       </div>
 
@@ -185,24 +148,22 @@ export function SiteNav() {
         {section.subNav?.length ? (
           <motion.div
             key={section.id}
-            initial={{ opacity: 0, y: -6, height: 0 }}
-            animate={{ opacity: 1, y: 0, height: "auto" }}
-            exit={{ opacity: 0, y: -4, height: 0 }}
-            transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
-            className="nav-sub-bar border-t overflow-hidden"
+            initial={{ opacity: 0, y: -4 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -4 }}
+            className="nav-sub-bar border-t"
           >
             <div className="mx-auto flex max-w-full flex-wrap gap-1 px-4 py-2 lg:px-6">
               {section.subNav.map((item) => {
                 const active = item.match(pathname);
                 return (
-                  <motion.div key={item.href} whileHover={{ y: -1 }} transition={deskSpring}>
-                    <Link
-                      href={item.href}
-                      className={cn("nav-sub-pill font-ui", active && "nav-sub-pill-active")}
-                    >
-                      {item.label}
-                    </Link>
-                  </motion.div>
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    className={cn("nav-sub-pill font-ui", active && "nav-sub-pill-active")}
+                  >
+                    {item.label}
+                  </Link>
                 );
               })}
             </div>

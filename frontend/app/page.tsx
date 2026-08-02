@@ -109,8 +109,8 @@ export default function HomePage() {
                     href={l.href}
                     className={
                       l.primary
-                        ? "desk-btn desk-btn-primary inline-block rounded-full px-4 py-2 text-white"
-                        : "desk-btn inline-block rounded-full border border-[var(--ar-border)] bg-[var(--ar-surface)] px-4 py-2"
+                        ? "inline-block rounded-full bg-[var(--ar-maroon)] px-4 py-2 text-white"
+                        : "inline-block rounded-full border border-[var(--ar-border)] bg-[var(--ar-surface)] px-4 py-2 hover:border-[var(--ar-gold)]"
                     }
                   >
                     {l.label}
@@ -153,12 +153,12 @@ export default function HomePage() {
                 <p className="px-5 pt-3 text-sm text-[var(--ar-maroon)] font-ui">{downloadError}</p>
               ) : null}
               <motion.div
-                className="horizontal-rail-fill px-5 py-4"
+                className="w-full overflow-x-auto px-5 py-4 pb-5"
                 variants={staggerContainer}
                 initial="hidden"
                 animate="show"
               >
-                <div className="horizontal-rail-fill-inner flex w-full gap-3">
+                <div className="flex min-w-full gap-3">
                   {[
                     {
                       label: "Start",
@@ -189,7 +189,7 @@ export default function HomePage() {
                       key={c.label}
                       variants={fadeUpItem}
                       whileHover={{ y: -3, transition: deskSpring }}
-                      className="rail-card-fill glass min-w-0 flex-1 rounded-2xl px-4 py-3"
+                      className="glass min-w-[11.5rem] flex-1 rounded-2xl px-4 py-3"
                     >
                       <p className="text-[10px] tracking-[0.16em] text-[var(--ar-subtle)] font-ui">{c.label}</p>
                       <p className="mt-1 font-display text-lg tabular-nums text-[var(--ar-maroon)]">{c.value}</p>

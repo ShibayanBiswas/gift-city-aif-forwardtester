@@ -1572,6 +1572,9 @@ html.dark .market-meta-card:hover {
     gap: 0.45rem;
     padding: 0.55rem 0.75rem;
   }
+  .market-meta-card:last-child:nth-child(odd) {
+    grid-column: 1 / -1;
+  }
 }
 @media (prefers-reduced-motion: reduce) {
   .market-meta-strip::before,

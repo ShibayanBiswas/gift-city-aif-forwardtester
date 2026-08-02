@@ -781,6 +781,7 @@ def compute_single_path_detail(
             sim_end,
             product.tenure_days,
             observation_months=product.observation_months,
+            fill_gbm=False,
         )
         market = fwd
         if horizon_dates is None:

@@ -1057,11 +1057,13 @@ def _resolve_path_detail(job_id: str, path_id: int) -> dict:
         sim_end,
         product.tenure_days,
         observation_months=product.observation_months,
+        fill_gbm=False,
     )
     if params is None:
         params = est
 
     mc_meta = (job.get("result") or {}).get("mc_matrix") or {}
+    seed = int(mc_meta.get("base_seed") or GBM_BASE_SEED)
     horizon_dates: list[date] | None = None
     raw_dates = mc_meta.get("dates")
     if isinstance(raw_dates, list) and raw_dates:
@@ -1081,7 +1083,7 @@ def _resolve_path_detail(job_id: str, path_id: int) -> dict:
         row["end"],
         params=params,
         frequency=frequency,
-        base_seed=GBM_BASE_SEED,
+        base_seed=seed,
         horizon_dates=horizon_dates,
     )
     if not match:
@@ -1098,7 +1100,7 @@ def _resolve_path_detail(job_id: str, path_id: int) -> dict:
             params=params,
             frequency=frequency,
             horizon_dates=horizon_dates,
-            base_seed=GBM_BASE_SEED,
+            base_seed=seed,
         )
     except Exception as e:
         raise HTTPException(
@@ -1402,6 +1404,7 @@ def _path_horizon_market(job_id: str, path_id: int) -> dict[str, Any]:
         sim_end,
         product.tenure_days,
         observation_months=product.observation_months,
+        fill_gbm=False,
     )
 
     start, end = dates[0], dates[-1]

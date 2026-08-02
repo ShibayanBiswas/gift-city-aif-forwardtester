@@ -159,7 +159,13 @@ def spots_aligned_to_horizon(
         base_seed=base_seed,
     )
     idx = {d: i for i, d in enumerate(horizon_dates)}
-    return np.asarray([float(full[idx[d]]) for d in path_dates if d in idx], dtype=float)
+    missing = [d for d in path_dates if d not in idx]
+    if missing:
+        raise ValueError(
+            f"Path tenure has {len(missing)} date(s) outside the GBM horizon "
+            f"(first missing {missing[0].isoformat()})."
+        )
+    return np.asarray([float(full[idx[d]]) for d in path_dates], dtype=float)
 
 
 def save_mc_matrix(
