@@ -18,10 +18,10 @@ $h = Invoke-RestMethod "$base/api/health"
 Check 'health' ($h.ok -eq $true) $h.service
 
 $prod = Invoke-RestMethod "$base/api/product/current"
-Check 'product' (($prod.tenure_days -eq 1930) -and ($prod.simulation_end_days -eq 3650)) ''
+Check 'product' (($prod.tenure_days -eq 1930) -and ($prod.simulation_end_days -eq 7300)) "tenure=$($prod.tenure_days) sim=$($prod.simulation_end_days)"
 
 $meta = Invoke-RestMethod "$base/api/market/meta"
-Check 'market_meta' (($meta.simulation_end_days -eq 3650) -and ($meta.trading_days -gt 1000)) ("td=$($meta.trading_days)")
+Check 'market_meta' (($meta.simulation_end_days -eq 7300) -and ($meta.trading_days -gt 1000)) ("td=$($meta.trading_days) sim=$($meta.simulation_end_days)")
 
 $gbm = Invoke-RestMethod "$base/api/gbm/params"
 Check 'gbm' ($gbm.gbm.spot0 -gt 10000) ("S0=$([math]::Round($gbm.gbm.spot0, 2))")
@@ -40,8 +40,18 @@ $sum = Invoke-RestMethod "$base/api/forwardtest/$job/summary"
 Check 'mc' (($sum.mc_matrix.n_paths -eq $sum.path_count) -and ($sum.mc_matrix.n_dates -gt 1000)) "$($sum.mc_matrix.n_paths)x$($sum.mc_matrix.n_dates)"
 
 $prev = Invoke-RestMethod "$base/api/forwardtest/$job/mc-matrix/preview?max_paths=5&max_dates=10"
-Check 'preview_diff' ([math]::Abs([double]$prev.rows[0][3] - [double]$prev.rows[1][3]) -gt 1e-6) ''
+# Rows are Path · Start Date · End Date · trading dates… — S0 (col index 3) is shared; path divergence starts at index 4+.
+Check 'preview_meta' (($prev.headers[0] -eq 'Path') -and ($prev.headers[1] -eq 'Start Date') -and ($prev.headers[2] -eq 'End Date')) ("h0=$($prev.headers[0])")
+Check 'preview_diff' ([math]::Abs([double]$prev.rows[0][4] - [double]$prev.rows[1][4]) -gt 1e-6) ("p0=$($prev.rows[0][4]) p1=$($prev.rows[1][4])")
 
+Invoke-RestMethod -Method Post -Uri "$base/api/forwardtest/$job/mc-matrix/export" | Out-Null
+$xlsxDeadline = (Get-Date).AddMinutes(5)
+do {
+  Start-Sleep 1
+  $xst = Invoke-RestMethod "$base/api/forwardtest/$job/mc-matrix/export"
+  if ($xst.status -in @('ready', 'error')) { break }
+} while ((Get-Date) -lt $xlsxDeadline)
+Check 'xlsx_ready' ($xst.status -eq 'ready') "$($xst.status) $($xst.message)"
 $xlsx = Join-Path $env:TEMP "mc-$job.xlsx"
 Invoke-WebRequest "$base/api/forwardtest/$job/mc-matrix.xlsx" -OutFile $xlsx
 Check 'xlsx' ((Get-Item $xlsx).Length -gt 5000) "$((Get-Item $xlsx).Length)"
