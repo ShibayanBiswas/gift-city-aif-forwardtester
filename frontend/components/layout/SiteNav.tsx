@@ -158,25 +158,42 @@ export function SiteNav() {
           </motion.button>
           <motion.button
             type="button"
-            aria-label="Toggle theme"
+            aria-label={dark ? "Switch to light mode" : "Switch to dark mode"}
+            title={dark ? "Light mode" : "Dark mode"}
             onClick={() => setDark(!dark)}
-            className="desk-btn rounded-full border border-[var(--ar-border)] p-2"
-            whileHover={{ rotate: 18, scale: 1.08 }}
+            className="theme-toggle"
+            whileHover={{ scale: 1.04 }}
             whileTap={tapPress}
             transition={deskSpring}
           >
-            <AnimatePresence mode="wait" initial={false}>
+            <span className="theme-toggle__rail" aria-hidden>
               <motion.span
-                key={dark ? "sun" : "moon"}
-                initial={{ opacity: 0, rotate: -40, scale: 0.6 }}
-                animate={{ opacity: 1, rotate: 0, scale: 1 }}
-                exit={{ opacity: 0, rotate: 40, scale: 0.6 }}
-                transition={{ duration: 0.2 }}
-                className="inline-flex"
-              >
-                {dark ? <Sun size={14} /> : <Moon size={14} />}
-              </motion.span>
-            </AnimatePresence>
+                className="theme-toggle__thumb"
+                initial={false}
+                animate={{ left: dark ? "50%" : "0%" }}
+                transition={deskSpring}
+              />
+              <span className={cn("theme-toggle__opt", !dark && "is-active")}>
+                <motion.span
+                  key="moon"
+                  animate={!dark ? { rotate: [0, -12, 0], scale: 1 } : { scale: 0.92 }}
+                  transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
+                  className="inline-flex"
+                >
+                  <Moon size={13} strokeWidth={2.25} />
+                </motion.span>
+              </span>
+              <span className={cn("theme-toggle__opt", dark && "is-active")}>
+                <motion.span
+                  key="sun"
+                  animate={dark ? { rotate: [0, 20, 0], scale: 1 } : { scale: 0.92 }}
+                  transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
+                  className="inline-flex"
+                >
+                  <Sun size={13} strokeWidth={2.25} />
+                </motion.span>
+              </span>
+            </span>
           </motion.button>
         </div>
       </div>
