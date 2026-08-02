@@ -671,6 +671,8 @@ export const client = {
     const ctrl = new AbortController();
     const timer = setTimeout(() => ctrl.abort(), API_TIMEOUTS.mcMatrixDownload);
     try {
+      // Prefer direct Render URL when configured — avoids Vercel proxy timeouts
+      // on multi‑MB Excel builds after a cold start.
       const res = await fetch(apiUrl(`/api/forwardtest/${jobId}/mc-matrix.xlsx`), {
         signal: ctrl.signal,
         cache: "no-store",
@@ -682,6 +684,11 @@ export const client = {
           if (body?.detail) detail = String(body.detail);
         } catch {
           /* keep status text */
+        }
+        if (/Unknown job|expired|restarted/i.test(detail)) {
+          throw new Error(
+            "Previous run is no longer on the server (it may have restarted). Click Run, wait for completion, then download again.",
+          );
         }
         throw new Error(detail);
       }

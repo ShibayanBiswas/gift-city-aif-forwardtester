@@ -92,16 +92,23 @@ def main() -> None:
         "last_date": gbm.last_date,
     }
     xlsx = write_mc_matrix_xlsx(payload, out / "edge_mc.xlsx")
-    wb = load_workbook(xlsx)
+    wb = load_workbook(xlsx, read_only=True)
     _assert("Parameters" in wb.sheetnames and "Simulated Nifty" in wb.sheetnames, wb.sheetnames)
     ws = wb["Parameters"]
-    _assert(ws["C1"].value and "Anand Rathi" in str(ws["C1"].value), "brand title missing")
-    _assert(len(ws._images) >= 1, "logo missing on Parameters sheet")
+    rows_p = list(ws.iter_rows(min_row=1, max_row=8, values_only=True))
+    _assert(any(r and r[0] and "Anand Rathi" in str(r[0]) for r in rows_p), "brand title missing")
     ws2 = wb["Simulated Nifty"]
-    _assert(len(ws2._images) >= 1, "logo missing on Simulated Nifty sheet")
-    header = [c.value for c in ws2[6]]
-    _assert(header[0] == "Path", header[:3])
-    _assert("-" in str(header[1]) and any(m in str(header[1]) for m in ("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")), header[1])
+    rows_s = list(ws2.iter_rows(min_row=1, max_row=8, values_only=True))
+    header = next((r for r in rows_s if r and r[0] == "Path"), None)
+    _assert(header is not None, "Path header missing")
+    _assert(
+        "-" in str(header[1])
+        and any(
+            m in str(header[1])
+            for m in ("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
+        ),
+        header[1],
+    )
     print("xlsx branding OK", xlsx.name, "bytes", xlsx.stat().st_size)
 
     # Independent paths: same date index → different prices

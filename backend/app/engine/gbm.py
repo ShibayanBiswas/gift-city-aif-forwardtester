@@ -123,16 +123,18 @@ def gbm_spots(
     day index / calendar date.
     """
     if n_dates <= 0:
-        return np.zeros(0, dtype=float)
-    out = np.empty(n_dates, dtype=float)
+        return np.zeros(0, dtype=np.float64)
+    out = np.empty(n_dates, dtype=np.float64)
     out[0] = float(spot0)
     if n_dates == 1:
         return out
     rng = np.random.default_rng(int(base_seed) + int(path_id) * 1_000_003)
     z = rng.standard_normal(n_dates - 1)
-    # Equivalent to iterative S_t = S_{t-1} * exp(drift + sigma*Z_t)
-    log_rets = drift + sigma * z
-    out[1:] = spot0 * np.exp(np.cumsum(log_rets))
+    # Excel / image recurrence: S_t = S_{t-1} * EXP(drift + σ·Z).
+    # Cumsum of log-returns is algebraically identical and faster; float64 keeps
+    # long horizons (thousands of sessions) numerically stable.
+    log_rets = float(drift) + float(sigma) * z
+    out[1:] = np.exp(np.log(out[0]) + np.cumsum(log_rets))
     return out
 
 
@@ -145,16 +147,17 @@ def gbm_spots_matrix(
     *,
     base_seed: int = GBM_BASE_SEED,
 ) -> np.ndarray:
-    """Vectorized (n_paths × n_dates) matrix — rows = paths 1..n, cols = days.
+    """(n_paths × n_dates) float32 matrix — rows = paths 1..n, cols = days.
 
     Same layout as ``Nifty Simulations.xlsx`` (vertical path id, horizontal day).
+    Built path-by-path with the same seed rule as ``gbm_spots`` (worker parity),
+    casting to float32 to cut peak RAM on deploy hosts.
     """
     if n_paths <= 0 or n_dates <= 0:
-        return np.zeros((0, 0), dtype=float)
-    # Generate path-by-path with the same seed rule as gbm_spots for worker parity.
-    mat = np.empty((n_paths, n_dates), dtype=float)
+        return np.zeros((0, 0), dtype=np.float32)
+    mat = np.empty((n_paths, n_dates), dtype=np.float32)
     for i in range(n_paths):
         mat[i] = gbm_spots(
             spot0, n_dates, drift, sigma, path_id=i + 1, base_seed=base_seed
-        )
+        ).astype(np.float32, copy=False)
     return mat

@@ -36,7 +36,9 @@ Product Excel (Product_Input_File.xlsx or upload)
  forwardtest.py run_forwardtest · KPIs · mc-matrix.xlsx · Intel desk market through Simulation End
 ```
 
-Shared `/api/market/*` exposes **calendar horizon** (and historical Nifty for μ/σ). Simulated prices and roll points live on each path — Hedging / Computation / MC Matrix. Intel · Market Calendar is dates only. Home and Intel · Monte Carlo Matrix download the full grid via `/api/forwardtest/{id}/mc-matrix.xlsx`.
+Shared `/api/market/*` exposes **calendar horizon** (and historical Nifty for μ/σ). Simulated prices and roll points live on each path — Hedging / Computation / Simulated Nifty Paths. Intel · Market Calendar is dates only. Home and Intel · Simulated Nifty Paths download the grid via `/api/forwardtest/{id}/mc-matrix.xlsx` (streaming Excel; job meta recovered from Mongo after Render restart when configured).
+
+**GBM (image / Excel parity):** \(S_t = S_{t-1}\cdot\exp(\mathrm{drift}+\sigma Z)\) with \(Z\sim N(0,1)\), independent seed stream per `path_id`. Engine uses float64 log-cumsum (stable on long horizons) and stores the matrix as float32.
 
 Sheet mirror reference: [02-excel-sheet-logic.md](02-excel-sheet-logic.md). API wiring: [05-architecture.md](05-architecture.md).
 

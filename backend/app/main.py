@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import asyncio
+import gc
 import json
 import os
 import shutil
@@ -38,6 +39,7 @@ from app.engine.paths import (
     enumerate_path_starts,
     path_from_window,
 )
+from app.engine.runtime import is_constrained_host
 from app.engine.product import (
     ProductSpec,
     parse_product_workbook,
@@ -318,6 +320,8 @@ def _persist_job(job_id: str) -> None:
             }
             (JOBS / f"{job_id}.json").write_text(json.dumps(payload))
             _prune_old_jobs()
+            # Drop any leftover heavy refs and reclaim RAM on free-tier hosts.
+            gc.collect()
             return
         if status in {"error", "cancelled"}:
             payload = {
@@ -373,11 +377,50 @@ def _hydrate_job_from_disk(job_id: str) -> dict[str, Any] | None:
     return job
 
 
+def _hydrate_job_from_mongo(job_id: str) -> dict[str, Any] | None:
+    """Recover a completed job after Render restart when ephemeral disk is gone."""
+    try:
+        job = mongo.load_job_result(job_id)
+    except Exception:
+        return None
+    if not job:
+        return None
+    if "details" not in job["result"]:
+        job["result"]["details"] = {}
+    _jobs[job_id] = job
+    # Mirror onto disk so subsequent hits skip Mongo.
+    try:
+        (JOBS / f"{job_id}.json").write_text(
+            json.dumps(
+                {
+                    "id": job_id,
+                    "status": "done",
+                    "progress": 100.0,
+                    "message": "Complete",
+                    "error": None,
+                    "frequency": job.get("frequency"),
+                    "product": job.get("product"),
+                    "result": {
+                        k: v
+                        for k, v in job["result"].items()
+                        if k not in {"details", "_mc_matrix", "_mc_dates"}
+                    },
+                }
+            )
+        )
+    except Exception:
+        pass
+    return job
+
+
 def _get_job(job_id: str) -> dict[str, Any] | None:
     job = _jobs.get(job_id)
     if job:
         return job
-    return _hydrate_job_from_disk(job_id)
+    job = _hydrate_job_from_disk(job_id)
+    if job:
+        return job
+    return _hydrate_job_from_mongo(job_id)
 
 
 def _reload_jobs_from_disk() -> None:
@@ -430,7 +473,7 @@ def _startup() -> None:
 
 
 class RunRequest(BaseModel):
-    frequency: Literal["monthly", "weekly", "daily", "quarterly", "semi_annual"] = "daily"
+    frequency: Literal["monthly", "weekly", "daily", "quarterly", "semi_annual"] = "monthly"
     """Browser-generated id for this Run click — duplicate POSTs return the same job."""
     client_run_id: str | None = None
 
@@ -703,6 +746,14 @@ async def start_forwardtest(body: RunRequest) -> dict:
     if _current_product is None:
         _load_default_product()
 
+    # Free-tier Render OOM guard: daily grids (~3k paths × ~4k dates) exceed 512MB.
+    if body.frequency == "daily" and is_constrained_host():
+        raise HTTPException(
+            400,
+            "Daily frequency is too large for this host memory. "
+            "Choose Monthly (recommended), Weekly, Quarterly, or Semi-annually, then Run again.",
+        )
+
     # Idempotent: cold-start proxies / double-clicks must not spawn a second job.
     token = (body.client_run_id or "").strip()[:64] or None
     if token:
@@ -773,9 +824,31 @@ async def start_forwardtest(body: RunRequest) -> dict:
                         for k, v in result.items()
                         if k not in {"details", "_mc_matrix", "_mc_dates"}
                     }
-                    mongo.save_job_summary(job_id, frequency, slim)
+                    mongo.save_job_result(
+                        job_id,
+                        frequency=frequency,
+                        product=_jobs[job_id].get("product"),
+                        result=slim,
+                    )
                 except Exception:
                     pass
+
+                # Pre-build Excel in the background so Download is instant / low-RAM.
+                def _prebuild_xlsx() -> None:
+                    try:
+                        dest = JOBS / job_id / "Simulated_Nifty_Paths.xlsx"
+                        if dest.exists() and dest.stat().st_size > 1000:
+                            return
+                        payload = _mc_matrix_payload(job_id)
+                        # Prefer streaming from params when matrix is huge.
+                        write_mc_matrix_xlsx(payload, dest)
+                        gc.collect()
+                    except Exception:
+                        pass
+
+                threading.Thread(
+                    target=_prebuild_xlsx, daemon=True, name=f"xlsx-{job_id}"
+                ).start()
             except ForwardTestCancelled as e:
                 job = _jobs.get(job_id)
                 if job and job.get("status") != "cancelled":
@@ -1140,11 +1213,48 @@ def job_mc_matrix_preview(
 
 @app.get("/api/forwardtest/{job_id}/mc-matrix.xlsx")
 def job_mc_matrix_xlsx(job_id: str, max_paths: int | None = None) -> FileResponse:
+    """Download Simulated Nifty Paths Excel (memory-safe streaming writer).
+
+    Serves a cached file when present. Otherwise streams path-by-path from the
+    saved MC matrix (mmap) or regenerates from GBM params — never builds a
+    fully-styled in-memory workbook (that OOMs free Render).
+    """
     try:
-        payload = _mc_matrix_payload(job_id)
+        job = _get_job(job_id)
+        if not job:
+            raise HTTPException(
+                404,
+                "Unknown job. The server may have restarted and cleared the previous run. "
+                "Click Run to start a fresh forward test, then download again.",
+            )
+        if job.get("status") != "done" or not job.get("result"):
+            raise HTTPException(409, f"Job not ready: {job.get('status')}")
+
         dest = JOBS / job_id / "Simulated_Nifty_Paths.xlsx"
         cap = None if max_paths is None else max(1, int(max_paths))
+        # Reuse cache only for uncapped full exports.
+        if cap is None and dest.exists() and dest.stat().st_size > 1000:
+            return FileResponse(
+                dest,
+                media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                filename="Simulated_Nifty_Paths.xlsx",
+            )
+
+        # Prefer mmap so the float grid is not copied into RAM.
+        loaded = load_mc_matrix(JOBS / job_id, mmap=True)
+        if loaded:
+            payload = loaded
+        else:
+            payload = _mc_matrix_payload(job_id)
+
+        # On constrained hosts, auto-cap very large grids so Download always returns a file.
+        n_paths = int(payload.get("n_paths") or 0)
+        n_dates = int(payload.get("n_dates") or len(payload.get("dates") or []))
+        if cap is None and is_constrained_host() and n_paths * max(n_dates, 1) > 800_000:
+            cap = min(n_paths, max(50, 800_000 // max(n_dates, 1)))
+
         write_mc_matrix_xlsx(payload, dest, max_paths=cap)
+        gc.collect()
         return FileResponse(
             dest,
             media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",

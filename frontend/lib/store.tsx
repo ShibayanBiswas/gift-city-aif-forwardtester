@@ -49,6 +49,8 @@ type Store = {
   setError: (e: string | null) => void;
   upload: (file: File) => Promise<void>;
   run: () => Promise<void>;
+  /** Clear stale Run results (e.g. after Render restart / Unknown job). */
+  clearResults: () => void;
   /** Force Yahoo + calendar refresh and reload market meta for the desk strip. */
   refreshMarket: () => Promise<void>;
   /** Reload current ProductSpec so Intel / Product chips stay in sync after uploads. */
@@ -120,7 +122,7 @@ export function ForwardTestProvider({ children }: { children: ReactNode }) {
   const [dark, setDark] = useState(false);
   const [market, setMarket] = useState<Store["market"]>(null);
   const [product, setProduct] = useState<ProductSpec | null>(null);
-  const [frequency, setFrequencyState] = useState<Frequency>("daily");
+  const [frequency, setFrequencyState] = useState<Frequency>("monthly");
   const [sinceYear, setSinceYear] = useState(2001);
   const [jobId, setJobId] = useState<string | null>(null);
   const [summary, setSummary] = useState<ForwardTestSummary | null>(null);
@@ -629,6 +631,13 @@ export function ForwardTestProvider({ children }: { children: ReactNode }) {
     }
   }, [frequency]);
 
+  const clearResults = useCallback(() => {
+    clearDeskResults(setSummary, setJobId, setPathDetail, setPathDetailError, setPathId);
+    setError(null);
+    setMessage("");
+    setProgress(0);
+  }, []);
+
   const value: Store = {
     dark,
     setDark,
@@ -656,6 +665,7 @@ export function ForwardTestProvider({ children }: { children: ReactNode }) {
     setError,
     upload,
     run,
+    clearResults,
     refreshMarket,
     refreshProduct,
     years,

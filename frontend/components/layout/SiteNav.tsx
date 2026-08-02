@@ -85,14 +85,21 @@ export function SiteNav() {
             disabled={running}
             onChange={(e) => setFrequency(e.target.value as typeof frequency)}
             className="desk-select disabled:opacity-50"
-            title={running ? "Wait for the current simulation to finish" : "Path Frequency"}
+            title={
+              running
+                ? "Wait for the current simulation to finish"
+                : "Path Frequency · use Monthly on free Render (Daily can exceed memory)"
+            }
           >
             {FREQUENCY_ORDER.map((f) => {
               const n = pathCounts?.[f];
               const label = FREQUENCY_LABELS[f];
+              const heavy = f === "daily" && n != null && n > 500;
               return (
                 <option key={f} value={f}>
-                  {n != null && Number.isFinite(n) ? `${label} · ${n.toLocaleString("en-IN")} paths` : label}
+                  {n != null && Number.isFinite(n)
+                    ? `${label} · ${n.toLocaleString("en-IN")} paths${heavy ? " (heavy)" : ""}`
+                    : label}
                 </option>
               );
             })}

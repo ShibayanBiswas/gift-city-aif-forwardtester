@@ -69,8 +69,9 @@ def forwardtest_parallelism(n_paths: int) -> tuple[str, int]:
     if mode_env in {"serial", "threads", "processes"}:
         mode = mode_env
     elif constrained:
-        # Free Render: never spawn process pools (each worker reloads the market).
-        mode = "serial" if n_paths < 80 else "threads"
+        # Free Render (512MB): always serial — threads still multiply peak RAM
+        # when many path spots / MC rows are live at once.
+        mode = "serial"
     elif n_paths < 24:
         mode = "serial"
     else:

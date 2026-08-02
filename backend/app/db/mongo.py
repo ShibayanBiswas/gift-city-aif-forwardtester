@@ -1,4 +1,4 @@
-"""MongoDB Atlas sync for products, uploads, and forward-test summaries."""
+"""MongoDB Atlas sync for products, uploads, and forward-test job recovery."""
 from __future__ import annotations
 
 import os
@@ -6,7 +6,7 @@ from datetime import datetime, timezone
 from functools import lru_cache
 from typing import Any
 
-from pymongo import MongoClient, ASCENDING
+from pymongo import ASCENDING, MongoClient
 from pymongo.collection import Collection
 from pymongo.database import Database
 
@@ -104,6 +104,7 @@ def log_upload(meta: dict[str, Any]) -> None:
 
 
 def save_job_summary(job_id: str, frequency: str, summary: dict[str, Any]) -> None:
+    """Persist a slim KPI card (legacy helper). Prefer ``save_job_result``."""
     col = _col("jobs")
     if col is None:
         return
@@ -117,6 +118,71 @@ def save_job_summary(job_id: str, frequency: str, summary: dict[str, Any]) -> No
         "created_at": datetime.now(timezone.utc),
     }
     col.update_one({"job_id": job_id}, {"$set": slim}, upsert=True)
+
+
+def save_job_result(
+    job_id: str,
+    *,
+    frequency: str,
+    product: dict[str, Any] | None,
+    result: dict[str, Any],
+) -> None:
+    """Persist enough slim result to rebuild MC Excel after Render restart.
+
+    Stores GBM params + mc_matrix date list (not the float matrix). Matrix /
+    Excel are regenerated on demand from those params.
+    """
+    col = _col("jobs")
+    if col is None:
+        return
+    slim = {
+        k: v
+        for k, v in result.items()
+        if k not in {"details", "_mc_matrix", "_mc_dates"}
+    }
+    now = datetime.now(timezone.utc)
+    doc = {
+        "job_id": job_id,
+        "status": "done",
+        "frequency": frequency,
+        "product": product or slim.get("product"),
+        "result": slim,
+        "path_count": slim.get("path_count"),
+        "kpis": slim.get("kpis"),
+        "yearly": slim.get("yearly"),
+        "updated_at": now,
+    }
+    col.update_one(
+        {"job_id": job_id},
+        {"$set": doc, "$setOnInsert": {"created_at": now}},
+        upsert=True,
+    )
+
+
+def load_job_result(job_id: str) -> dict[str, Any] | None:
+    """Load a completed job slim result for in-process hydrate after restart."""
+    col = _col("jobs")
+    if col is None:
+        return None
+    try:
+        doc = col.find_one({"job_id": job_id}, {"_id": 0})
+    except Exception:
+        return None
+    if not doc:
+        return None
+    result = doc.get("result")
+    if not isinstance(result, dict) or "summary" not in result:
+        return None
+    return {
+        "id": job_id,
+        "status": "done",
+        "progress": 100.0,
+        "message": "Complete",
+        "error": None,
+        "frequency": doc.get("frequency") or result.get("frequency") or "monthly",
+        "product": doc.get("product") or result.get("product"),
+        "result": result,
+    }
 
 
 def save_market_snapshot(meta: dict[str, Any]) -> None:

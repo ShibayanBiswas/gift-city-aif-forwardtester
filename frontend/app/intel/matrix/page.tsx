@@ -14,7 +14,7 @@ import { DownloadButton } from "@/components/DownloadButton";
 type PreviewPayload = Awaited<ReturnType<typeof client.mcMatrixPreview>>;
 
 export default function MonteCarloMatrixPage() {
-  const { summary, jobId } = useForwardTest();
+  const { summary, jobId, clearResults } = useForwardTest();
   const [preview, setPreview] = useState<PreviewPayload | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -104,7 +104,11 @@ export default function MonteCarloMatrixPage() {
                   try {
                     await onDownload();
                   } catch (e) {
-                    setError(e instanceof Error ? e.message : "Download failed");
+                    const msg = e instanceof Error ? e.message : "Download failed";
+                    setError(msg);
+                    if (/no longer on the server|Unknown job|Run a fresh|Click Run/i.test(msg)) {
+                      clearResults();
+                    }
                   }
                 }}
               />

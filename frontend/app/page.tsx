@@ -12,7 +12,7 @@ import { DownloadButton } from "@/components/DownloadButton";
 import { client, formatDeskDate, formatNum } from "@/lib/api";
 
 export default function HomePage() {
-  const { product, summary, filteredYearly, sinceYear, market, jobId } = useForwardTest();
+  const { product, summary, filteredYearly, sinceYear, market, jobId, clearResults } = useForwardTest();
   const [downloadError, setDownloadError] = useState<string | null>(null);
   const displayName = product?.name === "Default Product" ? "Current Product" : product?.name ?? "Loading…";
   const principalCr = product?.principal_cr ?? 100;
@@ -45,7 +45,11 @@ export default function HomePage() {
     try {
       await client.downloadMcMatrix(jobId);
     } catch (e) {
-      setDownloadError(e instanceof Error ? e.message : "Download failed");
+      const msg = e instanceof Error ? e.message : "Download failed";
+      setDownloadError(msg);
+      if (/no longer on the server|Unknown job|Run a fresh|Click Run/i.test(msg)) {
+        clearResults();
+      }
     }
   };
 

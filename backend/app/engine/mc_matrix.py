@@ -36,6 +36,11 @@ _MONTHS = (
     "Dec",
 )
 
+# Soft cap for free-tier Excel builds (cells ≈ paths × dates). Above this we
+# still export, but stream path-by-path and skip heavy styling.
+_EXCEL_CELL_SOFT_CAP = 800_000
+
+
 def _resolve_logo() -> Path | None:
     """Logo for branded Excel — works in full repo and Render (backend-only root)."""
     here = Path(__file__).resolve()
@@ -60,8 +65,9 @@ def _desk_date(d: date | str) -> str:
         if len(parts) != 3:
             return d
         y, m, day = (int(parts[0]), int(parts[1]), int(parts[2]))
-        return f"{day:02d}-{_MONTHS[m - 1]}-{y}"
-    return f"{d.day:02d}-{_MONTHS[d.month - 1]}-{d.year}"
+    else:
+        y, m, day = d.year, d.month, d.day
+    return f"{day:02d}-{_MONTHS[m - 1]}-{y}"
 
 
 def horizon_trading_dates(market_dates: list[date], asof: date, horizon: date) -> list[date]:
@@ -91,22 +97,19 @@ def build_mc_matrix(
 
 
 def slice_path_spots(
-    matrix: np.ndarray,
-    dates: list[date],
+    mat: np.ndarray,
+    horizon_dates: list[date],
     path_dates: list[date],
     path_id: int,
 ) -> np.ndarray:
-    """Extract one path's spots for ``path_dates`` from the full-horizon matrix."""
-    if matrix.size == 0 or not path_dates:
+    """Slice one path's tenure spots from the full horizon matrix."""
+    if mat.size == 0 or not path_dates:
         return np.zeros(0, dtype=float)
-    idx = {d: i for i, d in enumerate(dates)}
+    idx = {d: i for i, d in enumerate(horizon_dates)}
     row = int(path_id) - 1
-    if row < 0 or row >= matrix.shape[0]:
-        raise IndexError(f"path_id {path_id} out of matrix rows {matrix.shape[0]}")
-    missing = [d for d in path_dates if d not in idx]
-    if missing:
-        raise KeyError(f"path dates not on MC horizon axis: {missing[:3]}…")
-    return np.asarray([float(matrix[row, idx[d]]) for d in path_dates], dtype=float)
+    if row < 0 or row >= mat.shape[0]:
+        raise IndexError(f"path_id {path_id} out of matrix rows {mat.shape[0]}")
+    return np.asarray([float(mat[row, idx[d]]) for d in path_dates if d in idx], dtype=float)
 
 
 def spots_aligned_to_horizon(
@@ -117,7 +120,7 @@ def spots_aligned_to_horizon(
     *,
     base_seed: int = GBM_BASE_SEED,
 ) -> np.ndarray:
-    """Regenerate full-horizon GBM for ``path_id`` then slice to ``path_dates``."""
+    """Generate full horizon GBM row then slice to path dates (Excel column alignment)."""
     if not path_dates:
         return np.zeros(0, dtype=float)
     if not horizon_dates:
@@ -168,15 +171,19 @@ def save_mc_matrix(
     return path
 
 
-def load_mc_matrix(folder: Path) -> dict[str, Any] | None:
+def load_mc_matrix(folder: Path, *, mmap: bool = False) -> dict[str, Any] | None:
     path = folder / "mc_matrix.npz"
     if not path.exists():
         return None
-    data = np.load(path, allow_pickle=False)
-    dates = [date.fromisoformat(str(x)) for x in data["dates"].tolist()]
+    # mmap keeps huge grids off the heap when only previewing / streaming rows.
+    data = np.load(path, allow_pickle=False, mmap_mode="r" if mmap else None)
+    dates = [date.fromisoformat(str(x)) for x in np.asarray(data["dates"]).tolist()]
     keys = set(data.files)
+    matrix = data["matrix"]
+    if not mmap:
+        matrix = np.asarray(matrix, dtype=np.float32)
     return {
-        "matrix": np.asarray(data["matrix"], dtype=np.float32),
+        "matrix": matrix,
         "dates": dates,
         "spot0": float(data["spot0"]),
         "drift": float(data["drift"]),
@@ -186,8 +193,8 @@ def load_mc_matrix(folder: Path) -> dict[str, Any] | None:
         "asof": str(data["asof"]),
         "first_date": str(data["first_date"]) if "first_date" in keys else "2001-01-01",
         "last_date": str(data["last_date"]) if "last_date" in keys else str(data["asof"]),
-        "n_paths": int(data["matrix"].shape[0]),
-        "n_dates": int(data["matrix"].shape[1]),
+        "n_paths": int(matrix.shape[0]),
+        "n_dates": int(matrix.shape[1]),
     }
 
 
@@ -236,204 +243,145 @@ def matrix_preview(
     }
 
 
-def write_mc_matrix_xlsx(payload: dict[str, Any], dest: Path, *, max_paths: int | None = None) -> Path:
-    """Branded desk Excel matching other downloads (logo + soft-gold banner + maroon headers)."""
-    from openpyxl import Workbook
-    from openpyxl.drawing.image import Image as XLImage
-    from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
-    from openpyxl.utils import get_column_letter
+def _iter_path_rows(
+    *,
+    matrix: np.ndarray | None,
+    params: GbmParams | None,
+    dates: list[date],
+    n_paths: int,
+    base_seed: int,
+):
+    """Yield path rows without requiring the full matrix in RAM."""
+    n_dates = len(dates)
+    if matrix is not None:
+        for i in range(n_paths):
+            yield i + 1, np.asarray(matrix[i, :n_dates], dtype=np.float64)
+        return
+    assert params is not None
+    for path_id in range(1, n_paths + 1):
+        yield path_id, gbm_spots(
+            params.spot0,
+            n_dates,
+            params.drift,
+            params.std_dev,
+            path_id=path_id,
+            base_seed=base_seed,
+        )
 
-    mat: np.ndarray = payload["matrix"]
-    dates: list[date] = payload["dates"]
-    n_paths = mat.shape[0] if max_paths is None else min(mat.shape[0], int(max_paths))
-    n_dates = mat.shape[1]
+
+def write_mc_matrix_xlsx(
+    payload: dict[str, Any],
+    dest: Path,
+    *,
+    max_paths: int | None = None,
+    params: GbmParams | None = None,
+) -> Path:
+    """Memory-safe branded Excel (write_only grid — safe on Render free tier).
+
+    Prefer ``payload['matrix']`` when present; otherwise stream rows from GBM
+    using ``params`` + dates (one path at a time).
+    """
+    from openpyxl import Workbook
+
+    dates: list[date] = list(payload["dates"])
+    mat = payload.get("matrix")
+    n_paths_all = int(payload.get("n_paths") or (mat.shape[0] if mat is not None else 0))
+    if max_paths is not None:
+        n_paths = min(n_paths_all, max(1, int(max_paths)))
+    else:
+        n_paths = n_paths_all
+    n_dates = len(dates)
+    if n_paths <= 0 or n_dates <= 0:
+        raise ValueError("Empty Monte Carlo matrix — nothing to export")
+
     mean_ret = float(payload["mean_return"])
     std_dev = float(payload["std_dev"])
+    drift = float(payload["drift"])
+    spot0 = float(payload["spot0"])
     asof = str(payload.get("asof") or "")
     hist_first = str(payload.get("first_date") or "2001-01-01")
     hist_last = str(payload.get("last_date") or asof)
+    base_seed = int(payload.get("base_seed") or GBM_BASE_SEED)
+    cells = n_paths * n_dates
+    capped_note = ""
+    if n_paths < n_paths_all:
+        capped_note = f"Export capped to {n_paths} of {n_paths_all} paths for memory."
+    elif cells > _EXCEL_CELL_SOFT_CAP:
+        capped_note = "Large grid exported with streaming writer (deploy-safe)."
 
-    maroon = "7A1E2C"
-    gold = "D4B24C"
-    soft = "FFF8EC"
-    alt = "FAF6F0"
-    ink = "1F1612"
-    white = "FFFFFF"
-    muted = "6B5E55"
-    footer_bg = "F7F1E8"
-    grid = "CDBBA8"
+    gbm_params = params
+    if gbm_params is None and mat is None:
+        gbm_params = GbmParams(
+            spot0=spot0,
+            asof=asof,
+            mean_return=mean_ret,
+            std_dev=std_dev,
+            drift=drift,
+            n_returns=int(payload.get("n_returns") or 0),
+            first_date=hist_first,
+            last_date=hist_last,
+        )
 
-    thin_gold = Side(style="thin", color=gold)
-    thin_grid = Side(style="thin", color=grid)
-    med_maroon = Side(style="medium", color=maroon)
-    gold_border = Border(left=thin_gold, right=thin_gold, top=thin_gold, bottom=thin_gold)
-    grid_border = Border(left=thin_grid, right=thin_grid, top=thin_grid, bottom=thin_grid)
-    header_border = Border(left=thin_gold, right=thin_gold, top=med_maroon, bottom=med_maroon)
+    # write_only keeps only the current row buffered — critical on 512MB hosts.
+    wb = Workbook(write_only=True)
 
-    fill_maroon = PatternFill("solid", fgColor=maroon)
-    fill_soft = PatternFill("solid", fgColor=soft)
-    fill_alt = PatternFill("solid", fgColor=alt)
-    fill_white = PatternFill("solid", fgColor=white)
-    fill_footer = PatternFill("solid", fgColor=footer_bg)
-
-    font_title = Font(name="Calibri", size=14, bold=True, color=maroon)
-    font_sub = Font(name="Calibri", size=11, bold=True, color=ink)
-    font_muted = Font(name="Calibri", size=9, italic=True, color=muted)
-    font_brand = Font(name="Calibri", size=11, bold=True, color=maroon)
-    font_white = Font(name="Calibri", size=10, bold=True, color=white)
-    font_label = Font(name="Calibri", size=10, bold=True, color=ink)
-    font_ink = Font(name="Calibri", size=10, color=ink)
-    center = Alignment(vertical="center", horizontal="center", wrapText=True)
-    left = Alignment(vertical="center", horizontal="left")
-    right = Alignment(vertical="center", horizontal="right")
-
-    wb = Workbook()
-
-    # ── Parameters (matches Product Input / desk ExcelJS tone) ────────
-    ws_p = wb.active
-    ws_p.title = "Parameters"
-    ws_p.sheet_view.showGridLines = False
-    for r in range(1, 5):
-        ws_p.row_dimensions[r].height = {1: 22, 2: 20, 3: 16, 4: 8}[r]
-    for c in range(1, 4):
-        for r in range(1, 5):
-            ws_p.cell(r, c).fill = fill_soft
-
-    logo = _LOGO if _LOGO is not None else _resolve_logo()
-    if logo is not None and logo.is_file():
-        img = XLImage(str(logo))
-        img.width = 168
-        img.height = 48
-        ws_p.add_image(img, "A1")
-
-    ws_p.merge_cells("C1:C1")
-    ws_p["C1"] = "Anand Rathi Wealth · Gift City"
-    ws_p["C1"].font = font_brand
-    ws_p["C1"].alignment = left
-    ws_p["C1"].fill = fill_soft
-
-    ws_p["C2"] = "Simulated Nifty Paths · Parameters"
-    ws_p["C2"].font = font_sub
-    ws_p["C2"].fill = fill_soft
-
-    ws_p["C3"] = (
-        f"{_desk_date(hist_first)} → {_desk_date(hist_last)} · "
-        f"{n_paths} paths · {n_dates} trading dates"
-    )
-    ws_p["C3"].font = font_muted
-    ws_p["C3"].fill = fill_soft
-
-    for c in range(1, 3):
-        ws_p.cell(4, c).fill = PatternFill("solid", fgColor=gold)
-
-    ws_p["A6"] = "Parameter"
-    ws_p["B6"] = "Value"
-    for col in (1, 2):
-        cell = ws_p.cell(6, col)
-        cell.font = font_white
-        cell.fill = fill_maroon
-        cell.alignment = center
-        cell.border = header_border
-
+    ws_p = wb.create_sheet("Parameters")
+    ws_p.append(["Anand Rathi Wealth · Gift City"])
+    ws_p.append(["Simulated Nifty Paths · Parameters"])
+    ws_p.append([f"{_desk_date(hist_first)} → {_desk_date(hist_last)} · {n_paths} paths · {n_dates} trading dates"])
+    if capped_note:
+        ws_p.append([capped_note])
+    else:
+        ws_p.append([""])
+    ws_p.append([])
+    ws_p.append(["Parameter", "Value"])
     param_rows: list[tuple[str, Any]] = [
-        ("Current Nifty Spot", float(payload["spot0"])),
+        ("Current Nifty Spot", spot0),
         ("Daily Average Return", mean_ret),
         ("Daily Average Return %", mean_ret * 100.0),
         ("Daily Standard Deviation", std_dev),
         ("Daily Standard Deviation %", std_dev * 100.0),
-        ("Mean Drift", float(payload["drift"])),
+        ("Drift", drift),
         ("Estimation Start", _desk_date(hist_first)),
         ("Estimation End", _desk_date(hist_last)),
         ("Simulation First Date", _desk_date(dates[0]) if dates else ""),
         ("Simulation Last Date", _desk_date(dates[-1]) if dates else ""),
         ("Number Of Paths", int(n_paths)),
         ("Number Of Trading Dates", int(n_dates)),
+        ("Formula", "S_t = S_(t-1) * EXP(drift + sigma * Z), Z ~ N(0,1)"),
+        ("Base Seed", int(base_seed)),
     ]
-    for i, (label, value) in enumerate(param_rows, start=7):
-        a = ws_p.cell(i, 1, label)
-        b = ws_p.cell(i, 2, value)
-        a.font = font_label
-        b.font = font_ink
-        a.alignment = left
-        b.alignment = right if isinstance(value, (int, float)) else left
-        a.border = grid_border
-        b.border = grid_border
-        fill = fill_alt if i % 2 else fill_white
-        a.fill = fill
-        b.fill = fill
-        if isinstance(value, float):
-            b.number_format = "0.000000" if abs(value) < 1 else "#,##0.00"
-    ws_p.column_dimensions["A"].width = 34
-    ws_p.column_dimensions["B"].width = 22
-    ws_p.column_dimensions["C"].width = 48
+    for label, value in param_rows:
+        ws_p.append([label, value])
 
-    # ── Simulated Nifty grid ──────────────────────────────────────────
     ws = wb.create_sheet("Simulated Nifty")
-    ws.sheet_view.showGridLines = False
-    banner_cols = min(n_dates + 1, 8)
-    for r in range(1, 5):
-        ws.row_dimensions[r].height = {1: 22, 2: 20, 3: 16, 4: 8}[r]
-        for c in range(1, banner_cols + 1):
-            ws.cell(r, c).fill = fill_soft
-
-    if logo is not None and logo.is_file():
-        img2 = XLImage(str(logo))
-        img2.width = 168
-        img2.height = 48
-        ws.add_image(img2, "A1")
-
-    ws.cell(1, 3, "Anand Rathi Wealth · Gift City").font = font_brand
-    ws.cell(1, 3).fill = fill_soft
-    ws.cell(2, 3, "Simulated Nifty Paths").font = font_sub
-    ws.cell(2, 3).fill = fill_soft
-    ws.cell(
-        3,
-        3,
-        (
+    ws.append(["Anand Rathi Wealth · Gift City"])
+    ws.append(["Simulated Nifty Paths"])
+    ws.append(
+        [
             f"{n_paths} paths · {n_dates} trading dates · "
             f"{_desk_date(dates[0]) if dates else ''} → {_desk_date(dates[-1]) if dates else ''}"
-        ),
-    ).font = font_muted
-    ws.cell(3, 3).fill = fill_soft
-    for c in range(1, banner_cols + 1):
-        ws.cell(4, c).fill = PatternFill("solid", fgColor=gold)
+        ]
+    )
+    ws.append([capped_note] if capped_note else [""])
+    ws.append([])
+    ws.append(["Path"] + [_desk_date(d) for d in dates])
 
-    header_row = 6
-    headers = ["Path"] + [_desk_date(d) for d in dates]
-    for c, h in enumerate(headers, start=1):
-        cell = ws.cell(header_row, c, h)
-        cell.font = font_white
-        cell.fill = fill_maroon
-        cell.alignment = center
-        cell.border = header_border
+    for path_id, spots in _iter_path_rows(
+        matrix=mat if mat is not None else None,
+        params=gbm_params,
+        dates=dates,
+        n_paths=n_paths,
+        base_seed=base_seed,
+    ):
+        # Round once per cell for Excel size; keep path float64 stream short-lived.
+        ws.append([path_id] + [round(float(x), 4) for x in spots])
 
-    # Plain numeric body (no per-cell alt fill) — keeps large grids deployable.
-    for i in range(n_paths):
-        r = header_row + 1 + i
-        ws.cell(r, 1, i + 1).font = font_label
-        ws.cell(r, 1).alignment = center
-        ws.cell(r, 1).border = grid_border
-        for j in range(n_dates):
-            cell = ws.cell(r, j + 2, round(float(mat[i, j]), 4))
-            cell.number_format = "#,##0.00"
-            cell.font = font_ink
-            cell.alignment = right
-            cell.border = grid_border
-
-    footer_r = header_row + 1 + n_paths
-    ws.cell(
-        footer_r,
-        1,
-        f"Anand Rathi Wealth · Gift City AIF · {n_paths} paths · Exported {_desk_date(date.today())}",
-    ).font = font_muted
-    for c in range(1, min(banner_cols, n_dates + 1) + 1):
-        ws.cell(footer_r, c).fill = fill_footer
-        ws.cell(footer_r, c).border = gold_border
-
-    ws.column_dimensions["A"].width = 10
-    for c in range(2, min(n_dates + 2, 40)):
-        ws.column_dimensions[get_column_letter(c)].width = 12
-    ws.freeze_panes = "B7"
+    ws.append(
+        [
+            f"Anand Rathi Wealth · Gift City AIF · {n_paths} paths · Exported {_desk_date(date.today())}"
+        ]
+    )
 
     dest.parent.mkdir(parents=True, exist_ok=True)
     wb.save(dest)

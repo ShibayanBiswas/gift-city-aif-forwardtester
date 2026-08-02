@@ -147,9 +147,11 @@ Path picker on both subtabs.
 
 | Subtab | Content |
 |--------|---------|
-| **Market Calendar** | Shared forward **dates only** (as-of → Simulation End): futures month-end shift dates · monthly last-Tuesday option expiries. No Nifty levels or roll cost points (those vary by path). |
-| **Monte Carlo Matrix** | Full as-of → Simulation End grid — rows = path number, columns = **trading dates** — plus Excel download (identical to Home button) |
+| **Market Calendar** | Shared forward **dates only** (As Of Today → Simulation End): futures shift dates · monthly option expiries. No Nifty levels or roll cost points (those vary by path). |
+| **Simulated Nifty Paths** | Full As Of → Simulation End grid — rows = path number, columns = **trading dates** — plus Excel download (identical to Home button; streaming writer on the API) |
 | **Logic Atlas** | Module rail + Active Pipeline step cards |
+
+**Run frequency:** default **Monthly**. The frequency dropdown shows live path counts. On free Render, **Daily** is rejected by the API (memory). After a server restart, Download may say the previous run was lost — click **Run** again.
 
 **Market Calendar tabs:**
 
