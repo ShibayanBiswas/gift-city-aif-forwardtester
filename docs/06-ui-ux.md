@@ -20,7 +20,7 @@ The Gift City AIF Forward Tester desk UI follows **Anand Rathi Wealth Primary SP
 | Control | Behaviour |
 |---------|-----------|
 | **Since Calendar Year** | Analytics filter; default **2001** |
-| **Path Frequency** | Default **Daily**; also Monthly · Quarterly · Semi-annually · Weekly |
+| **Path Frequency** | Default **Monthly**; also Daily (heavy) · Weekly · Quarterly · Semi-annually |
 | **Sample Input** | `GET /api/product/sample` — branded `Product_Input_File.xlsx` |
 | **Upload** | `POST /api/product/upload` — becomes current product for next Run |
 | **Run** | Starts forward test; cancels prior job if running |
