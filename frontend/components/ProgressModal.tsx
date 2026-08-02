@@ -3,6 +3,7 @@
 import { AnimatePresence, motion } from "framer-motion";
 import { createPortal } from "react-dom";
 import { useEffect, useState } from "react";
+import { deskSpring } from "@/lib/motion";
 
 function cleanProgressCopy(raw: string): string {
   return raw
@@ -46,14 +47,16 @@ export function ProgressModal({
           className="fixed inset-0 z-[100] flex items-center justify-center bg-black/55 backdrop-blur-md"
         >
           <motion.div
-            initial={{ opacity: 0, scale: 0.96, y: 10 }}
+            initial={{ opacity: 0, scale: 0.94, y: 16 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.98, y: 6 }}
-            transition={{ type: "spring", stiffness: 420, damping: 30 }}
+            exit={{ opacity: 0, scale: 0.98, y: 8 }}
+            transition={deskSpring}
             className="relative mx-4 w-full max-w-md overflow-hidden rounded-2xl border border-[rgba(212,178,76,0.35)] bg-[var(--ar-surface)] shadow-2xl"
           >
-            <div className="h-1.5 w-full bg-gradient-to-r from-[var(--ar-maroon)] via-[var(--ar-gold)] to-[var(--ar-maroon)]" />
-            <div className="px-6 py-5">
+            <div className="desk-gold-rule !h-1.5 !w-full !rounded-none" />
+            <div className="pointer-events-none absolute -right-8 -top-10 h-32 w-32 rounded-full bg-[rgba(212,178,76,0.18)] blur-2xl" />
+            <div className="pointer-events-none absolute -bottom-10 -left-6 h-28 w-28 rounded-full bg-[rgba(122,30,44,0.14)] blur-2xl" />
+            <div className="relative px-6 py-5">
               <p className="text-[10px] uppercase tracking-[0.22em] text-[var(--ar-subtle)] font-ui">Live Simulation</p>
               <h2 className="mt-1 font-serif text-2xl text-[var(--ar-maroon)]">
                 {failed
@@ -65,26 +68,35 @@ export function ProgressModal({
               <p className="mt-2 min-h-[1.25rem] text-sm text-[var(--ar-muted)] font-ui">{copy}</p>
               {!failed ? (
                 <>
-                  <div className="mt-5 h-3 overflow-hidden rounded-full bg-black/5 dark:bg-white/10">
+                  <div className="progress-bar-track mt-5 h-3 overflow-hidden rounded-full bg-black/5 dark:bg-white/10">
                     <motion.div
-                      className="h-full rounded-full bg-gradient-to-r from-[var(--ar-maroon)] to-[var(--ar-gold)]"
+                      className="progress-bar-fill h-full rounded-full bg-gradient-to-r from-[var(--ar-maroon)] via-[var(--ar-gold)] to-[var(--ar-maroon)] bg-[length:200%_100%]"
                       animate={{ width: `${pct}%` }}
                       transition={{ ease: "easeOut", duration: 0.28 }}
                     />
                   </div>
                   <div className="mt-2 flex items-center justify-between text-sm font-ui">
                     <span className="text-[var(--ar-subtle)]">Please Wait</span>
-                    <span className="font-semibold tabular-nums text-[var(--ar-maroon)]">{pct.toFixed(1)}%</span>
+                    <motion.span
+                      key={pct.toFixed(0)}
+                      initial={{ opacity: 0.4, y: 4 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className="font-semibold tabular-nums text-[var(--ar-maroon)]"
+                    >
+                      {pct.toFixed(1)}%
+                    </motion.span>
                   </div>
                 </>
               ) : (
-                <button
+                <motion.button
                   type="button"
                   onClick={onDismiss}
-                  className="mt-5 inline-flex rounded-full bg-[var(--ar-maroon)] px-4 py-2 text-xs font-semibold text-white"
+                  className="desk-btn desk-btn-primary mt-5 inline-flex rounded-full px-4 py-2 text-xs font-semibold"
+                  whileHover={{ scale: 1.03 }}
+                  whileTap={{ scale: 0.97 }}
                 >
                   Dismiss
-                </button>
+                </motion.button>
               )}
             </div>
           </motion.div>

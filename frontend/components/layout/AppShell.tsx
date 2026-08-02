@@ -7,6 +7,7 @@ import { SiteNav } from "@/components/layout/SiteNav";
 import { ProgressModal } from "@/components/ProgressModal";
 import { useForwardTest } from "@/lib/store";
 import { addCalendarDaysIso, formatDeskDate, isDeskHorizonMeta } from "@/lib/api";
+import { deskSpring, easeOut, fadeUpItem, staggerContainer } from "@/lib/motion";
 
 const META_ICONS = [CalendarRange, Flag, Hourglass, ChartCandlestick, Layers] as const;
 
@@ -63,32 +64,36 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       <header className="brand-header sticky top-0 z-50 font-ui">
         <div className="mx-auto flex max-w-full items-center gap-3 px-4 py-3 lg:px-6">
           <BrandLogo />
-          <div className="brand-title min-w-0">
+          <motion.div
+            className="brand-title min-w-0"
+            initial={{ opacity: 0, x: -12 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={easeOut}
+          >
             <p className="text-[10px] uppercase tracking-[0.22em] text-[var(--ar-subtle)]">
               Anand Rathi Wealth · GIFT City
             </p>
-            <h1 className="truncate font-display text-lg text-[var(--ar-maroon)] md:text-2xl">
+            <h1 className="truncate font-display text-lg md:text-2xl">
               Category III AIF · Structured Units Forwardtester
             </h1>
-          </div>
+          </motion.div>
         </div>
         {meta.length ? (
           <div className="market-meta-strip" aria-label="Forward simulation horizon">
-            <div className="market-meta-full">
+            <motion.div
+              className="market-meta-full"
+              variants={staggerContainer}
+              initial="hidden"
+              animate="show"
+            >
               {meta.map((m, i) => {
                 const Icon = META_ICONS[i] ?? CalendarRange;
                 return (
                   <motion.div
                     key={m.label}
                     className="market-meta-card"
-                    initial={{ opacity: 0, x: -40 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={{
-                      delay: 0.07 * i,
-                      duration: 0.5,
-                      ease: [0.22, 1, 0.36, 1],
-                    }}
-                    whileHover={{ y: -2 }}
+                    variants={fadeUpItem}
+                    whileHover={{ y: -3, transition: deskSpring }}
                   >
                     <span className="market-meta-card__label">
                       <Icon className="h-3.5 w-3.5 shrink-0 text-[var(--ar-gold-dark)]" aria-hidden />
@@ -100,13 +105,21 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                   </motion.div>
                 );
               })}
-            </div>
+            </motion.div>
           </div>
         ) : null}
         <SiteNav />
       </header>
-      <main className="page-enter mx-auto w-full max-w-full flex-1 px-4 py-4 pb-3 lg:px-6">{children}</main>
-      <footer className="border-t border-[var(--ar-border)] py-3 text-center text-xs text-[var(--ar-subtle)]">
+      <motion.main
+        className="page-enter mx-auto w-full max-w-full flex-1 px-4 py-4 pb-3 lg:px-6"
+        initial={{ opacity: 0, y: 8 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={easeOut}
+      >
+        {children}
+      </motion.main>
+      <footer className="border-t border-[var(--ar-border)] py-3 text-center text-xs text-[var(--ar-subtle)] font-ui">
+        <div className="desk-gold-rule desk-gold-rule--wide mb-2 opacity-80" />
         Anand Rathi Wealth · GIFT City Cat-III AIF Forwardtester
       </footer>
     </div>

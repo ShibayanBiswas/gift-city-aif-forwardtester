@@ -10,6 +10,7 @@ import { ProductMetaStrip, ProductSpecTables } from "@/components/ProductSpecTab
 import { SheetTable } from "@/components/SheetTable";
 import { DownloadButton } from "@/components/DownloadButton";
 import { client, formatDeskDate, formatNum } from "@/lib/api";
+import { deskSpring, easeOut, fadeUpItem, pageSection, staggerContainer, tapPress } from "@/lib/motion";
 
 export default function HomePage() {
   const { product, summary, filteredYearly, sinceYear, market, jobId, clearResults } = useForwardTest();
@@ -53,47 +54,71 @@ export default function HomePage() {
     }
   };
 
+  const quickLinks = [
+    { href: "/product", label: "Product" },
+    { href: "/hedging", label: "Hedging Sheet" },
+    { href: "/computation", label: "Computation" },
+    { href: "/paths", label: "Path Calendar" },
+    { href: "/analytics", label: "Analytics Lab", primary: true },
+  ];
+
   return (
     <div className="space-y-6">
       <motion.section
-        initial={{ opacity: 0, y: 10 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="ar-panel ar-band overflow-hidden"
+        variants={pageSection}
+        initial="hidden"
+        animate="show"
+        className="ar-panel ar-band relative overflow-hidden"
       >
-        <div className="border-b border-[var(--ar-border)] bg-gradient-to-r from-[var(--ar-table-head-from)] to-transparent px-6 py-5">
+        <div className="hero-ambient" aria-hidden />
+        <div className="relative border-b border-[var(--ar-border)] bg-gradient-to-r from-[var(--ar-table-head-from)] to-transparent px-6 py-5">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
             <div>
+              <motion.div
+                className="desk-gold-rule mb-3"
+                initial={{ scaleX: 0, opacity: 0 }}
+                animate={{ scaleX: 1, opacity: 1 }}
+                transition={{ ...easeOut, delay: 0.05 }}
+                style={{ transformOrigin: "left" }}
+              />
               <p className="text-xs uppercase tracking-[0.22em] text-[var(--ar-subtle)] font-ui">GIFT City · Cat-III AIF</p>
-              <h2 className="font-display text-3xl text-[var(--ar-maroon)] md:text-5xl">{displayName}</h2>
+              <motion.h2
+                className="font-display text-3xl text-[var(--ar-maroon)] md:text-5xl"
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ ...easeOut, delay: 0.08 }}
+              >
+                {displayName}
+              </motion.h2>
               <p className="mt-2 max-w-2xl text-sm leading-relaxed text-[var(--ar-muted)] font-ui">
                 Structured units forward-tested from today&apos;s Nifty close through Simulation End. Upload a product
                 sheet, pick a path frequency, and run the desk engine.
               </p>
             </div>
-            <div className="flex flex-wrap gap-2 font-ui text-sm">
-              {[
-                { href: "/product", label: "Product" },
-                { href: "/hedging", label: "Hedging Sheet" },
-                { href: "/computation", label: "Computation" },
-                { href: "/paths", label: "Path Calendar" },
-                { href: "/analytics", label: "Analytics Lab", primary: true },
-              ].map((l) => (
-                <Link
-                  key={l.href}
-                  href={l.href}
-                  className={
-                    l.primary
-                      ? "rounded-full bg-[var(--ar-maroon)] px-4 py-2 text-white shadow-lg"
-                      : "rounded-full border border-[var(--ar-border)] bg-[var(--ar-surface)] px-4 py-2 hover:border-[var(--ar-gold)]"
-                  }
-                >
-                  {l.label}
-                </Link>
+            <motion.div
+              className="flex flex-wrap gap-2 font-ui text-sm"
+              variants={staggerContainer}
+              initial="hidden"
+              animate="show"
+            >
+              {quickLinks.map((l) => (
+                <motion.div key={l.href} variants={fadeUpItem} whileHover={{ y: -2 }} whileTap={tapPress}>
+                  <Link
+                    href={l.href}
+                    className={
+                      l.primary
+                        ? "desk-btn desk-btn-primary inline-block rounded-full px-4 py-2 text-white"
+                        : "desk-btn inline-block rounded-full border border-[var(--ar-border)] bg-[var(--ar-surface)] px-4 py-2"
+                    }
+                  >
+                    {l.label}
+                  </Link>
+                </motion.div>
               ))}
-            </div>
+            </motion.div>
           </div>
         </div>
-        <div className="space-y-5 px-6 py-5">
+        <div className="relative space-y-5 px-6 py-5">
           {product && (
             <>
               <ProductMetaStrip product={product} />
@@ -109,7 +134,12 @@ export default function HomePage() {
         <>
           <KpiBand />
           {summary.gbm ? (
-            <section className="sheet-card overflow-hidden">
+            <motion.section
+              className="sheet-card overflow-hidden"
+              initial={{ opacity: 0, y: 14 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={easeOut}
+            >
               <div className="flex flex-wrap items-end justify-between gap-3 border-b border-[var(--ar-border)] bg-gradient-to-r from-[var(--ar-table-head-from)] to-transparent px-5 py-4">
                 <div>
                   <p className="text-[10px] uppercase tracking-[0.2em] text-[var(--ar-subtle)] font-ui">Parameters</p>
@@ -123,7 +153,12 @@ export default function HomePage() {
               {downloadError ? (
                 <p className="px-5 pt-3 text-sm text-[var(--ar-maroon)] font-ui">{downloadError}</p>
               ) : null}
-              <div className="horizontal-rail-fill px-5 py-4">
+              <motion.div
+                className="horizontal-rail-fill px-5 py-4"
+                variants={staggerContainer}
+                initial="hidden"
+                animate="show"
+              >
                 <div className="horizontal-rail-fill-inner flex w-full gap-3">
                   {[
                     {
@@ -143,14 +178,19 @@ export default function HomePage() {
                       value: summary.gbm.drift.toFixed(6),
                     },
                   ].map((c) => (
-                    <div key={c.label} className="rail-card-fill glass min-w-0 flex-1 rounded-2xl px-4 py-3">
+                    <motion.div
+                      key={c.label}
+                      variants={fadeUpItem}
+                      whileHover={{ y: -3, transition: deskSpring }}
+                      className="rail-card-fill glass min-w-0 flex-1 rounded-2xl px-4 py-3"
+                    >
                       <p className="text-[10px] tracking-[0.16em] text-[var(--ar-subtle)] font-ui">{c.label}</p>
                       <p className="mt-1 font-display text-lg tabular-nums text-[var(--ar-maroon)]">{c.value}</p>
-                    </div>
+                    </motion.div>
                   ))}
                 </div>
-              </div>
-            </section>
+              </motion.div>
+            </motion.section>
           ) : null}
           <ChartFrame
             title="Yearly Mean And Median Terminal Value"

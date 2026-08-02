@@ -2,6 +2,8 @@
 
 The Gift City AIF Forward Tester desk UI follows **Anand Rathi Wealth Primary SP Dashboard** visual language: glass panels, maroon/gold accents, full-width sections, Cormorant Garamond display headings, Source Sans 3 body. Dark mode uses a warm night palette (champagne titles, gold-lit mesh, wine surfaces).
 
+**Motion:** Framer Motion + CSS — drifting mesh, gold shimmer rules, sliding main-nav pill, staggered KPI/meta cards, floating Run CTA, progress-bar sheen, home hero ambient glow. Shared springs live in `frontend/lib/motion.ts`. `prefers-reduced-motion` disables looping CSS animations.
+
 **Architecture:** [05-architecture.md](05-architecture.md) · **Product tables:** [03-product-input-spec.md](03-product-input-spec.md) · **Formulas (reference):** [09-formulas-and-product-books.md](09-formulas-and-product-books.md).
 
 ---

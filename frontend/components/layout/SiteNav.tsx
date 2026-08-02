@@ -7,6 +7,7 @@ import { LayoutDashboard, BarChart3, Calculator, Sparkles, Moon, Sun, Upload, Pl
 import { mainSections, resolveNav } from "@/lib/navigation";
 import { cn, client, FREQUENCY_ORDER, FREQUENCY_LABELS } from "@/lib/api";
 import { useForwardTest } from "@/lib/store";
+import { deskSpring, tapPress } from "@/lib/motion";
 
 const icons = {
   home: LayoutDashboard,
@@ -55,10 +56,14 @@ export function SiteNav() {
                   <motion.span
                     layoutId="main-nav-active"
                     className="absolute inset-0 rounded-xl bg-gradient-to-r from-[rgba(212,178,76,0.35)] to-[rgba(122,30,44,0.18)] shadow-inner"
-                    transition={{ type: "spring", stiffness: 420, damping: 28 }}
+                    transition={deskSpring}
                   />
                 ) : null}
-                <motion.span className="relative inline-flex" whileHover={{ scale: 1.1, rotate: -4 }}>
+                <motion.span
+                  className="relative inline-flex"
+                  whileHover={{ scale: 1.12, rotate: -6 }}
+                  transition={deskSpring}
+                >
                   <Icon className="h-4 w-4" />
                 </motion.span>
                 <span className="relative">{item.label}</span>
@@ -104,9 +109,11 @@ export function SiteNav() {
               );
             })}
           </select>
-          <button
+          <motion.button
             type="button"
-            className="inline-flex items-center gap-1.5 rounded-full border border-[var(--ar-border)] px-3 py-1.5 text-xs hover:border-[var(--ar-gold)]"
+            className="desk-btn inline-flex items-center gap-1.5 rounded-full border border-[var(--ar-border)] px-3 py-1.5 text-xs"
+            whileHover={{ y: -1 }}
+            whileTap={tapPress}
             onClick={() => {
               void client.downloadSample().catch((e) => {
                 setError(e instanceof Error ? e.message : String(e));
@@ -115,8 +122,12 @@ export function SiteNav() {
           >
             <Download size={14} />
             <span className="hidden md:inline">Sample Input</span>
-          </button>
-          <label className="inline-flex cursor-pointer items-center gap-1.5 rounded-full border border-[var(--ar-border)] px-3 py-1.5 text-xs hover:border-[var(--ar-gold)]">
+          </motion.button>
+          <motion.label
+            className="desk-btn inline-flex cursor-pointer items-center gap-1.5 rounded-full border border-[var(--ar-border)] px-3 py-1.5 text-xs"
+            whileHover={{ y: -1 }}
+            whileTap={tapPress}
+          >
             <Upload size={14} />
             <span className="hidden md:inline">Upload</span>
             <input
@@ -128,23 +139,46 @@ export function SiteNav() {
                 if (f) void upload(f);
               }}
             />
-          </label>
-          <button
+          </motion.label>
+          <motion.button
             type="button"
             disabled={running || !product}
             onClick={() => void run()}
-            className="inline-flex items-center gap-1.5 rounded-full bg-[var(--ar-maroon)] px-3 py-1.5 text-xs text-white disabled:opacity-50"
+            className="desk-btn desk-btn-primary desk-btn-run inline-flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-xs font-semibold"
+            whileHover={running || !product ? undefined : { scale: 1.04, y: -1 }}
+            whileTap={running || !product ? undefined : tapPress}
           >
-            <Play size={14} /> Run
-          </button>
-          <button
+            <motion.span
+              animate={running ? { rotate: 360 } : { rotate: 0 }}
+              transition={running ? { duration: 1.2, repeat: Infinity, ease: "linear" } : undefined}
+              className="inline-flex"
+            >
+              <Play size={14} fill="currentColor" />
+            </motion.span>
+            Run
+          </motion.button>
+          <motion.button
             type="button"
             aria-label="Toggle theme"
             onClick={() => setDark(!dark)}
-            className="rounded-full border border-[var(--ar-border)] p-2"
+            className="desk-btn rounded-full border border-[var(--ar-border)] p-2"
+            whileHover={{ rotate: 18, scale: 1.08 }}
+            whileTap={tapPress}
+            transition={deskSpring}
           >
-            {dark ? <Sun size={14} /> : <Moon size={14} />}
-          </button>
+            <AnimatePresence mode="wait" initial={false}>
+              <motion.span
+                key={dark ? "sun" : "moon"}
+                initial={{ opacity: 0, rotate: -40, scale: 0.6 }}
+                animate={{ opacity: 1, rotate: 0, scale: 1 }}
+                exit={{ opacity: 0, rotate: 40, scale: 0.6 }}
+                transition={{ duration: 0.2 }}
+                className="inline-flex"
+              >
+                {dark ? <Sun size={14} /> : <Moon size={14} />}
+              </motion.span>
+            </AnimatePresence>
+          </motion.button>
         </div>
       </div>
 
@@ -152,22 +186,24 @@ export function SiteNav() {
         {section.subNav?.length ? (
           <motion.div
             key={section.id}
-            initial={{ opacity: 0, y: -4 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -4 }}
-            className="nav-sub-bar border-t"
+            initial={{ opacity: 0, y: -6, height: 0 }}
+            animate={{ opacity: 1, y: 0, height: "auto" }}
+            exit={{ opacity: 0, y: -4, height: 0 }}
+            transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
+            className="nav-sub-bar border-t overflow-hidden"
           >
             <div className="mx-auto flex max-w-full flex-wrap gap-1 px-4 py-2 lg:px-6">
               {section.subNav.map((item) => {
                 const active = item.match(pathname);
                 return (
-                  <Link
-                    key={item.href}
-                    href={item.href}
-                    className={cn("nav-sub-pill font-ui", active && "nav-sub-pill-active")}
-                  >
-                    {item.label}
-                  </Link>
+                  <motion.div key={item.href} whileHover={{ y: -1 }} transition={deskSpring}>
+                    <Link
+                      href={item.href}
+                      className={cn("nav-sub-pill font-ui", active && "nav-sub-pill-active")}
+                    >
+                      {item.label}
+                    </Link>
+                  </motion.div>
                 );
               })}
             </div>

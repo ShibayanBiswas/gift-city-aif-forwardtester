@@ -511,19 +511,30 @@ export function PathDetailGate({
 export function EmptyRunHint() {
   return (
     <motion.div
-      initial={{ opacity: 0, y: 12 }}
+      initial={{ opacity: 0, y: 16 }}
       animate={{ opacity: 1, y: 0 }}
-      className="ar-panel ar-band glass glass-glow-cyan overflow-hidden p-12 text-center"
+      transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
+      className="ar-panel ar-band glass glass-glow-cyan relative overflow-hidden p-12 text-center"
     >
-      <div className="mx-auto mb-4 h-1 w-24 rounded-full bg-gradient-to-r from-[var(--ar-maroon)] via-[var(--ar-gold)] to-[var(--ar-maroon)]" />
-      <p className="text-xs tracking-[0.28em] text-[var(--ar-subtle)] font-ui">Desk Ready</p>
-      <h2 className="mt-2 font-display text-3xl text-[var(--ar-maroon)] md:text-4xl">
-        Run A Forward Test To Illuminate The Desk
-      </h2>
-      <p className="mx-auto mt-3 max-w-xl text-sm leading-relaxed text-[var(--ar-muted)] font-ui">
-        Choose path frequency, upload a product sheet if needed, then press Run. Paths start from today through
-        Simulation End and will populate every desk surface.
-      </p>
+      <div className="hero-ambient opacity-70" aria-hidden />
+      <div className="relative">
+        <div className="desk-gold-rule desk-gold-rule--wide empty-desk-pulse mb-4" />
+        <p className="text-xs tracking-[0.28em] text-[var(--ar-subtle)] font-ui">Desk Ready</p>
+        <h2 className="mt-2 font-display text-3xl text-[var(--ar-maroon)] md:text-4xl">
+          Run A Forward Test To Illuminate The Desk
+        </h2>
+        <p className="mx-auto mt-3 max-w-xl text-sm leading-relaxed text-[var(--ar-muted)] font-ui">
+          Choose path frequency, upload a product sheet if needed, then press Run. Paths start from today through
+          Simulation End and will populate every desk surface.
+        </p>
+        <motion.p
+          className="mt-5 text-[11px] uppercase tracking-[0.2em] text-[var(--ar-gold-dark)] font-ui"
+          animate={{ opacity: [0.45, 1, 0.45] }}
+          transition={{ duration: 2.4, repeat: Infinity, ease: "easeInOut" }}
+        >
+          Ready When You Are
+        </motion.p>
+      </div>
     </motion.div>
   );
 }
@@ -564,15 +575,25 @@ export function KpiBand() {
     },
   ];
   return (
-    <div className="w-full overflow-x-auto pb-1">
+    <motion.div
+      className="w-full overflow-x-auto pb-1"
+      initial="hidden"
+      animate="show"
+      variants={{
+        hidden: { opacity: 0 },
+        show: { opacity: 1, transition: { staggerChildren: 0.06, delayChildren: 0.05 } },
+      }}
+    >
       <div className="flex min-w-full gap-3">
-        {items.map((k, i) => (
+        {items.map((k) => (
           <motion.div
             key={k.label}
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: i * 0.04 }}
-            whileHover={{ y: -4, scale: 1.02 }}
+            variants={{
+              hidden: { opacity: 0, y: 16, scale: 0.98 },
+              show: { opacity: 1, y: 0, scale: 1, transition: { duration: 0.4, ease: [0.22, 1, 0.36, 1] } },
+            }}
+            whileHover={{ y: -5, scale: 1.025 }}
+            transition={{ type: "spring", stiffness: 380, damping: 26 }}
             className="glass glass-glow-cyan min-w-[11.5rem] flex-1 rounded-2xl p-4"
           >
             <p className="text-[10px] tracking-[0.16em] text-[var(--ar-subtle)] font-ui">{k.label}</p>
@@ -593,7 +614,7 @@ export function KpiBand() {
           </motion.div>
         ))}
       </div>
-    </div>
+    </motion.div>
   );
 }
 
@@ -642,14 +663,16 @@ export function SubPageTabs({
   return (
     <div className="nav-pill-shell inline-flex flex-wrap gap-1 rounded-2xl border p-1.5 font-ui shadow-sm">
       {tabs.map((t) => (
-        <button
+        <motion.button
           key={t.id}
           type="button"
           onClick={() => onChange(t.id)}
+          whileHover={{ y: -1 }}
+          whileTap={{ scale: 0.97 }}
           className={active === t.id ? "nav-sub-pill nav-sub-pill-active" : "nav-sub-pill"}
         >
           {t.label}
-        </button>
+        </motion.button>
       ))}
     </div>
   );

@@ -128,6 +128,162 @@ html.dark .bg-mesh::before {
   to { transform: scale(1.03) translate3d(-1%, 0.5%, 0); }
 }
 
+@keyframes goldShimmer {
+  0% { background-position: 0% 50%; }
+  100% { background-position: 200% 50%; }
+}
+
+@keyframes softPulse {
+  0%, 100% { opacity: 0.55; transform: scaleX(0.92); }
+  50% { opacity: 1; transform: scaleX(1); }
+}
+
+@keyframes progressSheen {
+  0% { transform: translateX(-120%); }
+  100% { transform: translateX(220%); }
+}
+
+@keyframes brandRuleSweep {
+  0% { background-position: 0% 50%; opacity: 0.7; }
+  50% { opacity: 1; }
+  100% { background-position: 100% 50%; opacity: 0.7; }
+}
+
+@keyframes deskFloat {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-3px); }
+}
+
+.desk-gold-rule {
+  height: 2px;
+  width: 5.5rem;
+  border-radius: 999px;
+  background: linear-gradient(
+    90deg,
+    var(--ar-maroon),
+    var(--ar-gold),
+    var(--ar-maroon),
+    var(--ar-gold)
+  );
+  background-size: 200% 100%;
+  animation: goldShimmer 3.2s linear infinite;
+}
+
+.desk-gold-rule--wide {
+  width: 7.5rem;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.desk-btn {
+  position: relative;
+  overflow: hidden;
+  transition: transform 0.2s ease, box-shadow 0.25s ease, border-color 0.2s ease, background 0.2s ease;
+}
+.desk-btn::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    105deg,
+    transparent 35%,
+    rgba(255, 255, 255, 0.22) 50%,
+    transparent 65%
+  );
+  transform: translateX(-120%);
+  pointer-events: none;
+}
+.desk-btn:hover::after {
+  animation: progressSheen 0.85s ease;
+}
+.desk-btn:hover {
+  border-color: var(--ar-gold);
+  transform: translateY(-1px);
+}
+.desk-btn-primary {
+  background: linear-gradient(135deg, #8a2434 0%, var(--ar-maroon) 45%, #5c1520 100%);
+  color: #fff;
+  box-shadow: 0 10px 28px -14px rgba(122, 30, 44, 0.65);
+}
+.desk-btn-primary:hover {
+  box-shadow: 0 14px 32px -12px rgba(122, 30, 44, 0.75);
+}
+.desk-btn-primary:disabled {
+  opacity: 0.5;
+  transform: none;
+  box-shadow: none;
+}
+.desk-btn-primary:disabled::after {
+  display: none;
+}
+html.dark .desk-btn-primary {
+  background: linear-gradient(135deg, #a83245 0%, #7a1e2c 50%, #4a1018 100%);
+  color: #fff7ee;
+}
+
+.desk-btn-run:not(:disabled) {
+  animation: deskFloat 2.8s ease-in-out infinite;
+}
+.desk-btn-run:not(:disabled):hover {
+  animation: none;
+}
+
+.hero-ambient {
+  pointer-events: none;
+  position: absolute;
+  inset: -20% -10% auto;
+  height: 70%;
+  background:
+    radial-gradient(ellipse 50% 60% at 18% 30%, rgba(212, 178, 76, 0.18), transparent 70%),
+    radial-gradient(ellipse 40% 50% at 88% 20%, rgba(122, 30, 44, 0.1), transparent 65%);
+  animation: meshDrift 14s ease-in-out infinite alternate;
+}
+html.dark .hero-ambient {
+  background:
+    radial-gradient(ellipse 50% 60% at 18% 30%, rgba(228, 199, 106, 0.16), transparent 70%),
+    radial-gradient(ellipse 40% 50% at 88% 20%, rgba(122, 30, 44, 0.28), transparent 65%);
+}
+
+.brand-title h1 {
+  background: linear-gradient(120deg, var(--ar-maroon) 0%, var(--ar-gold-dark) 45%, var(--ar-maroon) 90%);
+  background-size: 200% auto;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: brandRuleSweep 8s ease-in-out infinite;
+}
+html.dark .brand-title h1 {
+  background: linear-gradient(120deg, #f0d98a 0%, #e8c9a0 40%, #e4c76a 90%);
+  background-size: 200% auto;
+  -webkit-background-clip: text;
+  background-clip: text;
+}
+
+.progress-bar-track {
+  position: relative;
+  overflow: hidden;
+}
+.progress-bar-fill {
+  position: relative;
+  overflow: hidden;
+}
+.progress-bar-fill::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(255, 255, 255, 0.35),
+    transparent
+  );
+  animation: progressSheen 1.6s ease-in-out infinite;
+}
+
+.empty-desk-pulse {
+  animation: softPulse 2.4s ease-in-out infinite;
+}
+
 .brand-header {
   background: var(--ar-header-bg);
   backdrop-filter: blur(14px);
@@ -1478,4 +1634,26 @@ html.dark .computation-result-card--irr {
 }
 .dark .computation-result-card--ledger {
   background: linear-gradient(160deg, rgba(228, 199, 106, 0.2), rgba(26, 18, 20, 0.95));
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bg-mesh::before,
+  .hero-ambient,
+  .desk-gold-rule,
+  .desk-btn-run:not(:disabled),
+  .brand-title h1,
+  .progress-bar-fill::after,
+  .empty-desk-pulse,
+  .page-enter {
+    animation: none !important;
+  }
+  .desk-btn:hover { transform: none; }
+  .desk-btn::after { display: none; }
+  .brand-title h1 {
+    background: none;
+    -webkit-background-clip: unset;
+    background-clip: unset;
+    color: var(--ar-maroon);
+  }
+  html.dark .brand-title h1 { color: var(--ar-maroon); }
 }
