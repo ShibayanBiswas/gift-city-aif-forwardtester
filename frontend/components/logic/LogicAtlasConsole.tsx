@@ -195,7 +195,7 @@ export function LogicAtlasConsole() {
               ) : null}
             </p>
           </div>
-          <span className="inline-flex items-center gap-2 rounded-full border border-[rgba(212,178,76,0.4)] bg-[rgba(212,178,76,0.12)] px-3 py-1.5 text-[10px] font-bold uppercase tracking-[0.16em] text-[var(--ar-maroon)] font-ui">
+          <span className="inline-flex items-center gap-2 rounded-full border border-[rgba(212,178,76,0.4)] bg-[rgba(212,178,76,0.06)] backdrop-blur-md px-3 py-1.5 text-[10px] font-bold uppercase tracking-[0.16em] text-[var(--ar-maroon)] font-ui">
             <BookOpen className="h-3.5 w-3.5" />
             {selected.nodes.length} Steps
           </span>

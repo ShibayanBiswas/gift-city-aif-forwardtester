@@ -146,9 +146,9 @@ export function SheetTable({
                     key={i}
                     className={`odd:bg-[var(--ar-row-alt)] ${
                       isHighlighted(i)
-                        ? "bg-[rgba(212,178,76,0.18)] font-semibold ring-1 ring-inset ring-[rgba(212,178,76,0.35)]"
+                        ? "bg-[rgba(212,178,76,0.08)] font-semibold ring-1 ring-inset ring-[rgba(212,178,76,0.22)]"
                         : ""
-                    } ${onRowClick ? "cursor-pointer hover:bg-[rgba(212,178,76,0.12)]" : ""}`}
+                    } ${onRowClick ? "cursor-pointer hover:bg-[rgba(212,178,76,0.06)]" : ""}`}
                     onClick={onRowClick ? () => onRowClick(i) : undefined}
                   >
                     {r.map((c, j) => {
@@ -217,9 +217,9 @@ export function SheetTable({
                       key={i}
                       className={`odd:bg-[var(--ar-row-alt)] ${
                         isHighlighted(i)
-                          ? "bg-[rgba(212,178,76,0.18)] font-semibold ring-1 ring-inset ring-[rgba(212,178,76,0.35)]"
+                          ? "bg-[rgba(212,178,76,0.08)] font-semibold ring-1 ring-inset ring-[rgba(212,178,76,0.22)]"
                           : ""
-                      } ${onRowClick ? "cursor-pointer hover:bg-[rgba(212,178,76,0.12)]" : ""}`}
+                      } ${onRowClick ? "cursor-pointer hover:bg-[rgba(212,178,76,0.06)]" : ""}`}
                       onClick={onRowClick ? () => onRowClick(i) : undefined}
                     >
                       {r.map((c, j) => (

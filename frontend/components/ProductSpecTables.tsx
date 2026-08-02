@@ -282,8 +282,8 @@ export function ProductSpecTables({ product }: { product: ProductSpec }) {
                     <span
                       className={`inline-flex rounded-full px-2 py-0.5 text-[10px] tracking-wide ${
                         l.quantity < 0
-                          ? "bg-[rgba(122,30,44,0.12)] text-[var(--ar-maroon)]"
-                          : "bg-[rgba(212,178,76,0.2)] text-[var(--ar-gold-dark)]"
+                          ? "bg-[rgba(122,30,44,0.08)] text-[var(--ar-maroon)]"
+                          : "bg-[rgba(212,178,76,0.1)] text-[var(--ar-gold-dark)]"
                       }`}
                     >
                       {tradeSideLabel(l.quantity, l.option_type)}

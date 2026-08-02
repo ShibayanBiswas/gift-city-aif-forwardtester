@@ -498,7 +498,7 @@ export function PathDetailGate({
   return (
     <div className="relative">
       {pathDetailLoading ? (
-        <div className="pointer-events-none absolute right-3 top-3 z-10 inline-flex items-center gap-1.5 rounded-full border border-[var(--ar-border)] bg-[var(--ar-surface)] px-2.5 py-1 text-[10px] text-[var(--ar-muted)] shadow-sm font-ui">
+        <div className="pointer-events-none absolute right-3 top-3 z-10 inline-flex items-center gap-1.5 rounded-full border border-[var(--ar-border)] bg-[rgba(255,252,247,0.18)] backdrop-blur-md px-2.5 py-1 text-[10px] text-[var(--ar-muted)] font-ui">
           <Loader2 className="h-3 w-3 animate-spin" /> Refreshing…
         </div>
       ) : null}

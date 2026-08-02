@@ -106,13 +106,13 @@ export default function MonteCarloMatrixPage() {
             <div className="flex flex-wrap gap-2 items-center">
               <Link
                 href="/intel"
-                className="rounded-full border border-[var(--ar-border)] bg-[var(--ar-surface)] px-3.5 py-1.5 text-xs font-semibold uppercase tracking-wide text-[var(--ar-maroon)] font-ui hover:border-[var(--ar-gold)]"
+                className="rounded-full border border-[var(--ar-border)] bg-[rgba(255,252,247,0.16)] backdrop-blur-md px-3.5 py-1.5 text-xs font-semibold uppercase tracking-wide text-[var(--ar-maroon)] font-ui hover:border-[var(--ar-gold)] hover:bg-[rgba(212,178,76,0.12)]"
               >
                 Market Calendar
               </Link>
               <button
                 type="button"
-                className="inline-flex items-center gap-2 rounded-full border border-[var(--ar-border)] bg-[var(--ar-surface)] px-3.5 py-1.5 text-xs font-semibold uppercase tracking-wide text-[var(--ar-maroon)] font-ui hover:border-[var(--ar-gold)] disabled:opacity-50"
+                className="inline-flex items-center gap-2 rounded-full border border-[var(--ar-border)] bg-[rgba(255,252,247,0.16)] backdrop-blur-md px-3.5 py-1.5 text-xs font-semibold uppercase tracking-wide text-[var(--ar-maroon)] font-ui hover:border-[var(--ar-gold)] hover:bg-[rgba(212,178,76,0.12)] disabled:opacity-50"
                 onClick={() => void load()}
                 disabled={loading}
               >

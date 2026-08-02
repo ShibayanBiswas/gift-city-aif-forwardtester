@@ -39,7 +39,7 @@ export function DownloadButton({
           }
         })();
       }}
-      className={`desk-btn inline-flex items-center gap-2 rounded-full border border-[var(--ar-border)] bg-[var(--ar-surface)] px-3.5 py-1.5 text-xs font-semibold uppercase tracking-wide text-[var(--ar-maroon)] shadow-sm hover:bg-[rgba(212,178,76,0.12)] disabled:cursor-wait disabled:opacity-70 font-ui ${className}`}
+      className={`desk-btn inline-flex items-center gap-2 rounded-full border border-[var(--ar-border)] px-3.5 py-1.5 text-xs font-semibold uppercase tracking-wide text-[var(--ar-maroon)] hover:border-[var(--ar-gold)] disabled:cursor-wait disabled:opacity-70 font-ui ${className}`}
     >
       {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />}
       {busy ? status || "Please wait…" : label}
