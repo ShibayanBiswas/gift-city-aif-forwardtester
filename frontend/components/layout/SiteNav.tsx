@@ -49,13 +49,13 @@ export function SiteNav() {
                 href={item.href}
                 className={cn(
                   "relative flex items-center gap-2 rounded-xl px-3.5 py-2.5 text-sm font-semibold font-ui transition-all md:px-5",
-                  active ? "btn-nav-active" : "text-[var(--ar-muted)] hover:bg-[rgba(212,178,76,0.1)] hover:text-[var(--ar-ink)]",
+                  active ? "btn-nav-active" : "text-[var(--ar-muted)] hover:bg-[rgba(212,178,76,0.06)] hover:text-[var(--ar-ink)]",
                 )}
               >
                 {active ? (
                   <motion.span
                     layoutId="main-nav-active"
-                    className="absolute inset-0 rounded-xl bg-gradient-to-r from-[rgba(212,178,76,0.1)] to-[rgba(122,30,44,0.04)] shadow-inner"
+                    className="absolute inset-0 rounded-xl bg-gradient-to-r from-[rgba(212,178,76,0.08)] to-[rgba(122,30,44,0.03)] shadow-inner"
                     transition={deskSpring}
                   />
                 ) : null}
