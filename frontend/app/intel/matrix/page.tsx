@@ -13,6 +13,14 @@ import { DownloadButton } from "@/components/DownloadButton";
 
 type PreviewPayload = Awaited<ReturnType<typeof client.mcMatrixPreview>>;
 
+/** On-screen grid: all monthly/quarterly paths fit; date columns capped for browser FPS. */
+function previewLimits(pathCount: number | undefined): { paths: number; dates: number } {
+  const n = Math.max(1, Number(pathCount) || 200);
+  if (n <= 200) return { paths: n, dates: 180 };
+  if (n <= 800) return { paths: Math.min(n, 400), dates: 120 };
+  return { paths: 400, dates: 90 };
+}
+
 export default function MonteCarloMatrixPage() {
   const { summary, jobId, clearResults } = useForwardTest();
   const [preview, setPreview] = useState<PreviewPayload | null>(null);
@@ -20,11 +28,12 @@ export default function MonteCarloMatrixPage() {
   const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
-    if (!jobId) return;
+    if (!jobId || !summary) return;
     setLoading(true);
     setError(null);
     try {
-      const data = await client.mcMatrixPreview(jobId, 20, 30);
+      const limits = previewLimits(summary.path_count ?? summary.mc_matrix?.n_paths);
+      const data = await client.mcMatrixPreview(jobId, limits.paths, limits.dates);
       setPreview(data);
     } catch (e) {
       setPreview(null);
@@ -32,7 +41,7 @@ export default function MonteCarloMatrixPage() {
     } finally {
       setLoading(false);
     }
-  }, [jobId]);
+  }, [jobId, summary]);
 
   useEffect(() => {
     void load();
@@ -71,6 +80,12 @@ export default function MonteCarloMatrixPage() {
   const meta = summary.mc_matrix;
   const nPaths = preview?.n_paths ?? meta?.n_paths ?? summary.path_count;
   const nDates = preview?.n_dates ?? meta?.n_dates ?? meta?.dates?.length ?? "—";
+  const shownPaths = preview?.preview_paths ?? tableRows.length;
+  const shownDates = preview?.preview_dates ?? Math.max(0, headers.length - 3);
+  const truncated = Boolean(preview?.truncated);
+  const tableSubtitle = truncated
+    ? `Showing ${shownPaths.toLocaleString("en-IN")} of ${Number(nPaths).toLocaleString("en-IN")} paths · ${shownDates.toLocaleString("en-IN")} of ${Number(nDates).toLocaleString("en-IN")} trading dates · scroll the grid · Download Excel for the complete file`
+    : `Showing all ${Number(nPaths).toLocaleString("en-IN")} paths · ${shownDates.toLocaleString("en-IN")} trading-date columns · scroll horizontally for more dates · Download Excel for the complete file`;
 
   return (
     <div className="page-enter space-y-6">
@@ -162,17 +177,26 @@ export default function MonteCarloMatrixPage() {
       </motion.section>
 
       {loading && !preview ? (
-        <p className="text-sm text-[var(--ar-muted)] font-ui px-1">Loading preview…</p>
+        <p className="text-sm text-[var(--ar-muted)] font-ui px-1">Loading path table…</p>
       ) : (
         <SheetTable
           title="Simulated Nifty Paths"
-          subtitle="Preview · download Excel for the full grid"
+          subtitle={tableSubtitle}
           headers={headers}
           rows={tableRows}
           filename={`simulated-nifty-preview-${jobId}.xlsx`}
           sheetName="Preview"
-          minWidth={720}
-          maxHeight={560}
+          minWidth={960}
+          maxHeight="min(70vh, 720px)"
+          stickyLeftCols={3}
+          stickyColWidths={[72, 118, 118]}
+          hideDownload
+          columnTypes={[
+            "integer",
+            "date",
+            "date",
+            ...Array.from({ length: Math.max(0, headers.length - 3) }, () => "number" as const),
+          ]}
         />
       )}
     </div>

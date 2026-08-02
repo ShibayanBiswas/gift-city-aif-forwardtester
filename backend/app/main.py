@@ -1284,16 +1284,19 @@ def job_mc_matrix_meta(job_id: str) -> dict:
 @app.get("/api/forwardtest/{job_id}/mc-matrix/preview")
 def job_mc_matrix_preview(
     job_id: str,
-    max_paths: int = 25,
-    max_dates: int = 40,
+    max_paths: int = 200,
+    max_dates: int = 120,
 ) -> dict:
+    """On-screen matrix preview. Caps keep browser/API payloads deploy-safe;
+    Download Excel still streams the complete path×date grid.
+    """
     payload = _mc_matrix_payload(job_id)
     return {
         "ok": True,
         **matrix_preview(
             payload,
-            max_paths=max(1, min(int(max_paths), 100)),
-            max_dates=max(1, min(int(max_dates), 120)),
+            max_paths=max(1, min(int(max_paths), 400)),
+            max_dates=max(1, min(int(max_dates), 250)),
         ),
     }
 
