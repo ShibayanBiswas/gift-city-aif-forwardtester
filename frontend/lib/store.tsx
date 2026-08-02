@@ -179,88 +179,9 @@ export function ForwardTestProvider({ children }: { children: ReactNode }) {
           const y = Number(String(m.last_date).slice(0, 4));
           if (Number.isFinite(y) && y >= 2001) setSinceYear(y);
         }
-        const saved = localStorage.getItem(LS_KEY);
-        if (saved) {
-          try {
-            const parsed = JSON.parse(saved) as { jobId: string; frequency?: Frequency };
-            const jid = parsed.jobId;
-            const st = await client.jobStatus(jid);
-            if (st.status === "done") {
-              const s = await client.summary(jid);
-              if (!productsMatch(p, s.product)) {
-                localStorage.removeItem(LS_KEY);
-              } else {
-                setJobId(jid);
-                setSummary(s);
-                setFrequencyState(s.frequency);
-                setPathId(1);
-              }
-            } else if (st.status === "queued" || st.status === "running") {
-              // Resume the in-flight job after a soft navigation (not a hard refresh cancel).
-              setJobId(jid);
-              if (parsed.frequency) setFrequencyState(parsed.frequency);
-              setRunning(true);
-              runningLockRef.current = true;
-              setProgress(st.progress);
-              setMessage(st.message || "Resuming simulation…");
-              const gen = ++runGenRef.current;
-              void (async () => {
-                const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
-                const startedAt = Date.now();
-                try {
-                  for (;;) {
-                    if (gen !== runGenRef.current) return;
-                    if (Date.now() - startedAt > 45 * 60_000) {
-                      setError("Forward test timed out waiting for the server. Please try again.");
-                      break;
-                    }
-                    const cur = await client.jobStatus(jid);
-                    if (gen !== runGenRef.current) return;
-                    setProgress(cur.progress);
-                    setMessage(String(cur.message || "Computing paths…").replace(/\x1b\[[0-9;]*m/g, "").trim());
-                    if (cur.status === "done") {
-                      const s = await client.summary(jid);
-                      if (gen !== runGenRef.current) return;
-                      setSummary(s);
-                      setPathId(1);
-                      localStorage.setItem(LS_KEY, JSON.stringify({ jobId: jid, frequency: s.frequency }));
-                      break;
-                    }
-                    if (cur.status === "cancelled") {
-                      if (!intentionalCancelRef.current) {
-                        setError(null);
-                      }
-                      localStorage.removeItem(LS_KEY);
-                      setJobId(null);
-                      break;
-                    }
-                    if (cur.status === "error") {
-                      setError(cur.error || cur.message);
-                      localStorage.removeItem(LS_KEY);
-                      setJobId(null);
-                      break;
-                    }
-                    await sleep(280);
-                  }
-                } catch (e) {
-                  if (gen === runGenRef.current) {
-                    setError(e instanceof Error ? e.message : String(e));
-                  }
-                } finally {
-                  if (gen === runGenRef.current) {
-                    runningLockRef.current = false;
-                    setRunning(false);
-                    intentionalCancelRef.current = false;
-                  }
-                }
-              })();
-            } else {
-              localStorage.removeItem(LS_KEY);
-            }
-          } catch {
-            localStorage.removeItem(LS_KEY);
-          }
-        }
+        // Forwardtester desk: never restore a prior Run on reload (unlike Backtester).
+        // Deployment refreshes must show an empty results desk until the user clicks Run again.
+        localStorage.removeItem(LS_KEY);
       } catch (e) {
         setError(String(e));
       }
@@ -593,7 +514,8 @@ export function ForwardTestProvider({ children }: { children: ReactNode }) {
           }
           setSummary(s);
           setPathId(1);
-          localStorage.setItem(LS_KEY, JSON.stringify({ jobId: job_id, frequency }));
+          // Do not persist completed jobs — reload must not resurrect desk results.
+          localStorage.removeItem(LS_KEY);
           break;
         }
         if (st.status === "cancelled") {
