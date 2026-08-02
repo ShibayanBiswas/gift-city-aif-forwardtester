@@ -12,25 +12,24 @@ from datetime import date, datetime, timezone
 from pathlib import Path
 from typing import Any, Literal
 
+import numpy as np
 from dotenv import load_dotenv
 from fastapi import FastAPI, File, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel
 from sse_starlette.sse import EventSourceResponse
 
 from app.db import mongo
 from app.engine.forwardtest import ForwardTestCancelled, compute_single_path_detail, run_forwardtest
-from app.engine.gbm import GBM_BASE_SEED, GbmParams, estimate_gbm_params
+from app.engine.gbm import GBM_BASE_SEED, GbmParams, estimate_gbm_params, gbm_spots
 from app.engine.market import clear_market_cache, load_market, path_nifty_on, path_roll_vector
 from app.engine.market_sync import sync_market_to_present
 from app.engine.mc_matrix import (
-    build_mc_matrix,
     load_mc_matrix,
     matrix_meta,
     matrix_preview,
     save_mc_matrix,
-    slice_path_spots,
     write_mc_matrix_xlsx,
 )
 from app.engine.paths import (
@@ -94,6 +93,9 @@ _run_lock: asyncio.Lock | None = None
 _desk_cache_key: tuple[Any, ...] | None = None
 _desk_cache: dict[str, Any] | None = None
 _market_synced_at: str | None = None
+# Excel export queue — one heavy write_only build at a time on free hosts.
+_export_lock = threading.Lock()
+_exports: dict[str, dict[str, Any]] = {}
 
 
 def _get_run_lock() -> asyncio.Lock:
@@ -746,14 +748,6 @@ async def start_forwardtest(body: RunRequest) -> dict:
     if _current_product is None:
         _load_default_product()
 
-    # Free-tier Render OOM guard: daily grids (~3k paths × ~4k dates) exceed 512MB.
-    if body.frequency == "daily" and is_constrained_host():
-        raise HTTPException(
-            400,
-            "Daily frequency is too large for this host memory. "
-            "Choose Monthly (recommended), Weekly, Quarterly, or Semi-annually, then Run again.",
-        )
-
     # Idempotent: cold-start proxies / double-clicks must not spawn a second job.
     token = (body.client_run_id or "").strip()[:64] or None
     if token:
@@ -833,22 +827,8 @@ async def start_forwardtest(body: RunRequest) -> dict:
                 except Exception:
                     pass
 
-                # Pre-build Excel in the background so Download is instant / low-RAM.
-                def _prebuild_xlsx() -> None:
-                    try:
-                        dest = JOBS / job_id / "Simulated_Nifty_Paths.xlsx"
-                        if dest.exists() and dest.stat().st_size > 1000:
-                            return
-                        payload = _mc_matrix_payload(job_id)
-                        # Prefer streaming from params when matrix is huge.
-                        write_mc_matrix_xlsx(payload, dest)
-                        gc.collect()
-                    except Exception:
-                        pass
-
-                threading.Thread(
-                    target=_prebuild_xlsx, daemon=True, name=f"xlsx-{job_id}"
-                ).start()
+                # Queue Excel in the background — stream path-by-path, never full matrix.
+                _queue_xlsx_export(job_id)
             except ForwardTestCancelled as e:
                 job = _jobs.get(job_id)
                 if job and job.get("status") != "cancelled":
@@ -889,7 +869,7 @@ async def cancel_forwardtest(body: CancelRequest = CancelRequest()) -> dict:
 @app.get("/api/forwardtest/{job_id}/progress")
 async def progress_sse(job_id: str) -> EventSourceResponse:
     if _get_job(job_id) is None:
-        raise HTTPException(404, "Unknown job. Run a fresh forward test.")
+        raise HTTPException(404, "Previous run is no longer on the server. Click Run again.")
 
     async def gen():
         while True:
@@ -910,7 +890,7 @@ async def progress_sse(job_id: str) -> EventSourceResponse:
 def job_status(job_id: str) -> dict:
     job = _get_job(job_id)
     if not job:
-        raise HTTPException(404, "Unknown job. Run a fresh forward test.")
+        raise HTTPException(404, "Previous run is no longer on the server. Click Run again.")
     return {
         "id": job_id,
         "status": job["status"],
@@ -924,7 +904,7 @@ def job_status(job_id: str) -> dict:
 def job_summary(job_id: str) -> dict:
     job = _get_job(job_id)
     if not job:
-        raise HTTPException(404, "Unknown job. Run a fresh forward test.")
+        raise HTTPException(404, "Previous run is no longer on the server. Click Run again.")
     if job["status"] != "done" or not job["result"]:
         raise HTTPException(409, f"Job not ready: {job['status']}")
     r = job["result"]
@@ -1130,56 +1110,152 @@ def _resolve_path_detail(job_id: str, path_id: int) -> dict:
     return detail
 
 
-def _mc_matrix_payload(job_id: str) -> dict[str, Any]:
-    """Load saved MC matrix or rebuild from job GBM params + seed."""
+def _mc_matrix_payload(job_id: str, *, allow_mmap: bool = True) -> dict[str, Any]:
+    """Streamable MC payload — prefer mmap cache; else params+dates only.
+
+    Never rebuilds the full float matrix into RAM on constrained hosts.
+    Excel / preview regenerate one GBM path at a time from seed + params.
+    """
     job = _get_job(job_id)
     if not job:
-        raise HTTPException(404, "Unknown job. Run a fresh forward test.")
+        raise HTTPException(404, "Previous run is no longer on the server. Click Run again.")
     if job.get("status") != "done" or not job.get("result"):
         raise HTTPException(409, f"Job not ready: {job.get('status')}")
 
-    loaded = load_mc_matrix(JOBS / job_id)
-    if loaded:
-        return loaded
+    if allow_mmap:
+        loaded = load_mc_matrix(JOBS / job_id, mmap=True)
+        if loaded:
+            return loaded
 
     r = job["result"]
     meta = r.get("mc_matrix") or {}
     gbm = r.get("gbm") or {}
     dates_raw = meta.get("dates") or []
     if not dates_raw or not gbm.get("spot0"):
-        raise HTTPException(404, "Monte Carlo matrix not available for this job.")
+        raise HTTPException(404, "Simulated Nifty paths are not available for this job.")
     dates = [date.fromisoformat(str(x)[:10]) for x in dates_raw]
-    params = GbmParams(
-        spot0=float(gbm["spot0"]),
-        asof=str(gbm["asof"]),
-        mean_return=float(gbm["mean_return"]),
-        std_dev=float(gbm["std_dev"]),
-        drift=float(gbm["drift"]),
-        n_returns=int(gbm["n_returns"]),
-        first_date=str(gbm["first_date"]),
-        last_date=str(gbm["last_date"]),
-    )
     n_paths = int(meta.get("n_paths") or r.get("path_count") or 0)
     seed = int(meta.get("base_seed") or GBM_BASE_SEED)
-    matrix = build_mc_matrix(params, dates, n_paths, base_seed=seed)
-    try:
-        save_mc_matrix(JOBS / job_id, dates=dates, matrix=matrix, params=params, base_seed=seed)
-    except Exception:
-        pass
     return {
-        "matrix": matrix,
+        "matrix": None,
         "dates": dates,
-        "spot0": float(params.spot0),
-        "drift": float(params.drift),
-        "std_dev": float(params.std_dev),
-        "mean_return": float(params.mean_return),
+        "spot0": float(gbm["spot0"]),
+        "drift": float(gbm["drift"]),
+        "std_dev": float(gbm["std_dev"]),
+        "mean_return": float(gbm["mean_return"]),
         "base_seed": seed,
-        "asof": params.asof,
-        "first_date": str(params.first_date),
-        "last_date": str(params.last_date),
-        "n_paths": int(matrix.shape[0]),
-        "n_dates": int(matrix.shape[1]),
+        "asof": str(gbm.get("asof") or r.get("asof") or ""),
+        "first_date": str(gbm.get("first_date") or "2001-01-01"),
+        "last_date": str(gbm.get("last_date") or gbm.get("asof") or ""),
+        "n_returns": int(gbm.get("n_returns") or 0),
+        "n_paths": n_paths,
+        "n_dates": len(dates),
     }
+
+
+def _xlsx_dest(job_id: str) -> Path:
+    return JOBS / job_id / "Simulated_Nifty_Paths.xlsx"
+
+
+def _export_state(job_id: str) -> dict[str, Any]:
+    with _export_lock:
+        st = _exports.get(job_id)
+        if st:
+            return dict(st)
+    dest = _xlsx_dest(job_id)
+    if dest.exists() and dest.stat().st_size > 1000:
+        return {
+            "status": "ready",
+            "progress": 100.0,
+            "message": "Excel ready",
+            "path": str(dest),
+            "error": None,
+        }
+    return {
+        "status": "idle",
+        "progress": 0.0,
+        "message": "Not started",
+        "path": None,
+        "error": None,
+    }
+
+
+def _queue_xlsx_export(job_id: str) -> dict[str, Any]:
+    """Start or reuse a background streaming Excel build for this job."""
+    dest = _xlsx_dest(job_id)
+    with _export_lock:
+        existing = _exports.get(job_id)
+        if existing and existing.get("status") in {"queued", "building"}:
+            return dict(existing)
+        if dest.exists() and dest.stat().st_size > 1000:
+            ready = {
+                "status": "ready",
+                "progress": 100.0,
+                "message": "Excel ready",
+                "path": str(dest),
+                "error": None,
+            }
+            _exports[job_id] = ready
+            return dict(ready)
+        state = {
+            "status": "queued",
+            "progress": 0.0,
+            "message": "Excel export queued — large grids may take several minutes",
+            "path": None,
+            "error": None,
+        }
+        _exports[job_id] = state
+
+    def _build() -> None:
+        with _export_lock:
+            st = _exports.get(job_id) or {}
+            st.update(
+                {
+                    "status": "building",
+                    "progress": 1.0,
+                    "message": "Building Simulated Nifty Excel…",
+                    "error": None,
+                }
+            )
+            _exports[job_id] = st
+
+        def on_prog(frac: float, msg: str) -> None:
+            with _export_lock:
+                cur = _exports.get(job_id)
+                if not cur or cur.get("status") != "building":
+                    return
+                cur["progress"] = max(1.0, min(99.0, float(frac) * 100.0))
+                cur["message"] = msg
+                _exports[job_id] = cur
+
+        try:
+            payload = _mc_matrix_payload(job_id, allow_mmap=True)
+            # On constrained hosts always stream from GBM params — never force a full matrix load.
+            if is_constrained_host():
+                payload = {**payload, "matrix": None}
+            payload = {**payload, "_progress_cb": on_prog}
+            write_mc_matrix_xlsx(payload, dest)
+            gc.collect()
+            with _export_lock:
+                _exports[job_id] = {
+                    "status": "ready",
+                    "progress": 100.0,
+                    "message": "Excel ready",
+                    "path": str(dest),
+                    "error": None,
+                }
+        except Exception as e:
+            with _export_lock:
+                _exports[job_id] = {
+                    "status": "error",
+                    "progress": 0.0,
+                    "message": str(e),
+                    "path": None,
+                    "error": str(e),
+                }
+
+    threading.Thread(target=_build, daemon=True, name=f"xlsx-{job_id}").start()
+    return _export_state(job_id)
 
 
 @app.get("/api/forwardtest/{job_id}/mc-matrix")
@@ -1211,59 +1287,57 @@ def job_mc_matrix_preview(
     }
 
 
+@app.post("/api/forwardtest/{job_id}/mc-matrix/export")
+def job_mc_matrix_export_start(job_id: str) -> dict:
+    """Queue a memory-safe streaming Excel build. Poll until status is ready."""
+    job = _get_job(job_id)
+    if not job:
+        raise HTTPException(404, "Previous run is no longer on the server. Click Run again.")
+    if job.get("status") != "done" or not job.get("result"):
+        raise HTTPException(409, f"Job not ready: {job.get('status')}")
+    return {"ok": True, **_queue_xlsx_export(job_id)}
+
+
+@app.get("/api/forwardtest/{job_id}/mc-matrix/export")
+def job_mc_matrix_export_status(job_id: str) -> dict:
+    job = _get_job(job_id)
+    if not job:
+        raise HTTPException(404, "Previous run is no longer on the server. Click Run again.")
+    return {"ok": True, **_export_state(job_id)}
+
+
 @app.get("/api/forwardtest/{job_id}/mc-matrix.xlsx")
-def job_mc_matrix_xlsx(job_id: str, max_paths: int | None = None) -> FileResponse:
-    """Download Simulated Nifty Paths Excel (memory-safe streaming writer).
+def job_mc_matrix_xlsx(job_id: str):
+    """Download Simulated Nifty Paths Excel when the export cache is ready.
 
-    Serves a cached file when present. Otherwise streams path-by-path from the
-    saved MC matrix (mmap) or regenerates from GBM params — never builds a
-    fully-styled in-memory workbook (that OOMs free Render).
+    Large Daily grids are built in a background queue — call POST …/export
+    and poll until ready, then GET this endpoint. Never materialises the full
+    float matrix in RAM.
     """
-    try:
-        job = _get_job(job_id)
-        if not job:
-            raise HTTPException(
-                404,
-                "Unknown job. The server may have restarted and cleared the previous run. "
-                "Click Run to start a fresh forward test, then download again.",
-            )
-        if job.get("status") != "done" or not job.get("result"):
-            raise HTTPException(409, f"Job not ready: {job.get('status')}")
+    job = _get_job(job_id)
+    if not job:
+        raise HTTPException(404, "Previous run is no longer on the server. Click Run again.")
+    if job.get("status") != "done" or not job.get("result"):
+        raise HTTPException(409, f"Job not ready: {job.get('status')}")
 
-        dest = JOBS / job_id / "Simulated_Nifty_Paths.xlsx"
-        cap = None if max_paths is None else max(1, int(max_paths))
-        # Reuse cache only for uncapped full exports.
-        if cap is None and dest.exists() and dest.stat().st_size > 1000:
-            return FileResponse(
-                dest,
-                media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                filename="Simulated_Nifty_Paths.xlsx",
-            )
-
-        # Prefer mmap so the float grid is not copied into RAM.
-        loaded = load_mc_matrix(JOBS / job_id, mmap=True)
-        if loaded:
-            payload = loaded
-        else:
-            payload = _mc_matrix_payload(job_id)
-
-        # On constrained hosts, auto-cap very large grids so Download always returns a file.
-        n_paths = int(payload.get("n_paths") or 0)
-        n_dates = int(payload.get("n_dates") or len(payload.get("dates") or []))
-        if cap is None and is_constrained_host() and n_paths * max(n_dates, 1) > 800_000:
-            cap = min(n_paths, max(50, 800_000 // max(n_dates, 1)))
-
-        write_mc_matrix_xlsx(payload, dest, max_paths=cap)
-        gc.collect()
+    dest = _xlsx_dest(job_id)
+    if dest.exists() and dest.stat().st_size > 1000:
         return FileResponse(
             dest,
             media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
             filename="Simulated_Nifty_Paths.xlsx",
         )
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(500, f"Could not build Simulated Nifty Excel: {e}") from e
+
+    st = _queue_xlsx_export(job_id)
+    if st.get("status") == "error":
+        raise HTTPException(500, f"Could not build Simulated Nifty Excel: {st.get('error')}")
+    return JSONResponse(
+        status_code=202,
+        content={
+            "detail": "Excel is still building. Wait a moment and retry — large path grids can take several minutes.",
+            **st,
+        },
+    )
 
 
 def _path_horizon_market(job_id: str, path_id: int) -> dict[str, Any]:
@@ -1281,12 +1355,24 @@ def _path_horizon_market(job_id: str, path_id: int) -> dict[str, Any]:
     if not row:
         raise HTTPException(404, f"Path {path_id} was not found in this forward test.")
 
-    payload = _mc_matrix_payload(job_id)
+    payload = _mc_matrix_payload(job_id, allow_mmap=True)
     dates: list[date] = payload["dates"]
     if not dates:
         raise HTTPException(404, "Monte Carlo horizon dates missing.")
     try:
-        spots = slice_path_spots(payload["matrix"], dates, dates, int(path_id))
+        mat = payload.get("matrix")
+        if mat is not None:
+            row = int(path_id) - 1
+            spots = np.asarray(mat[row], dtype=float)
+        else:
+            spots = gbm_spots(
+                float(payload["spot0"]),
+                len(dates),
+                float(payload["drift"]),
+                float(payload["std_dev"]),
+                path_id=int(path_id),
+                base_seed=int(payload.get("base_seed") or GBM_BASE_SEED),
+            )
     except Exception as e:
         raise HTTPException(404, f"Could not read Monte Carlo row for path {path_id}: {e}") from e
 

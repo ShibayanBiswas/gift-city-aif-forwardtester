@@ -26,17 +26,18 @@ Product Excel (Product_Input_File.xlsx or upload)
    Forward rolls = last trading day of each month
    Forward monthly expiries = last Tuesday of each month
    Path 1 starts at as-of; final path ends on Simulation End
-   Shared GBM matrix: rows = paths, columns = trading dates (as-of → Simulation End)
+   Logical GBM matrix: rows = paths, columns = trading dates — **never held fully in RAM**
+   Each path regenerates its GBM row from seed + params on demand
    μ / σ / drift re-estimated each Run from Nifty **2001-01-01 → as-of**
  │
  ▼
- For each path: slice matrix spots → hedge.py → nav.py  (same as Backtester)
+ For each path: simulate spots → hedge.py → nav.py  (same as Backtester)
  │
  ▼
- forwardtest.py run_forwardtest · KPIs · mc-matrix.xlsx · Intel desk market through Simulation End
+ forwardtest.py run_forwardtest · KPIs · queued mc-matrix.xlsx · Intel desk market through Simulation End
 ```
 
-Shared `/api/market/*` exposes **calendar horizon** (and historical Nifty for μ/σ). Simulated prices and roll points live on each path — Hedging / Computation / Simulated Nifty Paths. Intel · Market Calendar is dates only. Home and Intel · Simulated Nifty Paths download the grid via `/api/forwardtest/{id}/mc-matrix.xlsx` (streaming Excel; job meta recovered from Mongo after Render restart when configured).
+Shared `/api/market/*` exposes **calendar horizon** (and historical Nifty for μ/σ). Simulated prices and roll points live on each path — Hedging / Computation / Simulated Nifty Paths. Intel · Market Calendar is dates only. Home and Intel · Simulated Nifty Paths download via queued `/api/forwardtest/{id}/mc-matrix/export` then `/mc-matrix.xlsx` (streaming Excel; job meta recovered from Mongo after Render restart when configured). All frequencies including Daily are allowed on free hosts — serial + path-by-path + export queue.
 
 **GBM (image / Excel parity):** \(S_t = S_{t-1}\cdot\exp(\mathrm{drift}+\sigma Z)\) with \(Z\sim N(0,1)\), independent seed stream per `path_id`. Engine uses float64 log-cumsum (stable on long horizons) and stores the matrix as float32.
 

@@ -37,14 +37,16 @@ export default function HomePage() {
   const gbmEstEnd =
     market?.asof ?? market?.last_date ?? summary?.asof ?? summary?.gbm?.asof ?? null;
 
-  const downloadSimulatedPaths = async () => {
+  const downloadSimulatedPaths = async (
+    onProgress?: (message: string, progress?: number) => void,
+  ) => {
     if (!jobId) {
       setDownloadError("Run a forward test first.");
       return;
     }
     setDownloadError(null);
     try {
-      await client.downloadMcMatrix(jobId);
+      await client.downloadMcMatrix(jobId, onProgress);
     } catch (e) {
       const msg = e instanceof Error ? e.message : "Download failed";
       setDownloadError(msg);

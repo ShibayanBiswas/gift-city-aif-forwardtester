@@ -109,7 +109,7 @@ Path starts are **forward** from As Of Today through Simulation End (default **7
 
 Path 1 is always **As Of Today**. Last start is the latest date whose tenure still ends on Simulation End. Verify: `scripts/verify_path_counts.py`. Desk frequency dropdown shows live counts from `market.path_counts`.
 
-**Deploy memory:** default frequency **Monthly**. Free Render rejects **Daily** runs. Simulated Nifty Excel uses a streaming writer; completed jobs are also saved to Mongo so Download can recover after a restart (matrix regenerates from GBM params + dates).
+**Deploy memory:** default frequency **Monthly**. All frequencies including **Daily** run path-by-path without a full float matrix in RAM. Excel export is queued + streamed; completed jobs are saved to Mongo so Download can recover after a restart.
 
 Path count is **product-dependent**: `max(observation_months)` gates which starts still have a resolvable last observation on the live expiry calendar (float `m × 30.5`, same as hedge). Desk catalogue supports **1…7 observation months**. Regression: `scripts/verify_dynamic_products.py`, `scripts/windup_suite.py`.
 

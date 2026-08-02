@@ -273,7 +273,7 @@ Free Render disk is ephemeral; git `data/*.csv` are the seed; startup re-extends
 
 Header chips: As Of Today · Simulation End · Simulation End Days · Trading Days · Monthly Expiries.  
 Intel · Market Calendar is **shared dates** (no forward prices). Path Nifty / rolls: Hedging / Simulated Nifty Paths.  
-Default Run frequency: **Monthly** (Daily is blocked on free Render to prevent OOM).  
+Default Run frequency: **Monthly**. Daily is allowed via serial path-by-path GBM + queued Excel export.  
 Download Excel uses a streaming writer + Mongo job recovery after restarts.  
 
 Home **Download Simulated Nifty Paths** exports the shared Monte Carlo path×date grid.
@@ -316,12 +316,12 @@ Home **Download Simulated Nifty Paths** exports the shared Monte Carlo path×dat
 | UI loads, Run / API fails | Missing/wrong `BACKEND_URL` | Set Render URL, no trailing slash; redeploy Vercel |
 | First request 30–90s | Free Render cold start | Wait; use `/api/wake` or `NEXT_PUBLIC_BACKEND_URL` |
 | 502/504 on Run | API still waking / crash | Render logs; hit `/api/health` directly |
-| `Unknown job` on Download | Render recycled / OOM restart wiped ephemeral job | Click **Run** again (Mongo now restores slim job meta when configured); prefer **Monthly** |
-| Web Service exceeded memory | Daily MC grid + old Excel writer | Default frequency is **Monthly**; Daily blocked on constrained hosts; Excel uses streaming `write_only` |
+| Previous run lost on Download | Render recycled / OOM restart wiped ephemeral job | Click **Run** again; Mongo restores slim job meta when configured |
+| Web Service exceeded memory | Full MC matrix + old Excel writer in RAM | Engine no longer builds full matrix; Excel export is queued + streaming `write_only` |
 | Render `ModuleNotFoundError` | Root Directory ≠ `backend` | Set Root = `backend` |
 | Vercel can't find pages | Root Directory ≠ `frontend` | Set Root = `frontend` |
 | Mongo auth failed | Bad password / `@` not encoded | Use `%40`; check Atlas network |
-| Daily run OOM on free tier | ~3k paths × ~4k dates | Use Monthly / Weekly; do **not** set Daily on free Render |
+| Daily run slow on free tier | ~3k paths × ~4k dates streamed | Wait for Run + Download queue; prefer Monthly when you need a quick desk check |
 | Download timeout via Vercel | Proxy idle limit | Set `NEXT_PUBLIC_BACKEND_URL` to Render so the browser downloads directly |
 | MC Excel missing dates | Old deploy | Redeploy backend with current `mc_matrix.py` |
 

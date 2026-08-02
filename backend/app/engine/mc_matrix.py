@@ -200,10 +200,15 @@ def load_mc_matrix(folder: Path, *, mmap: bool = False) -> dict[str, Any] | None
 
 def matrix_meta(payload: dict[str, Any]) -> dict[str, Any]:
     dates: list[date] = payload["dates"]
+    mat = payload.get("matrix")
+    n_paths = int(payload["n_paths"]) if "n_paths" in payload else int(mat.shape[0]) if mat is not None else 0
+    n_dates = int(payload["n_dates"]) if "n_dates" in payload else (
+        int(mat.shape[1]) if mat is not None else len(dates)
+    )
     return {
         "asof": payload["asof"],
-        "n_paths": payload["n_paths"] if "n_paths" in payload else int(payload["matrix"].shape[0]),
-        "n_dates": payload["n_dates"] if "n_dates" in payload else int(payload["matrix"].shape[1]),
+        "n_paths": n_paths,
+        "n_dates": n_dates,
         "first_date": dates[0].isoformat() if dates else None,
         "last_date": dates[-1].isoformat() if dates else None,
         "spot0": payload["spot0"],
@@ -212,9 +217,9 @@ def matrix_meta(payload: dict[str, Any]) -> dict[str, Any]:
         "mean_return": payload["mean_return"],
         "base_seed": payload["base_seed"],
         "layout": {
-            "rows": "path_id 1…N (vertical)",
-            "columns": "trading dates as-of → Simulation End (horizontal)",
-            "formula": "S_t = S_{t-1} · exp(drift + σ · Z)",
+            "rows": "path_id 1…N vertical",
+            "columns": "trading dates as-of → Simulation End horizontal",
+            "formula": "S_t = S_t-1 · exp(drift + σ · Z)",
         },
     }
 
@@ -225,21 +230,47 @@ def matrix_preview(
     max_paths: int = 25,
     max_dates: int = 40,
 ) -> dict[str, Any]:
-    mat: np.ndarray = payload["matrix"]
+    """Preview without requiring the full matrix in RAM — stream GBM rows."""
     dates: list[date] = payload["dates"]
-    n_paths = min(int(max_paths), mat.shape[0])
-    n_dates = min(int(max_dates), mat.shape[1])
+    mat = payload.get("matrix")
+    total_paths = int(payload.get("n_paths") or (mat.shape[0] if mat is not None else 0))
+    total_dates = int(payload.get("n_dates") or len(dates))
+    n_paths = min(int(max_paths), total_paths)
+    n_dates = min(int(max_dates), total_dates, len(dates))
     headers = ["Path"] + [d.isoformat() for d in dates[:n_dates]]
     rows: list[list[float | int]] = []
-    for i in range(n_paths):
-        rows.append([i + 1] + [round(float(mat[i, j]), 4) for j in range(n_dates)])
+    base_seed = int(payload.get("base_seed") or GBM_BASE_SEED)
+    if mat is not None:
+        for i in range(n_paths):
+            rows.append([i + 1] + [round(float(mat[i, j]), 4) for j in range(n_dates)])
+    else:
+        params = GbmParams(
+            spot0=float(payload["spot0"]),
+            asof=str(payload.get("asof") or ""),
+            mean_return=float(payload["mean_return"]),
+            std_dev=float(payload["std_dev"]),
+            drift=float(payload["drift"]),
+            n_returns=int(payload.get("n_returns") or 0),
+            first_date=str(payload.get("first_date") or "2001-01-01"),
+            last_date=str(payload.get("last_date") or payload.get("asof") or ""),
+        )
+        for path_id in range(1, n_paths + 1):
+            spots = gbm_spots(
+                params.spot0,
+                len(dates),
+                params.drift,
+                params.std_dev,
+                path_id=path_id,
+                base_seed=base_seed,
+            )
+            rows.append([path_id] + [round(float(spots[j]), 4) for j in range(n_dates)])
     return {
         **matrix_meta(payload),
         "preview_paths": n_paths,
         "preview_dates": n_dates,
         "headers": headers,
         "rows": rows,
-        "truncated": mat.shape[0] > n_paths or mat.shape[1] > n_dates,
+        "truncated": total_paths > n_paths or total_dates > n_dates,
     }
 
 
@@ -307,7 +338,7 @@ def write_mc_matrix_xlsx(
     if n_paths < n_paths_all:
         capped_note = f"Export capped to {n_paths} of {n_paths_all} paths for memory."
     elif cells > _EXCEL_CELL_SOFT_CAP:
-        capped_note = "Large grid exported with streaming writer (deploy-safe)."
+        capped_note = "Large grid exported with streaming writer · deploy-safe."
 
     gbm_params = params
     if gbm_params is None and mat is None:
@@ -348,7 +379,7 @@ def write_mc_matrix_xlsx(
         ("Simulation Last Date", _desk_date(dates[-1]) if dates else ""),
         ("Number Of Paths", int(n_paths)),
         ("Number Of Trading Dates", int(n_dates)),
-        ("Formula", "S_t = S_(t-1) * EXP(drift + sigma * Z), Z ~ N(0,1)"),
+        ("Formula", "S_t = S_t-1 * EXP(drift + sigma * Z), Z ~ N(0,1)"),
         ("Base Seed", int(base_seed)),
     ]
     for label, value in param_rows:
@@ -367,15 +398,24 @@ def write_mc_matrix_xlsx(
     ws.append([])
     ws.append(["Path"] + [_desk_date(d) for d in dates])
 
-    for path_id, spots in _iter_path_rows(
-        matrix=mat if mat is not None else None,
-        params=gbm_params,
-        dates=dates,
-        n_paths=n_paths,
-        base_seed=base_seed,
+    progress_cb = payload.get("_progress_cb")
+    for idx, (path_id, spots) in enumerate(
+        _iter_path_rows(
+            matrix=mat if mat is not None else None,
+            params=gbm_params,
+            dates=dates,
+            n_paths=n_paths,
+            base_seed=base_seed,
+        ),
+        start=1,
     ):
         # Round once per cell for Excel size; keep path float64 stream short-lived.
         ws.append([path_id] + [round(float(x), 4) for x in spots])
+        if progress_cb and (idx % 25 == 0 or idx == n_paths):
+            try:
+                progress_cb(idx / n_paths, f"Writing path {idx} of {n_paths}")
+            except Exception:
+                pass
 
     ws.append(
         [

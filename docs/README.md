@@ -29,8 +29,8 @@ Gift City AIF Forwardtester projects structured-unit outcomes from **As Of Today
 | GBM μ / σ | **Dynamic** every Run from Nifty **2001-01-01 → today’s as-of** (`estimate_gbm_params`) |
 | GBM matrix | Rows = path \(1,2,3,\ldots\); cols = **trading dates** as-of→Simulation End; \(S_t = S_{t-1}\cdot\exp(\mathrm{drift}+\sigma Z)\) |
 | Path count | \(f(\)frequency, horizon, tenure, obs months\()\) — daily / weekly / monthly / quarterly / semi-annual grids |
-| Default frequency | **Monthly** (Daily blocked on free Render — OOM risk) |
-| Simulated Nifty Excel | Streaming `write_only` export; Mongo restores job meta after restart; set `NEXT_PUBLIC_BACKEND_URL` for direct downloads |
+| Default frequency | **Monthly** · Daily / Weekly / Quarterly / Semi-annual all supported |
+| Simulated Nifty Excel | Queued streaming `write_only` export; path-by-path GBM; Mongo restores job meta after restart; set `NEXT_PUBLIC_BACKEND_URL` for direct downloads |
 | GBM formula | \(S_t = S_{t-1}\cdot\exp(\mathrm{drift}+\sigma Z)\), \(Z\sim N(0,1)\); float64 log-cumsum, float32 matrix storage |
 | Home download | **Download Excel** → branded Parameters + Simulated Nifty sheets |
 | Intel · Market Calendar | Shared futures shift / monthly expiry **dates** only (path Nifty & roll points on MC Matrix / Hedging / Computation) |

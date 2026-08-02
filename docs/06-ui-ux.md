@@ -22,7 +22,7 @@ The Gift City AIF Forward Tester desk UI follows **Anand Rathi Wealth Primary SP
 | Control | Behaviour |
 |---------|-----------|
 | **Since Calendar Year** | Analytics filter; default **2001** |
-| **Path Frequency** | Default **Monthly**; also Daily (heavy) · Weekly · Quarterly · Semi-annually |
+| **Path Frequency** | Default **Monthly**; also Daily · Weekly · Quarterly · Semi-annually — all frequencies allowed; Daily streams/queues on free hosts |
 | **Sample Input** | `GET /api/product/sample` — branded `Product_Input_File.xlsx` |
 | **Upload** | `POST /api/product/upload` — becomes current product for next Run |
 | **Run** | Starts forward test; cancels prior job if running |
@@ -153,7 +153,7 @@ Path picker on both subtabs.
 | **Simulated Nifty Paths** | Full As Of → Simulation End grid — rows = path number, columns = **trading dates** — plus Excel download (identical to Home button; streaming writer on the API) |
 | **Logic Atlas** | Module rail + Active Pipeline step cards |
 
-**Run frequency:** default **Monthly**. The frequency dropdown shows live path counts. On free Render, **Daily** is rejected by the API (memory). After a server restart, Download may say the previous run was lost — click **Run** again.
+**Run frequency:** default **Monthly**. The frequency dropdown shows live path counts. **Daily** is allowed everywhere — the engine stays serial, regenerates GBM path-by-path, and Excel export queues in the background. Download may take several minutes on large grids; wait for the button status. After a server restart, if the previous run was lost — click **Run** again.
 
 **Market Calendar tabs:**
 

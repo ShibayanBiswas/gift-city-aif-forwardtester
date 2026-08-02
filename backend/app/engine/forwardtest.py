@@ -1,6 +1,7 @@
 """Gift AIF Forward Test orchestrator — GBM paths + hedge + NAV (desk parity)."""
 from __future__ import annotations
 
+import gc
 import logging
 from collections import defaultdict
 from concurrent.futures import (
@@ -19,11 +20,7 @@ import numpy as np
 from .gbm import GBM_BASE_SEED, GbmParams
 from .hedge import hedge_path
 from .market import MarketDB, path_nifty_on, path_roll_vector, load_market
-from .mc_matrix import (
-    build_mc_matrix,
-    horizon_trading_dates,
-    slice_path_spots,
-)
+from .mc_matrix import horizon_trading_dates
 from .nav import run_nav
 from .paths import (
     Frequency,
@@ -34,7 +31,7 @@ from .paths import (
     simulate_path_spots,
 )
 from .product import ProductSpec, resolved_simulation_end, resolved_simulation_end_days
-from .runtime import forwardtest_parallelism
+from .runtime import forwardtest_parallelism, is_constrained_host
 
 log = logging.getLogger(__name__)
 
@@ -326,6 +323,8 @@ def _run_serial(
             horizon_dates=horizon_dates,
             base_seed=base_seed,
         )
+        # Drop path-local spots so large Daily runs stay under free-tier RAM.
+        path.spots = None
         summaries.append(summary)
         if detail is not None:
             details[summary.path_id] = detail
@@ -338,6 +337,8 @@ def _run_serial(
                     f"{path.start.isoformat()} → {path.end.isoformat()}"
                 ),
             )
+        if i % 50 == 0:
+            gc.collect()
     return summaries, details
 
 
@@ -535,16 +536,10 @@ def run_forwardtest(
     if not horizon_dates:
         raise RuntimeError("No trading dates on MC horizon (as-of → Simulation End)")
 
+    # Memory-safe: never materialise the full path×date float matrix in RAM.
+    # Each path regenerates its GBM row on demand via simulate_path_spots /
+    # spots_aligned_to_horizon (same seed rule as Nifty Simulations.xlsx).
     n_paths = max(p.path_id for p in paths)
-    _emit(
-        on_progress,
-        3.5,
-        f"Building simulated Nifty paths · {n_paths} paths",
-    )
-    mc_matrix = build_mc_matrix(params, horizon_dates, n_paths, base_seed=base_seed)
-    for p in paths:
-        p.spots = slice_path_spots(mc_matrix, horizon_dates, p.dates, p.path_id)
-
     n = len(paths)
     store_ids = detail_path_ids or set()
     details: dict[int, dict] = {}
@@ -553,13 +548,14 @@ def run_forwardtest(
     if store_ids and mode == "processes":
         mode = "threads"
         workers = min(workers, 4)
-    if n >= 5000 and mode == "serial":
-        mode, workers = forwardtest_parallelism(n)
+    # Large Daily runs on free hosts must stay serial — threads multiply peak RAM.
+    if n >= 400 and mode != "serial" and is_constrained_host():
+        mode, workers = "serial", 1
 
     _emit(
         on_progress,
-        5.0,
-        f"Running {n} {frequency} paths",
+        4.0,
+        f"Queued {n} {frequency} paths · {n_paths} simulated Nifty rows",
     )
 
     if mode == "serial" or workers == 1:
@@ -646,8 +642,8 @@ def run_forwardtest(
         "gbm": params.to_dict(),
         "asof": params.asof,
         "mc_matrix": {
-            "n_paths": int(mc_matrix.shape[0]),
-            "n_dates": int(mc_matrix.shape[1]),
+            "n_paths": int(n_paths),
+            "n_dates": int(len(horizon_dates)),
             "dates": [d.isoformat() for d in horizon_dates],
             "base_seed": int(base_seed),
             "spot0": float(params.spot0),
@@ -656,14 +652,11 @@ def run_forwardtest(
             "mean_return": float(params.mean_return),
             "asof": params.asof,
             "layout": {
-                "rows": "path_id 1…N (vertical)",
-                "columns": "trading dates as-of → Simulation End (horizontal)",
-                "formula": "S_t = S_{t-1} · exp(drift + σ · Z)",
+                "rows": "path_id 1…N vertical",
+                "columns": "trading dates as-of → Simulation End horizontal",
+                "formula": "S_t = S_t-1 · exp(drift + σ · Z)",
             },
         },
-        # Internal: persisted to jobs/{id}/mc_matrix.npz then stripped before JSON.
-        "_mc_matrix": mc_matrix,
-        "_mc_dates": horizon_dates,
         "kpis": {
             "mean_total": float(np.mean(totals)),
             "median_total": float(np.median(totals)),

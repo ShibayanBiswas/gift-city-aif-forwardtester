@@ -667,27 +667,95 @@ export const client = {
       `/api/forwardtest/${jobId}/mc-matrix/preview?max_paths=${maxPaths}&max_dates=${maxDates}`,
       { timeoutMs: API_TIMEOUTS.summary },
     ),
-  downloadMcMatrix: async (jobId: string) => {
+  downloadMcMatrix: async (
+    jobId: string,
+    onProgress?: (message: string, progress?: number) => void,
+  ) => {
     const ctrl = new AbortController();
     const timer = setTimeout(() => ctrl.abort(), API_TIMEOUTS.mcMatrixDownload);
+    const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
     try {
-      // Prefer direct Render URL when configured — avoids Vercel proxy timeouts
-      // on multi‑MB Excel builds after a cold start.
-      const res = await fetch(apiUrl(`/api/forwardtest/${jobId}/mc-matrix.xlsx`), {
+      // Queue streaming Excel build, then wait — OK if this takes minutes on Daily.
+      onProgress?.("Queuing Excel export…", 0);
+      await fetch(apiUrl(`/api/forwardtest/${jobId}/mc-matrix/export`), {
+        method: "POST",
+        signal: ctrl.signal,
+        cache: "no-store",
+      }).then(async (res) => {
+        if (!res.ok && res.status !== 202) {
+          let detail = `Export failed · ${res.status}`;
+          try {
+            const body = (await res.json()) as { detail?: string };
+            if (body?.detail) detail = String(body.detail);
+          } catch {
+            /* keep */
+          }
+          if (/no longer on the server|Unknown job|Click Run/i.test(detail)) {
+            throw new Error(
+              "Previous run is no longer on the server. Click Run, wait for completion, then download again.",
+            );
+          }
+          throw new Error(detail);
+        }
+      });
+
+      const deadline = Date.now() + API_TIMEOUTS.mcMatrixDownload;
+      while (Date.now() < deadline) {
+        if (ctrl.signal.aborted) throw new DOMException("Aborted", "AbortError");
+        const stRes = await fetch(apiUrl(`/api/forwardtest/${jobId}/mc-matrix/export`), {
+          signal: ctrl.signal,
+          cache: "no-store",
+        });
+        if (!stRes.ok) {
+          let detail = `Export status failed · ${stRes.status}`;
+          try {
+            const body = (await stRes.json()) as { detail?: string };
+            if (body?.detail) detail = String(body.detail);
+          } catch {
+            /* keep */
+          }
+          throw new Error(detail);
+        }
+        const st = (await stRes.json()) as {
+          status?: string;
+          progress?: number;
+          message?: string;
+          error?: string | null;
+        };
+        if (st.status === "ready") break;
+        if (st.status === "error") {
+          throw new Error(st.error || st.message || "Excel export failed");
+        }
+        onProgress?.(st.message || "Building Excel…", st.progress);
+        await sleep(1500);
+      }
+
+      onProgress?.("Downloading Excel…", 100);
+      // Prefer direct Render URL when configured — avoids Vercel proxy timeouts.
+      let res = await fetch(apiUrl(`/api/forwardtest/${jobId}/mc-matrix.xlsx`), {
         signal: ctrl.signal,
         cache: "no-store",
       });
+      // Rare race: file not flushed yet — wait and retry a few times.
+      for (let i = 0; i < 8 && res.status === 202; i += 1) {
+        onProgress?.("Excel almost ready…", 99);
+        await sleep(2000);
+        res = await fetch(apiUrl(`/api/forwardtest/${jobId}/mc-matrix.xlsx`), {
+          signal: ctrl.signal,
+          cache: "no-store",
+        });
+      }
       if (!res.ok) {
-        let detail = `Download failed (${res.status})`;
+        let detail = `Download failed · ${res.status}`;
         try {
           const body = (await res.json()) as { detail?: string };
           if (body?.detail) detail = String(body.detail);
         } catch {
           /* keep status text */
         }
-        if (/Unknown job|expired|restarted/i.test(detail)) {
+        if (/no longer on the server|Unknown job|Click Run/i.test(detail)) {
           throw new Error(
-            "Previous run is no longer on the server (it may have restarted). Click Run, wait for completion, then download again.",
+            "Previous run is no longer on the server. Click Run, wait for completion, then download again.",
           );
         }
         throw new Error(detail);

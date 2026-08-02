@@ -93,17 +93,16 @@ export function SiteNav() {
             title={
               running
                 ? "Wait for the current simulation to finish"
-                : "Path Frequency · use Monthly on free Render (Daily can exceed memory)"
+                : "Path Frequency · Daily grids take longer on free hosts"
             }
           >
             {FREQUENCY_ORDER.map((f) => {
               const n = pathCounts?.[f];
               const label = FREQUENCY_LABELS[f];
-              const heavy = f === "daily" && n != null && n > 500;
               return (
                 <option key={f} value={f}>
                   {n != null && Number.isFinite(n)
-                    ? `${label} · ${n.toLocaleString("en-IN")} paths${heavy ? " (heavy)" : ""}`
+                    ? `${label} · ${n.toLocaleString("en-IN")} paths`
                     : label}
                 </option>
               );

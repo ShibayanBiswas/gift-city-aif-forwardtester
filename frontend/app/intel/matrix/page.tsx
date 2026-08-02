@@ -54,10 +54,10 @@ export default function MonteCarloMatrixPage() {
     return preview.headers.map((h, i) => (i === 0 ? "Path" : formatDeskDate(h)));
   }, [preview]);
 
-  const onDownload = async () => {
+  const onDownload = async (onProgress?: (message: string, progress?: number) => void) => {
     if (!jobId) return;
     setError(null);
-    await client.downloadMcMatrix(jobId);
+    await client.downloadMcMatrix(jobId, onProgress);
   };
 
   if (!summary || !jobId) return <EmptyRunHint />;

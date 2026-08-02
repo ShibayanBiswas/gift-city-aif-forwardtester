@@ -15,6 +15,7 @@ import {
 
 import { LogicFlowDiagram, LogicModuleCard } from "@/components/logic/LogicFlowDiagram";
 import { logicModules, withLiveAtlasData } from "@/lib/logic-atlas";
+import { stripBracketDeep } from "@/lib/plainText";
 import { useForwardTest } from "@/lib/store";
 import { cn } from "@/lib/api";
 
@@ -38,7 +39,7 @@ export function LogicAtlasConsole() {
   }, [refreshProduct]);
 
   const modules = useMemo(
-    () => withLiveAtlasData(logicModules, product, market),
+    () => stripBracketDeep(withLiveAtlasData(logicModules, product, market)),
     [product, market],
   );
 
@@ -63,7 +64,7 @@ export function LogicAtlasConsole() {
         <h1 className="intel-hero-title relative z-10">Intel · Logic Atlas</h1>
         <p className="intel-hero-sub relative z-10">
           Working procedure of a desk run: Product Input → Macro Paths → market rolls &amp; expiries → Hedging Sheet
-          (`hedge_path`) → Computation (`nav.py`) → Summary. Metrics track the live Product Input automatically.
+          → Computation → Summary. Metrics track the live Product Input automatically.
         </p>
         <div className="intel-hero-meta relative z-10">
           <motion.span
@@ -233,7 +234,7 @@ export function LogicAtlasConsole() {
         <div className="border-b border-[var(--ar-border)] px-5 py-3">
           <h3 className="font-display text-lg text-[var(--ar-maroon)]">Defaults And Constants</h3>
           <p className="mt-1 text-sm text-[var(--ar-muted)] font-ui">
-            Live Product Input values for this stage (updates on upload)
+            Live Product Input values for this stage · updates on upload
           </p>
         </div>
         <div className="logic-module-rail px-5 py-3">
