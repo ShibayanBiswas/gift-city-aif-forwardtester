@@ -90,6 +90,13 @@ def main() -> None:
         "asof": gbm.asof,
         "first_date": gbm.first_date,
         "last_date": gbm.last_date,
+        "n_paths": 4,
+        "path_windows": [
+            {"path_id": 1, "start": dates[0].isoformat(), "end": dates[-1].isoformat()},
+            {"path_id": 2, "start": dates[0].isoformat(), "end": dates[-1].isoformat()},
+            {"path_id": 3, "start": dates[0].isoformat(), "end": dates[-1].isoformat()},
+            {"path_id": 4, "start": dates[0].isoformat(), "end": dates[-1].isoformat()},
+        ],
     }
     xlsx = write_mc_matrix_xlsx(payload, out / "edge_mc.xlsx")
     # data_only=False so we can inspect images / styles
@@ -109,13 +116,14 @@ def main() -> None:
     rows_s = list(ws2.iter_rows(min_row=1, max_row=8, values_only=True))
     header = next((r for r in rows_s if r and r[0] == "Path"), None)
     _assert(header is not None, "Path header missing")
+    _assert(header[1] == "Start Date" and header[2] == "End Date", header[:4])
     _assert(
-        "-" in str(header[1])
+        "-" in str(header[3])
         and any(
-            m in str(header[1])
+            m in str(header[3])
             for m in ("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
         ),
-        header[1],
+        header[3],
     )
     # Maroon header fill on Path cell — desk chrome parity with download.ts
     path_header = ws2.cell(6, 1)

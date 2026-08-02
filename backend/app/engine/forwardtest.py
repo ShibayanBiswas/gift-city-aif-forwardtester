@@ -651,8 +651,13 @@ def run_forwardtest(
             "std_dev": float(params.std_dev),
             "mean_return": float(params.mean_return),
             "asof": params.asof,
+            # Tenure windows for Excel Path / Start Date / End Date columns.
+            "path_windows": [
+                {"path_id": int(s.path_id), "start": s.start, "end": s.end}
+                for s in summaries
+            ],
             "layout": {
-                "rows": "path_id 1…N vertical",
+                "rows": "path_id · start · end · then trading-date columns",
                 "columns": "trading dates as-of → Simulation End horizontal",
                 "formula": "S_t = S_t-1 · exp(drift + σ · Z)",
             },

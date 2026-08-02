@@ -236,6 +236,33 @@ def matrix_meta(payload: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def _path_window_map(payload: dict[str, Any], n_paths: int) -> dict[int, tuple[str, str]]:
+    """Map path_id → (start_iso, end_iso) for Excel / preview meta columns."""
+    out: dict[int, tuple[str, str]] = {}
+    raw = payload.get("path_windows") or []
+    if isinstance(raw, dict):
+        for k, v in raw.items():
+            try:
+                pid = int(k)
+                if isinstance(v, (list, tuple)) and len(v) >= 2:
+                    out[pid] = (str(v[0])[:10], str(v[1])[:10])
+                elif isinstance(v, dict):
+                    out[pid] = (str(v.get("start") or "")[:10], str(v.get("end") or "")[:10])
+            except Exception:
+                continue
+    else:
+        for row in raw:
+            try:
+                pid = int(row["path_id"])
+                out[pid] = (str(row.get("start") or "")[:10], str(row.get("end") or "")[:10])
+            except Exception:
+                continue
+    # Fallback: blank windows so columns still exist.
+    for pid in range(1, n_paths + 1):
+        out.setdefault(pid, ("", ""))
+    return out
+
+
 def matrix_preview(
     payload: dict[str, Any],
     *,
@@ -249,12 +276,17 @@ def matrix_preview(
     total_dates = int(payload.get("n_dates") or len(dates))
     n_paths = min(int(max_paths), total_paths)
     n_dates = min(int(max_dates), total_dates, len(dates))
-    headers = ["Path"] + [d.isoformat() for d in dates[:n_dates]]
-    rows: list[list[float | int]] = []
+    windows = _path_window_map(payload, total_paths)
+    headers = ["Path", "Start Date", "End Date"] + [d.isoformat() for d in dates[:n_dates]]
+    rows: list[list[float | int | str]] = []
     base_seed = int(payload.get("base_seed") or GBM_BASE_SEED)
     if mat is not None:
         for i in range(n_paths):
-            rows.append([i + 1] + [round(float(mat[i, j]), 4) for j in range(n_dates)])
+            pid = i + 1
+            start, end = windows.get(pid, ("", ""))
+            rows.append(
+                [pid, start, end] + [round(float(mat[i, j]), 4) for j in range(n_dates)]
+            )
     else:
         params = GbmParams(
             spot0=float(payload["spot0"]),
@@ -275,7 +307,10 @@ def matrix_preview(
                 path_id=path_id,
                 base_seed=base_seed,
             )
-            rows.append([path_id] + [round(float(spots[j]), 4) for j in range(n_dates)])
+            start, end = windows.get(path_id, ("", ""))
+            rows.append(
+                [path_id, start, end] + [round(float(spots[j]), 4) for j in range(n_dates)]
+            )
     return {
         **matrix_meta(payload),
         "preview_paths": n_paths,
@@ -638,11 +673,14 @@ def write_mc_matrix_xlsx(
     except Exception:
         pass
     ws.column_dimensions["A"].width = 10
+    ws.column_dimensions["B"].width = 13
+    ws.column_dimensions["C"].width = 13
     # Date columns — modest width; Excel still opens wide grids fine.
-    for col_idx in range(2, min(n_dates + 2, 40)):
+    for col_idx in range(4, min(n_dates + 4, 42)):
         ws.column_dimensions[get_column_letter(col_idx)].width = 11
 
-    sim_cols = n_dates + 1
+    sim_cols = n_dates + 3  # Path · Start Date · End Date · trading dates…
+    windows = _path_window_map(payload, n_paths)
     _append_brand_chrome(
         ws,
         title="Simulated Nifty Paths",
@@ -656,9 +694,11 @@ def write_mc_matrix_xlsx(
         logo_path=logo,
     )
 
-    # Maroon header row — Path + desk dates (styled once; body streams plain).
+    # Maroon header — Path · Start Date · End Date · trading dates.
+    meta_headers = ["Path", "Start Date", "End Date"]
+    header_labels = meta_headers + [_desk_date(d) for d in dates]
     header_cells = []
-    for c, label in enumerate(["Path"] + [_desk_date(d) for d in dates], start=1):
+    for c, label in enumerate(header_labels, start=1):
         if c == 1:
             border = styles["border_header_outer_l"]
         elif c == sim_cols:
@@ -678,7 +718,7 @@ def write_mc_matrix_xlsx(
     ws.append(header_cells)
     try:
         ws.row_dimensions[6].height = 30
-        ws.freeze_panes = "B7"
+        ws.freeze_panes = "D7"  # freeze Path/Start/End; scroll trading dates
     except Exception:
         pass
 
@@ -693,8 +733,13 @@ def write_mc_matrix_xlsx(
         ),
         start=1,
     ):
+        start_iso, end_iso = windows.get(int(path_id), ("", ""))
+        start_lbl = _desk_date(start_iso) if start_iso else ""
+        end_lbl = _desk_date(end_iso) if end_iso else ""
         # Plain values only — never WriteOnlyCell per grid cell (OOM on Daily).
-        ws.append([int(path_id)] + [round(float(x), 4) for x in spots])
+        ws.append(
+            [int(path_id), start_lbl, end_lbl] + [round(float(x), 4) for x in spots]
+        )
         if progress_cb and (idx % 25 == 0 or idx == n_paths):
             try:
                 progress_cb(idx / n_paths, f"Writing path {idx} of {n_paths}")

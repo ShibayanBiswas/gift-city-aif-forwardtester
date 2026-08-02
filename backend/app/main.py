@@ -1115,6 +1115,8 @@ def _mc_matrix_payload(job_id: str, *, allow_mmap: bool = True) -> dict[str, Any
 
     Never rebuilds the full float matrix into RAM on constrained hosts.
     Excel / preview regenerate one GBM path at a time from seed + params.
+    Always attaches path_windows from the job summary so Excel can show
+    Path · Start Date · End Date beside each simulated row.
     """
     job = _get_job(job_id)
     if not job:
@@ -1122,14 +1124,22 @@ def _mc_matrix_payload(job_id: str, *, allow_mmap: bool = True) -> dict[str, Any
     if job.get("status") != "done" or not job.get("result"):
         raise HTTPException(409, f"Job not ready: {job.get('status')}")
 
-    if allow_mmap:
-        loaded = load_mc_matrix(JOBS / job_id, mmap=True)
-        if loaded:
-            return loaded
-
     r = job["result"]
     meta = r.get("mc_matrix") or {}
     gbm = r.get("gbm") or {}
+    summary_rows = r.get("summary") or []
+    path_windows = meta.get("path_windows") or [
+        {"path_id": int(s["path_id"]), "start": str(s.get("start") or ""), "end": str(s.get("end") or "")}
+        for s in summary_rows
+        if s.get("path_id") is not None
+    ]
+
+    if allow_mmap:
+        loaded = load_mc_matrix(JOBS / job_id, mmap=True)
+        if loaded:
+            loaded = {**loaded, "path_windows": path_windows}
+            return loaded
+
     dates_raw = meta.get("dates") or []
     if not dates_raw or not gbm.get("spot0"):
         raise HTTPException(404, "Simulated Nifty paths are not available for this job.")
@@ -1150,6 +1160,7 @@ def _mc_matrix_payload(job_id: str, *, allow_mmap: bool = True) -> dict[str, Any
         "n_returns": int(gbm.get("n_returns") or 0),
         "n_paths": n_paths,
         "n_dates": len(dates),
+        "path_windows": path_windows,
     }
 
 

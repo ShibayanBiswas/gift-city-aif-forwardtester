@@ -42,7 +42,9 @@ export default function MonteCarloMatrixPage() {
     if (!preview?.rows?.length) return [];
     return preview.rows.map((row) =>
       row.map((cell, i) => {
+        const h = String(preview.headers[i] ?? "");
         if (i === 0) return cell;
+        if (h === "Start Date" || h === "End Date") return formatDeskDate(cell);
         const n = Number(cell);
         return Number.isFinite(n) ? formatNum(n, 2) : String(cell);
       }),
@@ -50,8 +52,12 @@ export default function MonteCarloMatrixPage() {
   }, [preview]);
 
   const headers = useMemo(() => {
-    if (!preview?.headers?.length) return ["Path"];
-    return preview.headers.map((h, i) => (i === 0 ? "Path" : formatDeskDate(h)));
+    if (!preview?.headers?.length) return ["Path", "Start Date", "End Date"];
+    return preview.headers.map((h, i) => {
+      if (i === 0) return "Path";
+      if (h === "Start Date" || h === "End Date") return h;
+      return formatDeskDate(h);
+    });
   }, [preview]);
 
   const onDownload = async (onProgress?: (message: string, progress?: number) => void) => {

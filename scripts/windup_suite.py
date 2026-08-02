@@ -18,6 +18,7 @@ SCRIPTS = [
     "verify_path_counts.py",
     "verify_nifty_expiries.py",
     "audit_forward_parity.py",
+    "audit_calc_deep.py",
     "e2e_edge_cases.py",
     "verify_monthly_excel.py",
     "e2e_smoke_five.py",
