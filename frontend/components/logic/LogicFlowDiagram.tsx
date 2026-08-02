@@ -46,7 +46,7 @@ const kindColorMap: Record<
     bg: "bg-gradient-to-br from-[rgba(212,178,76,0.18)] via-[var(--ar-surface)] to-[rgba(212,178,76,0.06)]",
     text: "text-[var(--ar-gold-dark)]",
     ring: "ring-[rgba(212,178,76,0.5)]",
-    iconBg: "bg-[rgba(212,178,76,0.08)]",
+    iconBg: "bg-[rgba(212,178,76,0.16)]",
   },
   process: {
     border: "border-[rgba(15,118,110,0.4)]",
@@ -214,7 +214,7 @@ export function LogicModuleCard({
             <h3 className="logic-module-card__title">{module.title}</h3>
             <p className="mt-0.5 text-xs text-[var(--ar-muted)] font-ui">{module.subtitle}</p>
           </div>
-          <div className="rounded-lg border border-[rgba(212,178,76,0.28)] bg-[rgba(212,178,76,0.05)] p-2">
+          <div className="rounded-lg border border-[rgba(212,178,76,0.28)] bg-[rgba(212,178,76,0.1)] p-2">
             <Icon className="h-4 w-4 text-[var(--ar-maroon)]" />
           </div>
         </div>

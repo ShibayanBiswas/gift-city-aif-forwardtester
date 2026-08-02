@@ -49,13 +49,13 @@ export function SiteNav() {
                 href={item.href}
                 className={cn(
                   "relative flex items-center gap-2 rounded-xl px-3.5 py-2.5 text-sm font-semibold font-ui transition-all md:px-5",
-                  active ? "btn-nav-active" : "text-[var(--ar-muted)] hover:bg-[rgba(212,178,76,0.1)] hover:text-[var(--ar-ink)]",
+                  active ? "btn-nav-active" : "text-[var(--ar-muted)] hover:bg-[var(--ar-panel)] hover:text-[var(--ar-ink)]",
                 )}
               >
                 {active ? (
                   <motion.span
                     layoutId="main-nav-active"
-                    className="absolute inset-0 rounded-xl bg-gradient-to-r from-[rgba(212,178,76,0.1)] to-[rgba(122,30,44,0.04)] shadow-inner"
+                    className="absolute inset-0 rounded-xl bg-gradient-to-r from-[rgba(212,178,76,0.35)] to-[rgba(122,30,44,0.18)] shadow-inner"
                     transition={deskSpring}
                   />
                 ) : null}
@@ -158,42 +158,25 @@ export function SiteNav() {
           </motion.button>
           <motion.button
             type="button"
-            aria-label={dark ? "Switch to light mode" : "Switch to dark mode"}
-            title={dark ? "Light mode" : "Dark mode"}
+            aria-label="Toggle theme"
             onClick={() => setDark(!dark)}
-            className="theme-toggle"
-            whileHover={{ scale: 1.04 }}
+            className="desk-btn rounded-full border border-[var(--ar-border)] p-2"
+            whileHover={{ rotate: 18, scale: 1.08 }}
             whileTap={tapPress}
             transition={deskSpring}
           >
-            <span className="theme-toggle__rail" aria-hidden>
+            <AnimatePresence mode="wait" initial={false}>
               <motion.span
-                className="theme-toggle__thumb"
-                initial={false}
-                animate={{ left: dark ? "50%" : "0%" }}
-                transition={deskSpring}
-              />
-              <span className={cn("theme-toggle__opt", !dark && "is-active")}>
-                <motion.span
-                  key="moon"
-                  animate={!dark ? { rotate: [0, -12, 0], scale: 1 } : { scale: 0.92 }}
-                  transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
-                  className="inline-flex"
-                >
-                  <Moon size={13} strokeWidth={2.25} />
-                </motion.span>
-              </span>
-              <span className={cn("theme-toggle__opt", dark && "is-active")}>
-                <motion.span
-                  key="sun"
-                  animate={dark ? { rotate: [0, 20, 0], scale: 1 } : { scale: 0.92 }}
-                  transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
-                  className="inline-flex"
-                >
-                  <Sun size={13} strokeWidth={2.25} />
-                </motion.span>
-              </span>
-            </span>
+                key={dark ? "sun" : "moon"}
+                initial={{ opacity: 0, rotate: -40, scale: 0.6 }}
+                animate={{ opacity: 1, rotate: 0, scale: 1 }}
+                exit={{ opacity: 0, rotate: 40, scale: 0.6 }}
+                transition={{ duration: 0.2 }}
+                className="inline-flex"
+              >
+                {dark ? <Sun size={14} /> : <Moon size={14} />}
+              </motion.span>
+            </AnimatePresence>
           </motion.button>
         </div>
       </div>

@@ -110,7 +110,7 @@ export default function HomePage() {
                     className={
                       l.primary
                         ? "desk-btn desk-btn-primary inline-block rounded-full px-4 py-2 text-white"
-                        : "desk-btn inline-block rounded-full border border-[var(--ar-border)] px-4 py-2"
+                        : "desk-btn inline-block rounded-full border border-[var(--ar-border)] bg-[var(--ar-surface)] px-4 py-2"
                     }
                   >
                     {l.label}
