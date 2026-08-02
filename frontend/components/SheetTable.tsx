@@ -36,7 +36,7 @@ export function SheetTable({
   columnTypes?: Array<ColumnType | undefined>;
   /** Row indices to emphasize (e.g. monthly-last expiries in the full calendar). */
   highlightRows?: ReadonlySet<number> | boolean[];
-  /** Freeze the first N columns while scrolling horizontally. */
+  /** Freeze the first N columns while scrolling horizontally (wide matrices only). */
   stickyLeftCols?: number;
   stickyColWidths?: number[];
   /** Hide the sheet-local download when the page already has a full export. */
@@ -48,12 +48,11 @@ export function SheetTable({
     return highlightRows.has(i);
   };
 
-  const widths = stickyColWidths?.length
-    ? stickyColWidths
-    : DEFAULT_STICKY_WIDTHS;
+  const useSticky = stickyLeftCols > 0;
+  const widths = stickyColWidths?.length ? stickyColWidths : DEFAULT_STICKY_WIDTHS;
 
   const stickyLeft = (colIndex: number) => {
-    if (colIndex >= stickyLeftCols) return undefined;
+    if (!useSticky || colIndex >= stickyLeftCols) return undefined;
     let left = 0;
     for (let i = 0; i < colIndex; i += 1) {
       left += widths[i] ?? 96;
@@ -61,14 +60,14 @@ export function SheetTable({
     return left;
   };
 
-  const tableMinWidth = Math.max(
-    minWidth,
-    headers.length * 96,
-    stickyLeftCols > 0
-      ? widths.slice(0, stickyLeftCols).reduce((a, b) => a + b, 0) +
-          Math.max(0, headers.length - stickyLeftCols) * 96
-      : 0,
-  );
+  // Default sheets stretch full card width (w-full + minWidth). Sticky matrices grow with columns.
+  const tableMinWidth = useSticky
+    ? Math.max(
+        minWidth,
+        widths.slice(0, stickyLeftCols).reduce((a, b) => a + b, 0) +
+          Math.max(0, headers.length - stickyLeftCols) * 96,
+      )
+    : minWidth;
 
   return (
     <section className="sheet-card overflow-hidden">
@@ -96,92 +95,146 @@ export function SheetTable({
           />
         ) : null}
       </div>
-      <div className="overflow-auto border-t border-[var(--ar-border)]" style={{ maxHeight }}>
-        <table
-          className="data-table-premium w-max max-w-none text-left text-sm font-ui"
-          style={{ minWidth: tableMinWidth }}
-        >
-          <thead className="sticky top-0 z-[3] bg-gradient-to-r from-[var(--ar-table-head-from)] to-[var(--ar-table-head-to)] text-xs tracking-wide shadow-[0_1px_0_var(--ar-border)]">
-            <tr>
-              {headers.map((h, j) => {
-                const left = stickyLeft(j);
-                const isSticky = left != null;
-                return (
-                  <th
-                    key={`${h}-${j}`}
-                    className={`whitespace-nowrap px-3 py-2.5 ${
-                      isSticky
-                        ? "sticky z-[4] bg-[var(--ar-table-head-from)] shadow-[1px_0_0_var(--ar-border)]"
-                        : ""
-                    }`}
-                    style={
-                      isSticky
-                        ? {
-                            left,
-                            minWidth: widths[j] ?? 96,
-                            width: widths[j] ?? 96,
-                          }
-                        : { minWidth: 96 }
-                    }
-                  >
-                    {h}
-                  </th>
-                );
-              })}
-            </tr>
-          </thead>
-          <tbody>
-            {rows.length === 0 ? (
+      {useSticky ? (
+        <div className="overflow-auto border-t border-[var(--ar-border)]" style={{ maxHeight }}>
+          <table
+            className="data-table-premium w-max max-w-none text-left text-sm font-ui"
+            style={{ minWidth: tableMinWidth }}
+          >
+            <thead className="sticky top-0 z-[3] bg-gradient-to-r from-[var(--ar-table-head-from)] to-[var(--ar-table-head-to)] text-xs tracking-wide shadow-[0_1px_0_var(--ar-border)]">
               <tr>
-                <td colSpan={Math.max(headers.length, 1)} className="px-3 py-8 text-center text-[var(--ar-muted)]">
-                  No rows for this sheet
-                </td>
+                {headers.map((h, j) => {
+                  const left = stickyLeft(j);
+                  const isSticky = left != null;
+                  return (
+                    <th
+                      key={`${h}-${j}`}
+                      className={`whitespace-nowrap px-3 py-2.5 ${
+                        isSticky
+                          ? "sticky z-[4] bg-[var(--ar-table-head-from)] shadow-[1px_0_0_var(--ar-border)]"
+                          : ""
+                      }`}
+                      style={
+                        isSticky
+                          ? {
+                              left,
+                              minWidth: widths[j] ?? 96,
+                              width: widths[j] ?? 96,
+                            }
+                          : { minWidth: 96 }
+                      }
+                    >
+                      {h}
+                    </th>
+                  );
+                })}
               </tr>
-            ) : (
-              rows.map((r, i) => (
-                <tr
-                  key={i}
-                  className={`odd:bg-[var(--ar-row-alt)] ${
-                    isHighlighted(i)
-                      ? "bg-[rgba(212,178,76,0.18)] font-semibold ring-1 ring-inset ring-[rgba(212,178,76,0.35)]"
-                      : ""
-                  } ${onRowClick ? "cursor-pointer hover:bg-[rgba(212,178,76,0.12)]" : ""}`}
-                  onClick={onRowClick ? () => onRowClick(i) : undefined}
-                >
-                  {r.map((c, j) => {
-                    const left = stickyLeft(j);
-                    const isSticky = left != null;
-                    const odd = i % 2 === 1;
-                    return (
-                      <td
-                        key={j}
-                        className={`whitespace-nowrap px-3 py-1.5 tabular-nums ${
-                          isSticky
-                            ? `sticky z-[2] shadow-[1px_0_0_var(--ar-border)] ${
-                                odd ? "bg-[var(--ar-panel)]" : "bg-[var(--ar-surface)]"
-                              }`
-                            : ""
-                        }`}
-                        style={
-                          isSticky
-                            ? {
-                                left,
-                                minWidth: widths[j] ?? 96,
-                                width: widths[j] ?? 96,
-                              }
-                            : undefined
-                        }
-                      >
-                        {c}
-                      </td>
-                    );
-                  })}
+            </thead>
+            <tbody>
+              {rows.length === 0 ? (
+                <tr>
+                  <td
+                    colSpan={Math.max(headers.length, 1)}
+                    className="px-3 py-8 text-center text-[var(--ar-muted)]"
+                  >
+                    No rows for this sheet
+                  </td>
                 </tr>
-              ))
-            )}
-          </tbody>
-        </table>
-      </div>
+              ) : (
+                rows.map((r, i) => (
+                  <tr
+                    key={i}
+                    className={`odd:bg-[var(--ar-row-alt)] ${
+                      isHighlighted(i)
+                        ? "bg-[rgba(212,178,76,0.18)] font-semibold ring-1 ring-inset ring-[rgba(212,178,76,0.35)]"
+                        : ""
+                    } ${onRowClick ? "cursor-pointer hover:bg-[rgba(212,178,76,0.12)]" : ""}`}
+                    onClick={onRowClick ? () => onRowClick(i) : undefined}
+                  >
+                    {r.map((c, j) => {
+                      const left = stickyLeft(j);
+                      const isSticky = left != null;
+                      const odd = i % 2 === 1;
+                      return (
+                        <td
+                          key={j}
+                          className={`whitespace-nowrap px-3 py-1.5 tabular-nums ${
+                            isSticky
+                              ? `sticky z-[2] shadow-[1px_0_0_var(--ar-border)] ${
+                                  odd ? "bg-[var(--ar-panel)]" : "bg-[var(--ar-surface)]"
+                                }`
+                              : ""
+                          }`}
+                          style={
+                            isSticky
+                              ? {
+                                  left,
+                                  minWidth: widths[j] ?? 96,
+                                  width: widths[j] ?? 96,
+                                }
+                              : undefined
+                          }
+                        >
+                          {c}
+                        </td>
+                      );
+                    })}
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+      ) : (
+        <div className="overflow-x-auto">
+          <div className="overflow-y-auto" style={{ maxHeight }}>
+            <table
+              className="data-table-premium w-full text-left text-sm font-ui"
+              style={{ minWidth: tableMinWidth }}
+            >
+              <thead className="sticky top-0 z-[1] bg-gradient-to-r from-[var(--ar-table-head-from)] to-[var(--ar-table-head-to)] text-xs tracking-wide">
+                <tr>
+                  {headers.map((h) => (
+                    <th key={h} className="whitespace-nowrap px-3 py-2.5">
+                      {h}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {rows.length === 0 ? (
+                  <tr>
+                    <td
+                      colSpan={headers.length}
+                      className="px-3 py-8 text-center text-[var(--ar-muted)]"
+                    >
+                      No rows for this sheet
+                    </td>
+                  </tr>
+                ) : (
+                  rows.map((r, i) => (
+                    <tr
+                      key={i}
+                      className={`odd:bg-[var(--ar-row-alt)] ${
+                        isHighlighted(i)
+                          ? "bg-[rgba(212,178,76,0.18)] font-semibold ring-1 ring-inset ring-[rgba(212,178,76,0.35)]"
+                          : ""
+                      } ${onRowClick ? "cursor-pointer hover:bg-[rgba(212,178,76,0.12)]" : ""}`}
+                      onClick={onRowClick ? () => onRowClick(i) : undefined}
+                    >
+                      {r.map((c, j) => (
+                        <td key={j} className="whitespace-nowrap px-3 py-1.5 tabular-nums">
+                          {c}
+                        </td>
+                      ))}
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
     </section>
   );
 }
