@@ -26,28 +26,32 @@ export type ExcelSheetSpec = {
   columnTypes?: Array<ColumnType | undefined>;
 };
 
+/** Desk tokens — mirror Primary SP Dashboard `lib/workbook/export-theme.ts`. */
 const BRAND = {
   maroon: "FF7A1E2C",
+  maroonDeep: "FF5C1622",
   gold: "FFD4B24C",
-  goldDark: "FFB8860B",
-  altRow: "FFFAF6F0",
-  muted: "FF6B5E55",
-  ink: "FF1F1612",
+  goldSoft: "FFF6EDCF",
+  goldPale: "FFFCF8EE",
+  ivory: "FFFAF7EF",
+  parchment: "FFF8F4EA",
+  muted: "FF78716C",
+  ink: "FF1C1917",
   white: "FFFFFFFF",
-  softGold: "FFFFF8EC",
-  bannerEdge: "FFE8D9C0",
-  borderStrong: "FF7A1E2C",
-  grid: "FFCDBBA8",
+  border: "FFE7E1CF",
+  rule: "FFC9B88A",
   neg: "FF9B1C2C",
-  footerBg: "FFF7F1E8",
+  footerBg: "FFF8F4EA",
 } as const;
 
-type BorderEdge = { style: "thin" | "medium" | "double"; color: { argb: string } };
+const EXCEL_FONT = "Calibri";
+const DESK_EYEBROW = "Anand Rathi Wealth · Gift City AIF Forwardtester";
+
+type BorderEdge = { style: "thin" | "medium" | "hair"; color: { argb: string } };
 
 const GOLD_BORDER: BorderEdge = { style: "thin", color: { argb: BRAND.gold } };
-const MEDIUM_MAROON: BorderEdge = { style: "medium", color: { argb: BRAND.borderStrong } };
-const GRID_BORDER: BorderEdge = { style: "thin", color: { argb: BRAND.grid } };
-const DOUBLE_MAROON: BorderEdge = { style: "double", color: { argb: BRAND.borderStrong } };
+const GRID_BORDER: BorderEdge = { style: "thin", color: { argb: BRAND.border } };
+const RULE_BORDER: BorderEdge = { style: "thin", color: { argb: BRAND.rule } };
 
 function fullBorder(
   top: BorderEdge = GRID_BORDER,
@@ -57,6 +61,8 @@ function fullBorder(
 ) {
   return { top, right, bottom, left };
 }
+
+const goldBox = fullBorder(GOLD_BORDER, GOLD_BORDER, GOLD_BORDER, GOLD_BORDER);
 
 const LOGO_PATH = "/brand/arwl-logo.png";
 let logoBytes: Uint8Array | null = null;
@@ -295,9 +301,11 @@ function writeSheet(
     }
   }
 
-  // Header block uses rows 1–5 so the logo never covers titles or column headers.
-  const HEADER_ROW = 6;
-  const DATA_START = 7;
+  // Primary SP layout: logo wash (3) + masthead + spacer → column headers.
+  // Rows: 1–3 logo · 4 gold rule · 5 title · 6 subtitle · 7 eyebrow · 8 spacer · 9 headers
+  const LOGO_ROWS = 3;
+  const HEADER_ROW = LOGO_ROWS + 6;
+  const DATA_START = HEADER_ROW + 1;
   const bodyRowCount = Math.max(spec.rows.length, 1);
   const DATA_END = DATA_START + bodyRowCount - 1;
   const FOOTER_ROW = DATA_END + 1;
@@ -315,110 +323,103 @@ function writeSheet(
     },
   });
 
-  // Reserve columns A–B for the logo; brand copy starts at column C.
-  ws.getColumn(1).width = 14;
-  ws.getColumn(2).width = 12;
-
+  // Soft parchment wash behind logo (Primary SP embedBrandLogo).
+  for (let r = 1; r <= LOGO_ROWS; r += 1) {
+    ws.getRow(r).height = r === 1 ? 30 : r === 2 ? 18 : 6;
+    for (let c = 1; c <= colCount; c += 1) {
+      const cell = ws.getCell(r, c);
+      cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: BRAND.goldPale } };
+    }
+  }
   ws.addImage(imageId, {
     tl: { col: 0, row: 0 },
-    ext: { width: 172, height: 50 },
+    ext: { width: 210, height: 48 },
     editAs: "oneCell",
   });
 
-  ws.getRow(1).height = 22;
-  ws.getRow(2).height = 22;
-  ws.getRow(3).height = 18;
-  ws.getRow(4).height = 14;
-  ws.getRow(5).height = 6;
-
-  // Soft brand banner behind title block (full width of table).
-  for (let r = 1; r <= 4; r += 1) {
+  const paintSpan = (
+    row: number,
+    value: string,
+    opts: {
+      fill: string;
+      font: Partial<ExcelJS.Font>;
+      height: number;
+      indent?: number;
+    },
+  ) => {
+    ws.mergeCells(row, 1, row, colCount);
+    const cell = ws.getCell(row, 1);
+    cell.value = value;
+    cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: opts.fill } };
+    cell.font = { name: EXCEL_FONT, ...opts.font };
+    cell.alignment = {
+      vertical: "middle",
+      horizontal: "left",
+      indent: opts.indent ?? 1,
+      wrapText: true,
+    };
     for (let c = 1; c <= colCount; c += 1) {
-      const cell = ws.getCell(r, c);
-      cell.fill = {
-        type: "pattern",
-        pattern: "solid",
-        fgColor: { argb: BRAND.softGold },
-      };
-      // Thin edge around the banner
-      cell.border = {
-        top: r === 1 ? { style: "thin", color: { argb: BRAND.bannerEdge } } : undefined,
-        bottom: r === 4 ? { style: "thin", color: { argb: BRAND.bannerEdge } } : undefined,
-        left: c === 1 ? { style: "thin", color: { argb: BRAND.bannerEdge } } : undefined,
-        right: c === colCount ? { style: "thin", color: { argb: BRAND.bannerEdge } } : undefined,
-      };
+      ws.getCell(row, c).fill = { type: "pattern", pattern: "solid", fgColor: { argb: opts.fill } };
     }
+    ws.getRow(row).height = opts.height;
+  };
+
+  // Gold accent rule
+  const ruleRow = LOGO_ROWS + 1;
+  ws.mergeCells(ruleRow, 1, ruleRow, colCount);
+  for (let c = 1; c <= colCount; c += 1) {
+    const cell = ws.getCell(ruleRow, c);
+    cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: BRAND.gold } };
   }
+  ws.getRow(ruleRow).height = 5;
 
-  const brandCell = ws.getCell(1, 3);
-  ws.mergeCells(1, 3, 1, colCount);
-  brandCell.value = "Anand Rathi Wealth · Gift City";
-  brandCell.font = { name: "Calibri", size: 11, bold: true, color: { argb: BRAND.maroon } };
-  brandCell.alignment = { vertical: "middle", horizontal: "left", wrapText: false };
-  brandCell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: BRAND.softGold } };
+  // Maroon deep title band
+  paintSpan(LOGO_ROWS + 2, spec.title, {
+    fill: BRAND.maroonDeep,
+    font: { bold: true, size: 18, color: { argb: BRAND.white } },
+    height: 36,
+  });
 
-  const titleCell = ws.getCell(2, 3);
-  ws.mergeCells(2, 3, 2, colCount);
-  titleCell.value = spec.title;
-  titleCell.font = { name: "Calibri", size: 16, bold: true, color: { argb: BRAND.ink } };
-  titleCell.alignment = { vertical: "middle", wrapText: false };
-  titleCell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: BRAND.softGold } };
-
-  const subCell = ws.getCell(3, 3);
-  ws.mergeCells(3, 3, 3, colCount);
+  // Gold subtitle strip
   const exportDay = (() => {
     const n = new Date();
     const iso = `${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, "0")}-${String(n.getDate()).padStart(2, "0")}`;
     return formatDeskDate(iso);
   })();
-  subCell.value = spec.subtitle?.trim() || `Exported ${exportDay}`;
-  subCell.font = { name: "Calibri", size: 10, color: { argb: BRAND.muted } };
-  subCell.alignment = { vertical: "middle", wrapText: true };
-  subCell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: BRAND.softGold } };
+  paintSpan(LOGO_ROWS + 3, spec.subtitle?.trim() || `Exported ${exportDay}`, {
+    fill: BRAND.gold,
+    font: { bold: true, size: 10, color: { argb: BRAND.ink } },
+    height: 22,
+  });
 
-  if (metaLine?.trim()) {
-    const metaCell = ws.getCell(4, 3);
-    ws.mergeCells(4, 3, 4, colCount);
-    metaCell.value = metaLine.trim();
-    metaCell.font = { name: "Calibri", size: 9, italic: true, color: { argb: BRAND.muted } };
-    metaCell.alignment = { vertical: "middle", wrapText: false };
-    metaCell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: BRAND.softGold } };
-  } else {
-    ws.getRow(4).height = 8;
-  }
+  // Parchment eyebrow
+  paintSpan(LOGO_ROWS + 4, metaLine?.trim() || DESK_EYEBROW, {
+    fill: BRAND.parchment,
+    font: { size: 8, italic: true, color: { argb: BRAND.muted } },
+    height: 16,
+  });
+  ws.getCell(LOGO_ROWS + 4, 1).border = { bottom: RULE_BORDER };
 
-  // Gold accent rule under brand block.
-  const goldRule = ws.getRow(5);
-  goldRule.height = 5;
+  // Breathing room
+  const spacerRow = LOGO_ROWS + 5;
+  ws.getRow(spacerRow).height = 8;
   for (let c = 1; c <= colCount; c += 1) {
-    const cell = goldRule.getCell(c);
-    cell.fill = {
+    ws.getCell(spacerRow, c).fill = {
       type: "pattern",
       pattern: "solid",
-      fgColor: { argb: BRAND.gold },
-    };
-    cell.border = {
-      top: GOLD_BORDER,
-      bottom: MEDIUM_MAROON,
-      left: c === 1 ? MEDIUM_MAROON : undefined,
-      right: c === colCount ? MEDIUM_MAROON : undefined,
+      fgColor: { argb: BRAND.parchment },
     };
   }
 
   const headerRow = ws.getRow(HEADER_ROW);
-  headerRow.height = 30;
+  headerRow.height = 26;
   for (let c = 1; c <= dataCols; c += 1) {
     const cell = headerRow.getCell(c);
     cell.value = spec.headers[c - 1] ?? "";
-    cell.font = { name: "Calibri", size: 10, bold: true, color: { argb: BRAND.white } };
-    cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: BRAND.maroon } };
-    cell.alignment = { vertical: "middle", horizontal: "center", wrapText: true };
-    cell.border = fullBorder(
-      DOUBLE_MAROON,
-      c === dataCols ? DOUBLE_MAROON : GOLD_BORDER,
-      MEDIUM_MAROON,
-      c === 1 ? DOUBLE_MAROON : GOLD_BORDER,
-    );
+    cell.font = { name: EXCEL_FONT, size: 10, bold: true, color: { argb: BRAND.white } };
+    cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: BRAND.maroonDeep } };
+    cell.alignment = { vertical: "middle", horizontal: "left", wrapText: true, indent: 1 };
+    cell.border = goldBox;
   }
 
   const bodyRows = spec.rows.length ? spec.rows : [["No rows to export"]];
@@ -426,7 +427,6 @@ function writeSheet(
   bodyRows.forEach((row, i) => {
     const excelRow = ws.getRow(DATA_START + i);
     excelRow.height = 19;
-    const isLast = i === bodyRows.length - 1;
     for (let c = 1; c <= dataCols; c += 1) {
       const cell = excelRow.getCell(c);
       let numericValue: number | null = null;
@@ -442,17 +442,14 @@ function writeSheet(
       }
       const isNeg = numericValue != null && numericValue < 0;
       cell.font = {
-        name: "Calibri",
+        name: EXCEL_FONT,
         size: 10,
         color: { argb: emptyPlaceholder ? BRAND.muted : isNeg ? BRAND.neg : BRAND.ink },
         italic: emptyPlaceholder,
         bold: isNeg,
       };
       const colType = types[c - 1] ?? "text";
-      const isNumeric =
-        !emptyPlaceholder &&
-        colType !== "text" &&
-        colType !== "date";
+      const isNumeric = !emptyPlaceholder && colType !== "text" && colType !== "date";
       cell.alignment = {
         vertical: "middle",
         horizontal: emptyPlaceholder
@@ -463,41 +460,30 @@ function writeSheet(
               ? "right"
               : "left",
         wrapText: false,
+        indent: isNumeric || colType === "date" ? 0 : 1,
       };
       if (!emptyPlaceholder && i % 2 === 1) {
-        cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: BRAND.altRow } };
+        cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: BRAND.ivory } };
       } else if (!emptyPlaceholder) {
         cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: BRAND.white } };
       }
-      // Full grid; double maroon outer frame for a crisp desk look.
-      cell.border = fullBorder(
-        i === 0 ? MEDIUM_MAROON : GRID_BORDER,
-        c === dataCols ? DOUBLE_MAROON : GRID_BORDER,
-        isLast ? DOUBLE_MAROON : GRID_BORDER,
-        c === 1 ? DOUBLE_MAROON : GRID_BORDER,
-      );
+      cell.border = goldBox;
     }
   });
 
-  // Footer strip: row count + export stamp.
   const footer = ws.getRow(FOOTER_ROW);
   footer.height = 18;
   for (let c = 1; c <= dataCols; c += 1) {
     const cell = footer.getCell(c);
     cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: BRAND.footerBg } };
-    cell.border = fullBorder(
-      MEDIUM_MAROON,
-      c === dataCols ? DOUBLE_MAROON : GRID_BORDER,
-      DOUBLE_MAROON,
-      c === 1 ? DOUBLE_MAROON : GRID_BORDER,
-    );
+    cell.border = fullBorder(RULE_BORDER, RULE_BORDER, RULE_BORDER, RULE_BORDER);
   }
   ws.mergeCells(FOOTER_ROW, 1, FOOTER_ROW, dataCols);
   const footerCell = ws.getCell(FOOTER_ROW, 1);
   const nData = emptyPlaceholder ? 0 : spec.rows.length;
   footerCell.value = `Anand Rathi Wealth · Gift City AIF · ${nData.toLocaleString("en-IN")} data row${nData === 1 ? "" : "s"} · Exported ${exportDay}`;
-  footerCell.font = { name: "Calibri", size: 8, italic: true, color: { argb: BRAND.muted } };
-  footerCell.alignment = { vertical: "middle", horizontal: "left" };
+  footerCell.font = { name: EXCEL_FONT, size: 8, italic: true, color: { argb: BRAND.muted } };
+  footerCell.alignment = { vertical: "middle", horizontal: "left", indent: 1 };
 
   for (let c = 1; c <= dataCols; c += 1) {
     const header = String(spec.headers[c - 1] ?? "");
@@ -514,13 +500,12 @@ function writeSheet(
           ? 12
           : type === "year"
             ? 8
-          : type === "integer"
-            ? 11
-            : type === "currency"
-              ? 16
-              : 13;
-    const minW = c <= 2 ? 12 : base;
-    ws.getColumn(c).width = Math.min(42, Math.max(minW, Math.min(maxLen + 4, 32)));
+            : type === "integer"
+              ? 11
+              : type === "currency"
+                ? 16
+                : 13;
+    ws.getColumn(c).width = Math.min(42, Math.max(base, Math.min(maxLen + 4, 32)));
   }
 
   if (spec.headers.length) {

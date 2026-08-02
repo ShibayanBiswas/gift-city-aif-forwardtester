@@ -103,17 +103,17 @@ def main() -> None:
     wb = load_workbook(xlsx, read_only=False, data_only=False)
     _assert("Parameters" in wb.sheetnames and "Simulated Nifty" in wb.sheetnames, wb.sheetnames)
     ws = wb["Parameters"]
-    # Brand copy sits in column C under the logo (same layout as desk Excel downloads).
+    # Brand masthead title sits in column A (Primary SP full-width band).
     brand_hit = False
-    for row in ws.iter_rows(min_row=1, max_row=6, max_col=4, values_only=True):
-        if any(cell and "Anand Rathi" in str(cell) for cell in row):
+    for row in ws.iter_rows(min_row=1, max_row=9, max_col=4, values_only=True):
+        if any(cell and ("Anand Rathi" in str(cell) or "Simulated Nifty" in str(cell)) for cell in row):
             brand_hit = True
             break
     _assert(brand_hit, "brand title missing")
     _assert(len(ws._images) >= 1, "Parameters sheet missing ARWL logo")
     ws2 = wb["Simulated Nifty"]
     _assert(len(ws2._images) >= 1, "Simulated Nifty sheet missing ARWL logo")
-    rows_s = list(ws2.iter_rows(min_row=1, max_row=8, values_only=True))
+    rows_s = list(ws2.iter_rows(min_row=1, max_row=12, values_only=True))
     header = next((r for r in rows_s if r and r[0] == "Path"), None)
     _assert(header is not None, "Path header missing")
     _assert(header[1] == "Start Date" and header[2] == "End Date", header[:4])
@@ -125,11 +125,22 @@ def main() -> None:
         ),
         header[3],
     )
-    # Maroon header fill on Path cell — desk chrome parity with download.ts
-    path_header = ws2.cell(6, 1)
+    # Maroon-deep header fill on Path cell — Primary SP export-theme maroonDeep
+    path_header = ws2.cell(9, 1)
     fill = getattr(path_header.fill, "fgColor", None)
     rgb = getattr(fill, "rgb", None) or getattr(fill, "theme", None)
-    _assert(rgb is not None and "7A1E2C" in str(rgb).upper(), f"maroon header fill missing: {rgb}")
+    rgb_u = str(rgb).upper() if rgb is not None else ""
+    _assert(
+        "5C1622" in rgb_u or "7A1E2C" in rgb_u,
+        f"maroon header fill missing: {rgb}",
+    )
+    # Title band uses maroon-deep on row 5
+    title_cell = ws2.cell(5, 1)
+    title_fill = getattr(getattr(title_cell.fill, "fgColor", None), "rgb", None)
+    _assert(
+        title_fill is not None and "5C1622" in str(title_fill).upper(),
+        f"title band fill missing: {title_fill}",
+    )
     print("xlsx branding OK", xlsx.name, "bytes", xlsx.stat().st_size, "logos", len(ws._images), len(ws2._images))
     wb.close()
 

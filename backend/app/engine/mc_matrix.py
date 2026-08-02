@@ -39,18 +39,24 @@ _MONTHS = (
 # Soft cap note only — export always streams path-by-path with branded chrome.
 _EXCEL_CELL_SOFT_CAP = 800_000
 
-# Desk brand tokens — match frontend/lib/download.ts (Anand Rathi Wealth Excel).
+# Desk brand tokens — Primary SP Dashboard `export-theme.ts` (openpyxl RGB, no FF prefix).
 _BRAND_MAROON = "7A1E2C"
+_BRAND_MAROON_DEEP = "5C1622"
 _BRAND_GOLD = "D4B24C"
-_BRAND_GOLD_DARK = "B8860B"
-_BRAND_SOFT = "FFF8EC"
-_BRAND_ALT = "FAF6F0"
-_BRAND_INK = "1F1612"
-_BRAND_MUTED = "6B5E55"
+_BRAND_GOLD_PALE = "FCF8EE"
+_BRAND_IVORY = "FAF7EF"
+_BRAND_PARCHMENT = "F8F4EA"
+_BRAND_INK = "1C1917"
+_BRAND_MUTED = "78716C"
 _BRAND_WHITE = "FFFFFF"
-_BRAND_FOOTER = "F7F1E8"
-_BRAND_GRID = "CDBBA8"
-_BRAND_BANNER_EDGE = "E8D9C0"
+_BRAND_BORDER = "E7E1CF"
+_BRAND_RULE = "C9B88A"
+_BRAND_FOOTER = "F8F4EA"
+
+# Chrome layout (matches frontend/lib/download.ts + Primary SP masthead).
+_CHROME_HEADER_ROW = 9  # Path / Start / End / dates
+_CHROME_DATA_START = 10
+_DESK_EYEBROW = "Anand Rathi Wealth · Gift City AIF Forwardtester"
 
 
 def _resolve_logo() -> Path | None:
@@ -348,55 +354,49 @@ def _iter_path_rows(
 
 
 def _xlsx_styles():
-    """Shared openpyxl style objects — reuse across cells to keep RAM flat."""
+    """Shared openpyxl style objects — Primary SP desk theme."""
     from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
 
     thin_gold = Side(style="thin", color=_BRAND_GOLD)
-    thin_grid = Side(style="thin", color=_BRAND_GRID)
-    med_maroon = Side(style="medium", color=_BRAND_MAROON)
-    dbl_maroon = Side(style="double", color=_BRAND_MAROON)
-    thin_banner = Side(style="thin", color=_BRAND_BANNER_EDGE)
+    thin_border = Side(style="thin", color=_BRAND_BORDER)
+    thin_rule = Side(style="thin", color=_BRAND_RULE)
+
+    gold_box = Border(top=thin_gold, bottom=thin_gold, left=thin_gold, right=thin_gold)
+    grid_box = Border(top=thin_border, bottom=thin_border, left=thin_border, right=thin_border)
 
     return {
-        "fill_soft": PatternFill("solid", fgColor=_BRAND_SOFT),
+        "fill_gold_pale": PatternFill("solid", fgColor=_BRAND_GOLD_PALE),
         "fill_gold": PatternFill("solid", fgColor=_BRAND_GOLD),
-        "fill_maroon": PatternFill("solid", fgColor=_BRAND_MAROON),
-        "fill_alt": PatternFill("solid", fgColor=_BRAND_ALT),
+        "fill_maroon_deep": PatternFill("solid", fgColor=_BRAND_MAROON_DEEP),
+        "fill_parchment": PatternFill("solid", fgColor=_BRAND_PARCHMENT),
+        "fill_ivory": PatternFill("solid", fgColor=_BRAND_IVORY),
         "fill_white": PatternFill("solid", fgColor=_BRAND_WHITE),
         "fill_footer": PatternFill("solid", fgColor=_BRAND_FOOTER),
-        "font_brand": Font(name="Calibri", size=11, bold=True, color=_BRAND_MAROON),
-        "font_title": Font(name="Calibri", size=16, bold=True, color=_BRAND_INK),
-        "font_sub": Font(name="Calibri", size=10, color=_BRAND_MUTED),
-        "font_meta": Font(name="Calibri", size=9, italic=True, color=_BRAND_MUTED),
+        "fill_soft": PatternFill("solid", fgColor=_BRAND_PARCHMENT),
+        "fill_alt": PatternFill("solid", fgColor=_BRAND_IVORY),
+        "fill_maroon": PatternFill("solid", fgColor=_BRAND_MAROON_DEEP),
+        "font_title": Font(name="Calibri", size=18, bold=True, color=_BRAND_WHITE),
+        "font_sub": Font(name="Calibri", size=10, bold=True, color=_BRAND_INK),
+        "font_eyebrow": Font(name="Calibri", size=8, italic=True, color=_BRAND_MUTED),
         "font_header": Font(name="Calibri", size=10, bold=True, color=_BRAND_WHITE),
         "font_label": Font(name="Calibri", size=10, bold=True, color=_BRAND_MAROON),
         "font_value": Font(name="Calibri", size=10, color=_BRAND_INK),
         "font_footer": Font(name="Calibri", size=8, italic=True, color=_BRAND_MUTED),
-        "align_mid": Alignment(vertical="center", horizontal="left", wrap_text=False),
+        "align_mid": Alignment(vertical="center", horizontal="left", indent=1, wrap_text=False),
         "align_center": Alignment(vertical="center", horizontal="center", wrap_text=True),
         "align_right": Alignment(vertical="center", horizontal="right", wrap_text=False),
-        "border_banner": Border(
-            top=thin_banner, bottom=thin_banner, left=thin_banner, right=thin_banner
-        ),
-        "border_gold_rule": Border(top=thin_gold, bottom=med_maroon),
-        "border_header": Border(
-            top=dbl_maroon, bottom=med_maroon, left=thin_gold, right=thin_gold
-        ),
-        "border_header_outer_l": Border(
-            top=dbl_maroon, bottom=med_maroon, left=dbl_maroon, right=thin_gold
-        ),
-        "border_header_outer_r": Border(
-            top=dbl_maroon, bottom=med_maroon, left=thin_gold, right=dbl_maroon
-        ),
-        "border_grid": Border(
-            top=thin_grid, bottom=thin_grid, left=thin_grid, right=thin_grid
-        ),
-        "border_param": Border(
-            top=thin_gold, bottom=thin_gold, left=thin_gold, right=thin_gold
-        ),
-        "border_footer": Border(
-            top=med_maroon, bottom=dbl_maroon, left=thin_grid, right=thin_grid
-        ),
+        "border_gold": gold_box,
+        "border_grid": grid_box,
+        "border_param": gold_box,
+        "border_header": gold_box,
+        "border_header_outer_l": gold_box,
+        "border_header_outer_r": gold_box,
+        "border_footer": Border(top=thin_rule, bottom=thin_rule, left=thin_rule, right=thin_rule),
+        # Legacy keys kept so callers that still reference them do not KeyError.
+        "font_brand": Font(name="Calibri", size=11, bold=True, color=_BRAND_MAROON),
+        "font_meta": Font(name="Calibri", size=8, italic=True, color=_BRAND_MUTED),
+        "border_banner": gold_box,
+        "border_gold_rule": Border(top=thin_gold, bottom=thin_gold),
     }
 
 
@@ -427,24 +427,22 @@ def _append_brand_chrome(
     styles: dict,
     logo_path: Path | None,
 ) -> None:
-    """Desk header block — logo + soft-gold banner + gold rule + same layout as download.ts."""
+    """Primary SP masthead — logo wash → gold rule → maroon title → gold subtitle → eyebrow."""
     from openpyxl.drawing.image import Image as XLImage
 
     n = max(4, int(col_count))
-    # Soft-gold banner across the visible brand width (not every date col — saves RAM/time).
+    # Cap styled chrome width so Daily grids stay memory-safe.
     banner_cols = min(n, 14)
 
-    def banner_row(text: str, font, col_text: int = 3) -> list:
+    def filled_row(text: str, *, font, fill, height: float | None = None) -> list:
         row = []
         for c in range(1, banner_cols + 1):
-            val = text if c == col_text else ""
             row.append(
                 _wcell(
                     ws,
-                    val,
-                    font=font if c == col_text else styles["font_sub"],
-                    fill=styles["fill_soft"],
-                    border=styles["border_banner"],
+                    text if c == 1 else "",
+                    font=font if c == 1 else styles["font_value"],
+                    fill=fill,
                     alignment=styles["align_mid"],
                 )
             )
@@ -452,20 +450,19 @@ def _append_brand_chrome(
             row.extend([""] * (n - banner_cols))
         return row
 
+    # Rows 1–3: gold-pale wash + ARWL logo
+    for _ in range(3):
+        ws.append(filled_row("", font=styles["font_value"], fill=styles["fill_gold_pale"]))
     if logo_path is not None and logo_path.is_file():
         try:
             img = XLImage(str(logo_path))
-            img.width = 172
-            img.height = 50
+            img.width = 210
+            img.height = 48
             ws.add_image(img, "A1")
         except Exception:
             pass
 
-    ws.append(banner_row("Anand Rathi Wealth · Gift City", styles["font_brand"], 3))
-    ws.append(banner_row(title, styles["font_title"], 3))
-    ws.append(banner_row(subtitle, styles["font_sub"], 3))
-    ws.append(banner_row(meta, styles["font_meta"], 3))
-
+    # Row 4: gold accent rule
     gold = [
         _wcell(ws, "", fill=styles["fill_gold"], border=styles["border_gold_rule"])
         for _ in range(banner_cols)
@@ -474,12 +471,32 @@ def _append_brand_chrome(
         gold.extend([""] * (n - banner_cols))
     ws.append(gold)
 
+    # Row 5: maroon-deep title
+    ws.append(
+        filled_row(title, font=styles["font_title"], fill=styles["fill_maroon_deep"])
+    )
+    # Row 6: gold subtitle
+    ws.append(filled_row(subtitle, font=styles["font_sub"], fill=styles["fill_gold"]))
+    # Row 7: parchment eyebrow
+    ws.append(
+        filled_row(
+            meta.strip() or _DESK_EYEBROW,
+            font=styles["font_eyebrow"],
+            fill=styles["fill_parchment"],
+        )
+    )
+    # Row 8: spacer
+    ws.append(filled_row("", font=styles["font_value"], fill=styles["fill_parchment"]))
+
     try:
-        ws.row_dimensions[1].height = 22
-        ws.row_dimensions[2].height = 22
-        ws.row_dimensions[3].height = 18
-        ws.row_dimensions[4].height = 14
-        ws.row_dimensions[5].height = 5
+        ws.row_dimensions[1].height = 30
+        ws.row_dimensions[2].height = 18
+        ws.row_dimensions[3].height = 6
+        ws.row_dimensions[4].height = 5
+        ws.row_dimensions[5].height = 36
+        ws.row_dimensions[6].height = 22
+        ws.row_dimensions[7].height = 16
+        ws.row_dimensions[8].height = 8
     except Exception:
         pass
 
@@ -491,11 +508,11 @@ def write_mc_matrix_xlsx(
     max_paths: int | None = None,
     params: GbmParams | None = None,
 ) -> Path:
-    """Branded desk Excel — same look as frontend download.ts, memory-safe stream.
+    """Branded desk Excel — Primary SP masthead + Path/Start/End columns, memory-safe stream.
 
-    Chrome (logo, soft-gold banner, maroon headers, gold rule, footer) is fully
-    styled. Path×date body rows are streamed as plain values so free-tier hosts
-    never materialise millions of styled cells.
+    Chrome (logo wash, gold rule, maroon-deep title, gold subtitle, parchment eyebrow,
+    maroon headers) matches frontend/lib/download.ts. Path×date body rows are streamed
+    as plain values so free-tier hosts never materialise millions of styled cells.
     """
     from openpyxl import Workbook
     from openpyxl.utils import get_column_letter
@@ -668,7 +685,7 @@ def write_mc_matrix_xlsx(
     # ── Simulated Nifty ─────────────────────────────────────────────────────
     ws = wb.create_sheet("Simulated Nifty")
     try:
-        ws.sheet_properties.tabColor = _BRAND_GOLD_DARK
+        ws.sheet_properties.tabColor = _BRAND_GOLD
         ws.sheet_view.showGridLines = False
     except Exception:
         pass
@@ -712,13 +729,14 @@ def write_mc_matrix_xlsx(
                 font=styles["font_header"],
                 fill=styles["fill_maroon"],
                 border=border,
-                alignment=styles["align_center"],
+                alignment=styles["align_mid"],
             )
         )
     ws.append(header_cells)
     try:
-        ws.row_dimensions[6].height = 30
-        ws.freeze_panes = "D7"  # freeze Path/Start/End; scroll trading dates
+        ws.row_dimensions[_CHROME_HEADER_ROW].height = 26
+        # Freeze Path/Start/End; scroll trading dates. Header is row 9 after masthead.
+        ws.freeze_panes = f"D{_CHROME_DATA_START}"
     except Exception:
         pass
 
@@ -766,7 +784,7 @@ def write_mc_matrix_xlsx(
     ws.append(footer_cells)
 
     try:
-        ws.auto_filter.ref = f"A6:{_col_letter(sim_cols)}6"
+        ws.auto_filter.ref = f"A{_CHROME_HEADER_ROW}:{_col_letter(sim_cols)}{_CHROME_HEADER_ROW}"
     except Exception:
         pass
 

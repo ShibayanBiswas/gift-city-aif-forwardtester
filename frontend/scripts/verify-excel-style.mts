@@ -74,25 +74,24 @@ function describeBorder(cell: ExcelJS.Cell) {
 function assertBorders(ws: ExcelJS.Worksheet, headerRow: number, dataRow: number, footerRow: number, cols: number) {
   const header = ws.getRow(headerRow).getCell(1);
   const data = ws.getRow(dataRow).getCell(1);
-  const corner = ws.getRow(footerRow - 1).getCell(cols);
   const footer = ws.getRow(footerRow).getCell(1);
+  const headerFill = (header.fill as ExcelJS.FillPattern | undefined)?.fgColor?.argb?.toUpperCase() ?? "";
 
   const ok =
-    (header.border?.top?.style === "medium" || header.border?.top?.style === "double") &&
+    (header.border?.top?.style === "thin" || header.border?.top?.style === "medium") &&
+    (headerFill.includes("5C1622") || headerFill.includes("7A1E2C")) &&
     !!data.border?.top?.style &&
     !!data.border?.left?.style &&
     !!data.border?.right?.style &&
     !!data.border?.bottom?.style &&
-    (corner.border?.right?.style === "medium" || corner.border?.right?.style === "double") &&
-    (corner.border?.bottom?.style === "medium" || corner.border?.bottom?.style === "double") &&
     String(footer.value || "").includes("data row");
 
   if (!ok) {
     console.error("border check failed", {
       header: describeBorder(header),
       data: describeBorder(data),
-      corner: describeBorder(corner),
       footer: String(footer.value),
+      cols,
     });
     throw new Error("STYLE_FAIL borders");
   }
@@ -157,12 +156,13 @@ async function main() {
   console.log("sheets", wb.worksheets.map((w) => w.name));
 
   const yearly = wb.getWorksheet("Yearly Rollup")!;
-  assertBorders(yearly, 6, 7, 9, 8);
+  // Primary SP masthead: header row 9, data 10+, footer after body
+  assertBorders(yearly, 9, 10, 12, 8);
 
-  const yearCell = yearly.getRow(7).getCell(1);
-  const meanCell = yearly.getRow(7).getCell(3);
-  const irrCell = yearly.getRow(7).getCell(7);
-  const hitCell = yearly.getRow(7).getCell(8);
+  const yearCell = yearly.getRow(10).getCell(1);
+  const meanCell = yearly.getRow(10).getCell(3);
+  const irrCell = yearly.getRow(10).getCell(7);
+  const hitCell = yearly.getRow(10).getCell(8);
 
   if (yearCell.numFmt !== "0") {
     throw new Error(`STYLE_FAIL year fmt: ${yearCell.numFmt}`);
@@ -184,14 +184,20 @@ async function main() {
   }
 
   const summary = wb.getWorksheet("Path Summary")!;
-  assertBorders(summary, 6, 7, 8, 4);
-  const irrRatio = summary.getRow(7).getCell(4);
+  assertBorders(summary, 9, 10, 11, 4);
+  const irrRatio = summary.getRow(10).getCell(4);
   if (irrRatio.numFmt !== "0.00%") {
     throw new Error(`STYLE_FAIL percent fmt: ${irrRatio.numFmt}`);
   }
 
   const result = wb.getWorksheet("Result")!;
-  assertBorders(result, 6, 7, 10, 3);
+  assertBorders(result, 9, 10, 13, 3);
+
+  // Masthead tokens must match Primary SP Dashboard
+  const titleFill = (yearly.getRow(5).getCell(1).fill as ExcelJS.FillPattern | undefined)?.fgColor?.argb?.toUpperCase() ?? "";
+  const goldRule = (yearly.getRow(4).getCell(1).fill as ExcelJS.FillPattern | undefined)?.fgColor?.argb?.toUpperCase() ?? "";
+  if (!titleFill.includes("5C1622")) throw new Error(`STYLE_FAIL title band: ${titleFill}`);
+  if (!goldRule.includes("D4B24C")) throw new Error(`STYLE_FAIL gold rule: ${goldRule}`);
 
   console.log("STYLE_PASS");
 }
