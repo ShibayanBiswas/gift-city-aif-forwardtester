@@ -559,10 +559,9 @@ def write_mc_matrix_xlsx(
     styles = _xlsx_styles()
     logo = _LOGO if _LOGO and _LOGO.is_file() else _resolve_logo()
     export_day = _desk_date(date.today())
-    horizon_line = (
-        f"{_desk_date(hist_first)} → {_desk_date(hist_last)} · "
-        f"{n_paths:,} paths · {n_dates:,} trading dates"
-    )
+    horizon_start = _desk_date(dates[0]) if dates else _desk_date(asof or hist_last)
+    horizon_end = _desk_date(dates[-1]) if dates else ""
+    subtitle_line = f"{n_paths:,} paths · {n_dates:,} trading dates · Exported {export_day}"
 
     # write_only = only current row in RAM — required for Daily on free Render.
     wb = Workbook(write_only=True)
@@ -579,16 +578,17 @@ def write_mc_matrix_xlsx(
         ws_p.sheet_view.showGridLines = False
     except Exception:
         pass
-    ws_p.column_dimensions["A"].width = 28
-    ws_p.column_dimensions["B"].width = 22
-    ws_p.column_dimensions["C"].width = 18
+    # Wide enough that Parameter / Value labels are never clipped.
+    ws_p.column_dimensions["A"].width = 32
+    ws_p.column_dimensions["B"].width = 28
+    ws_p.column_dimensions["C"].width = 16
     ws_p.column_dimensions["D"].width = 14
 
     _append_brand_chrome(
         ws_p,
         title="Simulated Nifty Paths · Parameters",
-        subtitle=horizon_line,
-        meta=capped_note or f"Exported {export_day}",
+        subtitle=subtitle_line,
+        meta=capped_note or _DESK_EYEBROW,
         col_count=4,
         styles=styles,
         logo_path=logo,
@@ -601,7 +601,7 @@ def write_mc_matrix_xlsx(
             font=styles["font_header"],
             fill=styles["fill_maroon"],
             border=styles["border_header_outer_l"],
-            alignment=styles["align_center"],
+            alignment=styles["align_mid"],
         ),
         _wcell(
             ws_p,
@@ -609,37 +609,30 @@ def write_mc_matrix_xlsx(
             font=styles["font_header"],
             fill=styles["fill_maroon"],
             border=styles["border_header_outer_r"],
-            alignment=styles["align_center"],
+            alignment=styles["align_mid"],
         ),
         "",
         "",
     ]
     ws_p.append(header_p)
 
+    # Desk-facing parameters only — no formula / seed / duplicate %-point rows.
     param_rows: list[tuple[str, Any, str | None]] = [
         ("Current Nifty Spot", spot0, "#,##0.00"),
-        ("Daily Average Return", mean_ret, "0.000000%"),
-        ("Daily Average Return %", mean_ret * 100.0, "0.0000"),
-        ("Daily Standard Deviation", std_dev, "0.000000%"),
-        ("Daily Standard Deviation %", std_dev * 100.0, "0.00"),
+        ("Daily Average Return", mean_ret, "0.0000%"),
+        ("Daily Standard Deviation", std_dev, "0.00%"),
         ("Drift", drift, "0.000000"),
         ("Estimation Start", _desk_date(hist_first), None),
         ("Estimation End", _desk_date(hist_last), None),
-        ("Simulation First Date", _desk_date(dates[0]) if dates else "", None),
-        ("Simulation Last Date", _desk_date(dates[-1]) if dates else "", None),
+        ("Horizon Start", horizon_start, None),
+        ("Horizon End", horizon_end, None),
         ("Number Of Paths", int(n_paths), "#,##0"),
         ("Number Of Trading Dates", int(n_dates), "#,##0"),
-        ("Formula", "S_t = S_t-1 * EXP(drift + sigma * Z), Z ~ N(0,1)", None),
-        ("Base Seed", int(base_seed), "0"),
     ]
     for i, (label, value, fmt) in enumerate(param_rows):
         alt = i % 2 == 1
         fill = styles["fill_alt"] if alt else styles["fill_white"]
-        # Rate fractions use Excel % formats — pass raw μ/σ as fractions.
         cell_val = value
-        if label in {"Daily Average Return", "Daily Standard Deviation"}:
-            cell_val = float(value)
-            fmt = "0.000000%"
         ws_p.append(
             [
                 _wcell(
@@ -689,23 +682,29 @@ def write_mc_matrix_xlsx(
         ws.sheet_view.showGridLines = False
     except Exception:
         pass
-    ws.column_dimensions["A"].width = 10
-    ws.column_dimensions["B"].width = 13
-    ws.column_dimensions["C"].width = 13
-    # Date columns — modest width; Excel still opens wide grids fine.
-    for col_idx in range(4, min(n_dates + 4, 42)):
-        ws.column_dimensions[get_column_letter(col_idx)].width = 11
+    # Freeze panes must be set before streaming rows on write_only sheets.
+    try:
+        ws.freeze_panes = f"D{_CHROME_DATA_START}"
+    except Exception:
+        pass
+    # Keep Path / Start / End fully readable; date columns wide enough for DD-MMM-YYYY.
+    ws.column_dimensions["A"].width = 12
+    ws.column_dimensions["B"].width = 14
+    ws.column_dimensions["C"].width = 14
+    try:
+        ws.sheet_format.defaultColWidth = 12
+    except Exception:
+        pass
+    for col_idx in range(4, min(n_dates + 4, 256)):
+        ws.column_dimensions[get_column_letter(col_idx)].width = 12
 
     sim_cols = n_dates + 3  # Path · Start Date · End Date · trading dates…
     windows = _path_window_map(payload, n_paths)
     _append_brand_chrome(
         ws,
         title="Simulated Nifty Paths",
-        subtitle=(
-            f"{n_paths:,} paths · {n_dates:,} trading dates · "
-            f"{_desk_date(dates[0]) if dates else ''} → {_desk_date(dates[-1]) if dates else ''}"
-        ),
-        meta=capped_note or f"Exported {export_day}",
+        subtitle=f"{n_paths:,} paths · {n_dates:,} trading dates",
+        meta=capped_note or f"Start {horizon_start} · End {horizon_end} · Exported {export_day}",
         col_count=sim_cols,
         styles=styles,
         logo_path=logo,
@@ -735,8 +734,6 @@ def write_mc_matrix_xlsx(
     ws.append(header_cells)
     try:
         ws.row_dimensions[_CHROME_HEADER_ROW].height = 26
-        # Freeze Path/Start/End; scroll trading dates. Header is row 9 after masthead.
-        ws.freeze_panes = f"D{_CHROME_DATA_START}"
     except Exception:
         pass
 

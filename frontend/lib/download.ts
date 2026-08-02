@@ -107,6 +107,8 @@ function inferColumnType(header: string): ColumnType {
   if (
     /(^|\s)(trading\s+)?date$/.test(h) ||
     /\b(start date|end date)\b/.test(h) ||
+    h === "start" ||
+    h === "end" ||
     h === "expiry" ||
     h === "expiry date" ||
     h === "observation expiry" ||
@@ -310,14 +312,13 @@ function writeSheet(
   const DATA_END = DATA_START + bodyRowCount - 1;
   const FOOTER_ROW = DATA_END + 1;
 
+  // Avoid fit-to-width shrinking — keeps columns readable when printing/opening.
   const ws = workbook.addWorksheet(sanitizeSheetName(spec.name), {
     views: [{ state: "frozen", ySplit: HEADER_ROW, xSplit: 0, showGridLines: false }],
     properties: { defaultRowHeight: 18, tabColor: { argb: BRAND.maroon } },
     pageSetup: {
       orientation: "landscape",
-      fitToPage: true,
-      fitToWidth: 1,
-      fitToHeight: 0,
+      fitToPage: false,
       horizontalCentered: true,
       margins: { left: 0.4, right: 0.4, top: 0.5, bottom: 0.5, header: 0.2, footer: 0.2 },
     },
