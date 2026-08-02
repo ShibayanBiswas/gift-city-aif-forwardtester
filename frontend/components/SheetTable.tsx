@@ -186,11 +186,11 @@ export function SheetTable({
           </table>
         </div>
       ) : (
-        <div className="overflow-x-auto">
-          <div className="overflow-y-auto" style={{ maxHeight }}>
+        <div className="w-full overflow-x-auto">
+          <div className="w-full overflow-y-auto" style={{ maxHeight }}>
             <table
-              className="data-table-premium w-full text-left text-sm font-ui"
-              style={{ minWidth: tableMinWidth }}
+              className="data-table-premium sheet-table-fill w-full text-left text-sm font-ui"
+              style={{ minWidth: tableMinWidth, width: "100%" }}
             >
               <thead className="sticky top-0 z-[1] bg-gradient-to-r from-[var(--ar-table-head-from)] to-[var(--ar-table-head-to)] text-xs tracking-wide">
                 <tr>

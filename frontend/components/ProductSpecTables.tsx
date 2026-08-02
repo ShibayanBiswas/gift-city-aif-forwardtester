@@ -192,7 +192,7 @@ export function ProductSpecTables({ product }: { product: ProductSpec }) {
           </p>
         </div>
         <div className="overflow-x-auto">
-          <table className="data-table-premium w-full min-w-[480px] text-left">
+          <table className="data-table-premium sheet-table-fill w-full min-w-[480px] text-left">
             <thead>
               <tr>
                 {FUND_HEADERS.map((h) => (
@@ -227,7 +227,7 @@ export function ProductSpecTables({ product }: { product: ProductSpec }) {
           </p>
         </div>
         <div className="overflow-x-auto">
-          <table className="data-table-premium w-full min-w-[480px] text-left">
+          <table className="data-table-premium sheet-table-fill w-full min-w-[480px] text-left">
             <thead>
               <tr>
                 {OBS_HEADERS.map((h) => (
@@ -264,7 +264,7 @@ export function ProductSpecTables({ product }: { product: ProductSpec }) {
           </p>
         </div>
         <div className="overflow-x-auto">
-          <table className="data-table-premium w-full min-w-[960px] text-left">
+          <table className="data-table-premium sheet-table-fill w-full min-w-[960px] text-left">
             <thead>
               <tr>
                 {LEG_HEADERS.map((h) => (

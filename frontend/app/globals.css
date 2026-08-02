@@ -561,6 +561,16 @@ html.dark .input-glow:focus {
   border-collapse: separate;
   border-spacing: 0;
 }
+/* Desk sheets: fill the card width; columns share horizontal space evenly. */
+.data-table-premium.sheet-table-fill {
+  width: 100%;
+  table-layout: fixed;
+}
+.data-table-premium.sheet-table-fill th,
+.data-table-premium.sheet-table-fill td {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 .data-table-premium tbody tr:hover {
   background: rgba(212, 178, 76, 0.08);
 }
