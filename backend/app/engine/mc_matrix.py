@@ -36,9 +36,21 @@ _MONTHS = (
     "Dec",
 )
 
-# Soft cap for free-tier Excel builds (cells ≈ paths × dates). Above this we
-# still export, but stream path-by-path and skip heavy styling.
+# Soft cap note only — export always streams path-by-path with branded chrome.
 _EXCEL_CELL_SOFT_CAP = 800_000
+
+# Desk brand tokens — match frontend/lib/download.ts (Anand Rathi Wealth Excel).
+_BRAND_MAROON = "7A1E2C"
+_BRAND_GOLD = "D4B24C"
+_BRAND_GOLD_DARK = "B8860B"
+_BRAND_SOFT = "FFF8EC"
+_BRAND_ALT = "FAF6F0"
+_BRAND_INK = "1F1612"
+_BRAND_MUTED = "6B5E55"
+_BRAND_WHITE = "FFFFFF"
+_BRAND_FOOTER = "F7F1E8"
+_BRAND_GRID = "CDBBA8"
+_BRAND_BANNER_EDGE = "E8D9C0"
 
 
 def _resolve_logo() -> Path | None:
@@ -300,6 +312,143 @@ def _iter_path_rows(
         )
 
 
+def _xlsx_styles():
+    """Shared openpyxl style objects — reuse across cells to keep RAM flat."""
+    from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
+
+    thin_gold = Side(style="thin", color=_BRAND_GOLD)
+    thin_grid = Side(style="thin", color=_BRAND_GRID)
+    med_maroon = Side(style="medium", color=_BRAND_MAROON)
+    dbl_maroon = Side(style="double", color=_BRAND_MAROON)
+    thin_banner = Side(style="thin", color=_BRAND_BANNER_EDGE)
+
+    return {
+        "fill_soft": PatternFill("solid", fgColor=_BRAND_SOFT),
+        "fill_gold": PatternFill("solid", fgColor=_BRAND_GOLD),
+        "fill_maroon": PatternFill("solid", fgColor=_BRAND_MAROON),
+        "fill_alt": PatternFill("solid", fgColor=_BRAND_ALT),
+        "fill_white": PatternFill("solid", fgColor=_BRAND_WHITE),
+        "fill_footer": PatternFill("solid", fgColor=_BRAND_FOOTER),
+        "font_brand": Font(name="Calibri", size=11, bold=True, color=_BRAND_MAROON),
+        "font_title": Font(name="Calibri", size=16, bold=True, color=_BRAND_INK),
+        "font_sub": Font(name="Calibri", size=10, color=_BRAND_MUTED),
+        "font_meta": Font(name="Calibri", size=9, italic=True, color=_BRAND_MUTED),
+        "font_header": Font(name="Calibri", size=10, bold=True, color=_BRAND_WHITE),
+        "font_label": Font(name="Calibri", size=10, bold=True, color=_BRAND_MAROON),
+        "font_value": Font(name="Calibri", size=10, color=_BRAND_INK),
+        "font_footer": Font(name="Calibri", size=8, italic=True, color=_BRAND_MUTED),
+        "align_mid": Alignment(vertical="center", horizontal="left", wrap_text=False),
+        "align_center": Alignment(vertical="center", horizontal="center", wrap_text=True),
+        "align_right": Alignment(vertical="center", horizontal="right", wrap_text=False),
+        "border_banner": Border(
+            top=thin_banner, bottom=thin_banner, left=thin_banner, right=thin_banner
+        ),
+        "border_gold_rule": Border(top=thin_gold, bottom=med_maroon),
+        "border_header": Border(
+            top=dbl_maroon, bottom=med_maroon, left=thin_gold, right=thin_gold
+        ),
+        "border_header_outer_l": Border(
+            top=dbl_maroon, bottom=med_maroon, left=dbl_maroon, right=thin_gold
+        ),
+        "border_header_outer_r": Border(
+            top=dbl_maroon, bottom=med_maroon, left=thin_gold, right=dbl_maroon
+        ),
+        "border_grid": Border(
+            top=thin_grid, bottom=thin_grid, left=thin_grid, right=thin_grid
+        ),
+        "border_param": Border(
+            top=thin_gold, bottom=thin_gold, left=thin_gold, right=thin_gold
+        ),
+        "border_footer": Border(
+            top=med_maroon, bottom=dbl_maroon, left=thin_grid, right=thin_grid
+        ),
+    }
+
+
+def _wcell(ws, value, *, font=None, fill=None, border=None, alignment=None, num_fmt=None):
+    from openpyxl.cell.cell import WriteOnlyCell
+
+    cell = WriteOnlyCell(ws, value=value)
+    if font is not None:
+        cell.font = font
+    if fill is not None:
+        cell.fill = fill
+    if border is not None:
+        cell.border = border
+    if alignment is not None:
+        cell.alignment = alignment
+    if num_fmt is not None:
+        cell.number_format = num_fmt
+    return cell
+
+
+def _append_brand_chrome(
+    ws,
+    *,
+    title: str,
+    subtitle: str,
+    meta: str,
+    col_count: int,
+    styles: dict,
+    logo_path: Path | None,
+) -> None:
+    """Desk header block — logo + soft-gold banner + gold rule + same layout as download.ts."""
+    from openpyxl.drawing.image import Image as XLImage
+
+    n = max(4, int(col_count))
+    # Soft-gold banner across the visible brand width (not every date col — saves RAM/time).
+    banner_cols = min(n, 14)
+
+    def banner_row(text: str, font, col_text: int = 3) -> list:
+        row = []
+        for c in range(1, banner_cols + 1):
+            val = text if c == col_text else ""
+            row.append(
+                _wcell(
+                    ws,
+                    val,
+                    font=font if c == col_text else styles["font_sub"],
+                    fill=styles["fill_soft"],
+                    border=styles["border_banner"],
+                    alignment=styles["align_mid"],
+                )
+            )
+        if n > banner_cols:
+            row.extend([""] * (n - banner_cols))
+        return row
+
+    if logo_path is not None and logo_path.is_file():
+        try:
+            img = XLImage(str(logo_path))
+            img.width = 172
+            img.height = 50
+            ws.add_image(img, "A1")
+        except Exception:
+            pass
+
+    ws.append(banner_row("Anand Rathi Wealth · Gift City", styles["font_brand"], 3))
+    ws.append(banner_row(title, styles["font_title"], 3))
+    ws.append(banner_row(subtitle, styles["font_sub"], 3))
+    ws.append(banner_row(meta, styles["font_meta"], 3))
+
+    gold = [
+        _wcell(ws, "", fill=styles["fill_gold"], border=styles["border_gold_rule"])
+        for _ in range(banner_cols)
+    ]
+    if n > banner_cols:
+        gold.extend([""] * (n - banner_cols))
+    ws.append(gold)
+
+    try:
+        ws.row_dimensions[1].height = 22
+        ws.row_dimensions[2].height = 22
+        ws.row_dimensions[3].height = 18
+        ws.row_dimensions[4].height = 14
+        ws.row_dimensions[5].height = 5
+    except Exception:
+        pass
+
+
 def write_mc_matrix_xlsx(
     payload: dict[str, Any],
     dest: Path,
@@ -307,12 +456,14 @@ def write_mc_matrix_xlsx(
     max_paths: int | None = None,
     params: GbmParams | None = None,
 ) -> Path:
-    """Memory-safe branded Excel (write_only grid — safe on Render free tier).
+    """Branded desk Excel — same look as frontend download.ts, memory-safe stream.
 
-    Prefer ``payload['matrix']`` when present; otherwise stream rows from GBM
-    using ``params`` + dates (one path at a time).
+    Chrome (logo, soft-gold banner, maroon headers, gold rule, footer) is fully
+    styled. Path×date body rows are streamed as plain values so free-tier hosts
+    never materialise millions of styled cells.
     """
     from openpyxl import Workbook
+    from openpyxl.utils import get_column_letter
 
     dates: list[date] = list(payload["dates"])
     mat = payload.get("matrix")
@@ -338,7 +489,7 @@ def write_mc_matrix_xlsx(
     if n_paths < n_paths_all:
         capped_note = f"Export capped to {n_paths} of {n_paths_all} paths for memory."
     elif cells > _EXCEL_CELL_SOFT_CAP:
-        capped_note = "Large grid exported with streaming writer · deploy-safe."
+        capped_note = "Large grid streamed with branded desk chrome · deploy-safe."
 
     gbm_params = params
     if gbm_params is None and mat is None:
@@ -353,50 +504,183 @@ def write_mc_matrix_xlsx(
             last_date=hist_last,
         )
 
-    # write_only keeps only the current row buffered — critical on 512MB hosts.
+    styles = _xlsx_styles()
+    logo = _LOGO if _LOGO and _LOGO.is_file() else _resolve_logo()
+    export_day = _desk_date(date.today())
+    horizon_line = (
+        f"{_desk_date(hist_first)} → {_desk_date(hist_last)} · "
+        f"{n_paths:,} paths · {n_dates:,} trading dates"
+    )
+
+    # write_only = only current row in RAM — required for Daily on free Render.
     wb = Workbook(write_only=True)
+    wb.creator = "Anand Rathi Wealth"
+    try:
+        wb.title = "Simulated Nifty Paths"
+    except Exception:
+        pass
 
+    # ── Parameters ──────────────────────────────────────────────────────────
     ws_p = wb.create_sheet("Parameters")
-    ws_p.append(["Anand Rathi Wealth · Gift City"])
-    ws_p.append(["Simulated Nifty Paths · Parameters"])
-    ws_p.append([f"{_desk_date(hist_first)} → {_desk_date(hist_last)} · {n_paths} paths · {n_dates} trading dates"])
-    if capped_note:
-        ws_p.append([capped_note])
-    else:
-        ws_p.append([""])
-    ws_p.append([])
-    ws_p.append(["Parameter", "Value"])
-    param_rows: list[tuple[str, Any]] = [
-        ("Current Nifty Spot", spot0),
-        ("Daily Average Return", mean_ret),
-        ("Daily Average Return %", mean_ret * 100.0),
-        ("Daily Standard Deviation", std_dev),
-        ("Daily Standard Deviation %", std_dev * 100.0),
-        ("Drift", drift),
-        ("Estimation Start", _desk_date(hist_first)),
-        ("Estimation End", _desk_date(hist_last)),
-        ("Simulation First Date", _desk_date(dates[0]) if dates else ""),
-        ("Simulation Last Date", _desk_date(dates[-1]) if dates else ""),
-        ("Number Of Paths", int(n_paths)),
-        ("Number Of Trading Dates", int(n_dates)),
-        ("Formula", "S_t = S_t-1 * EXP(drift + sigma * Z), Z ~ N(0,1)"),
-        ("Base Seed", int(base_seed)),
-    ]
-    for label, value in param_rows:
-        ws_p.append([label, value])
+    try:
+        ws_p.sheet_properties.tabColor = _BRAND_MAROON
+        ws_p.sheet_view.showGridLines = False
+    except Exception:
+        pass
+    ws_p.column_dimensions["A"].width = 28
+    ws_p.column_dimensions["B"].width = 22
+    ws_p.column_dimensions["C"].width = 18
+    ws_p.column_dimensions["D"].width = 14
 
-    ws = wb.create_sheet("Simulated Nifty")
-    ws.append(["Anand Rathi Wealth · Gift City"])
-    ws.append(["Simulated Nifty Paths"])
-    ws.append(
+    _append_brand_chrome(
+        ws_p,
+        title="Simulated Nifty Paths · Parameters",
+        subtitle=horizon_line,
+        meta=capped_note or f"Exported {export_day}",
+        col_count=4,
+        styles=styles,
+        logo_path=logo,
+    )
+
+    header_p = [
+        _wcell(
+            ws_p,
+            "Parameter",
+            font=styles["font_header"],
+            fill=styles["fill_maroon"],
+            border=styles["border_header_outer_l"],
+            alignment=styles["align_center"],
+        ),
+        _wcell(
+            ws_p,
+            "Value",
+            font=styles["font_header"],
+            fill=styles["fill_maroon"],
+            border=styles["border_header_outer_r"],
+            alignment=styles["align_center"],
+        ),
+        "",
+        "",
+    ]
+    ws_p.append(header_p)
+
+    param_rows: list[tuple[str, Any, str | None]] = [
+        ("Current Nifty Spot", spot0, "#,##0.00"),
+        ("Daily Average Return", mean_ret, "0.000000%"),
+        ("Daily Average Return %", mean_ret * 100.0, "0.0000"),
+        ("Daily Standard Deviation", std_dev, "0.000000%"),
+        ("Daily Standard Deviation %", std_dev * 100.0, "0.00"),
+        ("Drift", drift, "0.000000"),
+        ("Estimation Start", _desk_date(hist_first), None),
+        ("Estimation End", _desk_date(hist_last), None),
+        ("Simulation First Date", _desk_date(dates[0]) if dates else "", None),
+        ("Simulation Last Date", _desk_date(dates[-1]) if dates else "", None),
+        ("Number Of Paths", int(n_paths), "#,##0"),
+        ("Number Of Trading Dates", int(n_dates), "#,##0"),
+        ("Formula", "S_t = S_t-1 * EXP(drift + sigma * Z), Z ~ N(0,1)", None),
+        ("Base Seed", int(base_seed), "0"),
+    ]
+    for i, (label, value, fmt) in enumerate(param_rows):
+        alt = i % 2 == 1
+        fill = styles["fill_alt"] if alt else styles["fill_white"]
+        # Rate fractions use Excel % formats — pass raw μ/σ as fractions.
+        cell_val = value
+        if label in {"Daily Average Return", "Daily Standard Deviation"}:
+            cell_val = float(value)
+            fmt = "0.000000%"
+        ws_p.append(
+            [
+                _wcell(
+                    ws_p,
+                    label,
+                    font=styles["font_label"],
+                    fill=styles["fill_soft"] if not alt else fill,
+                    border=styles["border_param"],
+                    alignment=styles["align_mid"],
+                ),
+                _wcell(
+                    ws_p,
+                    cell_val,
+                    font=styles["font_value"],
+                    fill=fill,
+                    border=styles["border_param"],
+                    alignment=styles["align_right"]
+                    if isinstance(cell_val, (int, float))
+                    else styles["align_mid"],
+                    num_fmt=fmt,
+                ),
+                "",
+                "",
+            ]
+        )
+
+    ws_p.append(
         [
-            f"{n_paths} paths · {n_dates} trading dates · "
-            f"{_desk_date(dates[0]) if dates else ''} → {_desk_date(dates[-1]) if dates else ''}"
+            _wcell(
+                ws_p,
+                f"Anand Rathi Wealth · Gift City AIF · {n_paths:,} paths · Exported {export_day}",
+                font=styles["font_footer"],
+                fill=styles["fill_footer"],
+                border=styles["border_footer"],
+                alignment=styles["align_mid"],
+            ),
+            _wcell(ws_p, "", fill=styles["fill_footer"], border=styles["border_footer"]),
+            "",
+            "",
         ]
     )
-    ws.append([capped_note] if capped_note else [""])
-    ws.append([])
-    ws.append(["Path"] + [_desk_date(d) for d in dates])
+
+    # ── Simulated Nifty ─────────────────────────────────────────────────────
+    ws = wb.create_sheet("Simulated Nifty")
+    try:
+        ws.sheet_properties.tabColor = _BRAND_GOLD_DARK
+        ws.sheet_view.showGridLines = False
+    except Exception:
+        pass
+    ws.column_dimensions["A"].width = 10
+    # Date columns — modest width; Excel still opens wide grids fine.
+    for col_idx in range(2, min(n_dates + 2, 40)):
+        ws.column_dimensions[get_column_letter(col_idx)].width = 11
+
+    sim_cols = n_dates + 1
+    _append_brand_chrome(
+        ws,
+        title="Simulated Nifty Paths",
+        subtitle=(
+            f"{n_paths:,} paths · {n_dates:,} trading dates · "
+            f"{_desk_date(dates[0]) if dates else ''} → {_desk_date(dates[-1]) if dates else ''}"
+        ),
+        meta=capped_note or f"Exported {export_day}",
+        col_count=sim_cols,
+        styles=styles,
+        logo_path=logo,
+    )
+
+    # Maroon header row — Path + desk dates (styled once; body streams plain).
+    header_cells = []
+    for c, label in enumerate(["Path"] + [_desk_date(d) for d in dates], start=1):
+        if c == 1:
+            border = styles["border_header_outer_l"]
+        elif c == sim_cols:
+            border = styles["border_header_outer_r"]
+        else:
+            border = styles["border_header"]
+        header_cells.append(
+            _wcell(
+                ws,
+                label,
+                font=styles["font_header"],
+                fill=styles["fill_maroon"],
+                border=border,
+                alignment=styles["align_center"],
+            )
+        )
+    ws.append(header_cells)
+    try:
+        ws.row_dimensions[6].height = 30
+        ws.freeze_panes = "B7"
+    except Exception:
+        pass
 
     progress_cb = payload.get("_progress_cb")
     for idx, (path_id, spots) in enumerate(
@@ -409,20 +693,47 @@ def write_mc_matrix_xlsx(
         ),
         start=1,
     ):
-        # Round once per cell for Excel size; keep path float64 stream short-lived.
-        ws.append([path_id] + [round(float(x), 4) for x in spots])
+        # Plain values only — never WriteOnlyCell per grid cell (OOM on Daily).
+        ws.append([int(path_id)] + [round(float(x), 4) for x in spots])
         if progress_cb and (idx % 25 == 0 or idx == n_paths):
             try:
                 progress_cb(idx / n_paths, f"Writing path {idx} of {n_paths}")
             except Exception:
                 pass
 
-    ws.append(
-        [
-            f"Anand Rathi Wealth · Gift City AIF · {n_paths} paths · Exported {_desk_date(date.today())}"
-        ]
-    )
+    footer_cells = [
+        _wcell(
+            ws,
+            f"Anand Rathi Wealth · Gift City AIF · {n_paths:,} paths · {n_dates:,} trading dates · Exported {export_day}",
+            font=styles["font_footer"],
+            fill=styles["fill_footer"],
+            border=styles["border_footer"],
+            alignment=styles["align_mid"],
+        )
+    ]
+    # Pad footer visually across a few columns without styling thousands of cells.
+    for _ in range(min(sim_cols - 1, 13)):
+        footer_cells.append(
+            _wcell(ws, "", fill=styles["fill_footer"], border=styles["border_footer"])
+        )
+    if sim_cols > 14:
+        footer_cells.extend([""] * (sim_cols - 14))
+    ws.append(footer_cells)
+
+    try:
+        ws.auto_filter.ref = f"A6:{_col_letter(sim_cols)}6"
+    except Exception:
+        pass
 
     dest.parent.mkdir(parents=True, exist_ok=True)
     wb.save(dest)
     return dest
+
+
+def _col_letter(n: int) -> str:
+    s = ""
+    x = int(n)
+    while x > 0:
+        x, r = divmod(x - 1, 26)
+        s = chr(65 + r) + s
+    return s

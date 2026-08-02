@@ -369,7 +369,8 @@ export const API_TIMEOUTS = {
   upload: 60_000,
   sample: 45_000,
   /** Wide path×date Excel can take several minutes on large horizons. */
-  mcMatrixDownload: 600_000,
+  /** Large Daily grids can take 10–20 minutes on free Render — wait, don't abort early. */
+  mcMatrixDownload: 1_200_000,
 } as const;
 
 function mergeAbortSignals(a?: AbortSignal | null, b?: AbortSignal | null): AbortSignal | undefined {

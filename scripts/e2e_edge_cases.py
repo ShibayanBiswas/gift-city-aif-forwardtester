@@ -92,12 +92,20 @@ def main() -> None:
         "last_date": gbm.last_date,
     }
     xlsx = write_mc_matrix_xlsx(payload, out / "edge_mc.xlsx")
-    wb = load_workbook(xlsx, read_only=True)
+    # data_only=False so we can inspect images / styles
+    wb = load_workbook(xlsx, read_only=False, data_only=False)
     _assert("Parameters" in wb.sheetnames and "Simulated Nifty" in wb.sheetnames, wb.sheetnames)
     ws = wb["Parameters"]
-    rows_p = list(ws.iter_rows(min_row=1, max_row=8, values_only=True))
-    _assert(any(r and r[0] and "Anand Rathi" in str(r[0]) for r in rows_p), "brand title missing")
+    # Brand copy sits in column C under the logo (same layout as desk Excel downloads).
+    brand_hit = False
+    for row in ws.iter_rows(min_row=1, max_row=6, max_col=4, values_only=True):
+        if any(cell and "Anand Rathi" in str(cell) for cell in row):
+            brand_hit = True
+            break
+    _assert(brand_hit, "brand title missing")
+    _assert(len(ws._images) >= 1, "Parameters sheet missing ARWL logo")
     ws2 = wb["Simulated Nifty"]
+    _assert(len(ws2._images) >= 1, "Simulated Nifty sheet missing ARWL logo")
     rows_s = list(ws2.iter_rows(min_row=1, max_row=8, values_only=True))
     header = next((r for r in rows_s if r and r[0] == "Path"), None)
     _assert(header is not None, "Path header missing")
@@ -109,7 +117,13 @@ def main() -> None:
         ),
         header[1],
     )
-    print("xlsx branding OK", xlsx.name, "bytes", xlsx.stat().st_size)
+    # Maroon header fill on Path cell — desk chrome parity with download.ts
+    path_header = ws2.cell(6, 1)
+    fill = getattr(path_header.fill, "fgColor", None)
+    rgb = getattr(fill, "rgb", None) or getattr(fill, "theme", None)
+    _assert(rgb is not None and "7A1E2C" in str(rgb).upper(), f"maroon header fill missing: {rgb}")
+    print("xlsx branding OK", xlsx.name, "bytes", xlsx.stat().st_size, "logos", len(ws._images), len(ws2._images))
+    wb.close()
 
     # Independent paths: same date index → different prices
     _assert(abs(float(mat[0, 1]) - float(mat[1, 1])) > 1e-9, "paths must diverge")
