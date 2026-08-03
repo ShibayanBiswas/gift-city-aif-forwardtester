@@ -641,6 +641,51 @@ export function KpiBand() {
   );
 }
 
+export function PathResultBand() {
+  const { filteredSummary, pathId, product } = useForwardTest();
+  const path = filteredSummary.find((s) => s.path_id === pathId) ?? filteredSummary[0];
+  if (!path) return null;
+  const principalCr = product?.principal_cr ?? 100;
+  const abovePrincipal = path.total > principalCr;
+
+  const items = [
+    { label: "Path", value: String(path.path_id) },
+    { label: "Terminal Value", value: `${formatNum(path.total, 2)} Crores` },
+    { label: "Internal Rate Of Return", value: formatPct(path.irr, 2) },
+    { label: "Investment", value: `${formatNum(path.invt, 2)} Crores` },
+    { label: "MTM Futures", value: `${formatNum(path.mtm_futures, 2)} Crores` },
+    { label: "Cash + Interest", value: `${formatNum(path.cash_plus_int, 2)} Crores` },
+    { label: "G-Sec", value: `${formatNum(path.gsec, 2)} Crores` },
+    { label: "Transaction Cost", value: `${formatNum(path.transaction_cost, 2)} Crores` },
+    { label: "Fees", value: `${formatNum(path.fees, 2)} Crores` },
+    { label: "Absolute Nifty Return", value: formatPct(path.abs_nifty_ret, 2) },
+    {
+      label: `Vs Principal ${formatNum(principalCr, 2)} Crores`,
+      value: abovePrincipal ? "Above Principal" : "At Or Below Principal",
+    },
+  ];
+
+  return (
+    <div className="desk-rail-scroll w-full overflow-x-auto pb-1">
+      <div className="flex min-w-full gap-3">
+        {items.map((k) => (
+          <motion.div
+            key={k.label}
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            whileHover={{ y: -4, scale: 1.02 }}
+            transition={{ type: "spring", stiffness: 380, damping: 26 }}
+            className="glass glass-glow-cyan min-w-[14rem] flex-1 rounded-2xl px-4 py-3"
+          >
+            <p className="text-[10px] tracking-[0.16em] text-[var(--ar-subtle)] font-ui">{k.label}</p>
+            <p className="mt-1 font-display text-lg tabular-nums text-[var(--ar-maroon)]">{k.value}</p>
+          </motion.div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export function MetricPair({
   labelA,
   valueA,

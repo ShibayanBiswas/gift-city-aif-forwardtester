@@ -4,11 +4,11 @@ import { useMemo } from "react";
 import { motion } from "framer-motion";
 import { useForwardTest } from "@/lib/store";
 import { formatDeskDate, formatNum, formatPct, isPlausibleTradingDate } from "@/lib/api";
-import { EmptyRunHint, KpiBand, PathSelect } from "@/components/ui/Shared";
+import { EmptyRunHint, PathResultBand, PathSelect } from "@/components/ui/Shared";
 import { SheetTable } from "@/components/SheetTable";
 
 export default function SummaryTablePage() {
-  const { filteredSummary, setPathId } = useForwardTest();
+  const { filteredSummary, pathId, setPathId } = useForwardTest();
   const rows = useMemo(
     () =>
       filteredSummary.map((r) => [
@@ -57,6 +57,10 @@ export default function SummaryTablePage() {
 
   if (!filteredSummary.length) return <EmptyRunHint />;
 
+  const selectedRowIndex = filteredSummary.findIndex((r) => r.path_id === pathId);
+  const highlightRows =
+    selectedRowIndex >= 0 ? new Set([selectedRowIndex]) : undefined;
+
   return (
     <div className="space-y-4">
       <motion.section
@@ -72,21 +76,21 @@ export default function SummaryTablePage() {
               <p className="text-xs tracking-[0.22em] text-[var(--ar-subtle)] font-ui">Analytics · Summary</p>
               <h2 className="font-display text-3xl text-[var(--ar-maroon)] md:text-4xl">Path Summary</h2>
               <p className="mt-2 text-sm leading-relaxed text-[var(--ar-muted)] font-ui">
-                One row per path. Use the selector below, or click a row, to open that path on Desk pages.
+                Results for the selected path. Use the selector below, or click a row, to switch paths.
               </p>
             </div>
           </div>
 
           <div className="relative z-[1] mt-5 space-y-4">
             <PathSelect className="w-full" />
-            <KpiBand />
+            <PathResultBand />
           </div>
         </div>
       </motion.section>
 
       <SheetTable
         title="Path Results"
-        subtitle="Click a row to select that path"
+        subtitle={`Selected path · Path ${pathId} · Click a row to switch`}
         headers={[
           "Path",
           "Start",
@@ -109,6 +113,7 @@ export default function SummaryTablePage() {
         filename="path-summary.xlsx"
         sheetName="Path Summary"
         onRowClick={(i) => setPathId(filteredSummary[i]?.path_id ?? 1)}
+        highlightRows={highlightRows}
         minWidth={1200}
         maxHeight={560}
         columnTypes={[
