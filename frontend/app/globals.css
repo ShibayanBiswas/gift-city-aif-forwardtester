@@ -448,15 +448,14 @@ html.dark .input-glow:focus {
   border-collapse: separate;
   border-spacing: 0;
 }
-/* Desk sheets: never clip cell text — grow wider and scroll horizontally. */
+/* Desk sheets: fill the full card width (Backtester parity). Wide content scrolls. */
 .data-table-premium.sheet-table-fill {
-  width: max(100%, max-content);
+  width: 100%;
+  min-width: 100%;
   table-layout: auto;
 }
 .data-table-premium.sheet-table-fill th,
 .data-table-premium.sheet-table-fill td {
-  overflow: visible;
-  text-overflow: clip;
   white-space: nowrap;
 }
 

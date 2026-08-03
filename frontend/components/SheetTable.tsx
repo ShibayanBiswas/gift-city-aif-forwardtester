@@ -96,7 +96,7 @@ export function SheetTable({
         ) : null}
       </div>
       {useSticky ? (
-        <div className="overflow-auto border-t border-[var(--ar-border)]" style={{ maxHeight }}>
+        <div className="desk-rail-scroll overflow-auto border-t border-[var(--ar-border)]" style={{ maxHeight }}>
           <table
             className="data-table-premium w-max max-w-none text-left text-sm font-ui"
             style={{ minWidth: tableMinWidth }}
@@ -186,11 +186,11 @@ export function SheetTable({
           </table>
         </div>
       ) : (
-        <div className="w-full overflow-x-auto" style={{ WebkitOverflowScrolling: "touch" }}>
+        <div className="desk-rail-scroll w-full overflow-x-auto">
           <div className="w-full overflow-y-auto" style={{ maxHeight }}>
             <table
-              className="data-table-premium sheet-table-fill text-left text-sm font-ui"
-              style={{ minWidth: tableMinWidth }}
+              className="data-table-premium sheet-table-fill w-full text-left text-sm font-ui"
+              style={{ minWidth: tableMinWidth, width: "100%" }}
             >
               <thead className="sticky top-0 z-[1] bg-gradient-to-r from-[var(--ar-table-head-from)] to-[var(--ar-table-head-to)] text-xs tracking-wide">
                 <tr>

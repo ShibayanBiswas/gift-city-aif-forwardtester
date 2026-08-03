@@ -191,8 +191,8 @@ export function ProductSpecTables({ product }: { product: ProductSpec }) {
             Futures Tx uses Buy/Sell Brokerage every trading day.
           </p>
         </div>
-        <div className="overflow-x-auto">
-          <table className="data-table-premium w-full min-w-[480px] text-left">
+        <div className="desk-rail-scroll overflow-x-auto">
+          <table className="data-table-premium sheet-table-fill w-full min-w-[480px] text-left">
             <thead>
               <tr>
                 {FUND_HEADERS.map((h) => (
@@ -226,8 +226,8 @@ export function ProductSpecTables({ product }: { product: ProductSpec }) {
             {product.n_obs} Observations · Month Offset × 30.5 Days From Path Start
           </p>
         </div>
-        <div className="overflow-x-auto">
-          <table className="data-table-premium w-full min-w-[480px] text-left">
+        <div className="desk-rail-scroll overflow-x-auto">
+          <table className="data-table-premium sheet-table-fill w-full min-w-[480px] text-left">
             <thead>
               <tr>
                 {OBS_HEADERS.map((h) => (
@@ -263,8 +263,8 @@ export function ProductSpecTables({ product }: { product: ProductSpec }) {
             {activeCount} Active Legs · Product Input Order · Strike As Percent Of Spot
           </p>
         </div>
-        <div className="overflow-x-auto">
-          <table className="data-table-premium w-full min-w-[960px] text-left">
+        <div className="desk-rail-scroll overflow-x-auto">
+          <table className="data-table-premium sheet-table-fill w-full min-w-[960px] text-left">
             <thead>
               <tr>
                 {LEG_HEADERS.map((h) => (
