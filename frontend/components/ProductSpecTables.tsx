@@ -341,14 +341,12 @@ export function ProductMetaStrip({ product }: { product: ProductSpec }) {
     },
   ];
   return (
-    <div className="desk-card-rail">
-      <div className="desk-card-rail__inner">
+    <div className="horizontal-rail-fill w-full">
+      <div className="horizontal-rail-fill-inner flex w-full gap-3">
         {items.map((it) => (
-          <div key={it.label} className="desk-stat-card glass">
-            <p className="desk-stat-card__label">{it.label}</p>
-            <p className="desk-stat-card__value" title={it.value}>
-              {it.value}
-            </p>
+          <div key={it.label} className="rail-card-fill glass min-w-0 flex-1 rounded-2xl px-4 py-3">
+            <p className="text-[10px] tracking-[0.16em] text-[var(--ar-subtle)] font-ui">{it.label}</p>
+            <p className="mt-1 font-display text-lg text-[var(--ar-maroon)]">{it.value}</p>
           </div>
         ))}
       </div>

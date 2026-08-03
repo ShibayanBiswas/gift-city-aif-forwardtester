@@ -135,12 +135,12 @@ export default function HomePage() {
                 <p className="px-5 pt-3 text-sm text-[var(--ar-maroon)] font-ui">{downloadError}</p>
               ) : null}
               <motion.div
-                className="desk-card-rail px-5 py-4 pb-5"
+                className="horizontal-rail-fill w-full px-5 py-4 pb-5"
                 variants={staggerContainer}
                 initial="hidden"
                 animate="show"
               >
-                <div className="desk-card-rail__inner">
+                <div className="horizontal-rail-fill-inner flex w-full gap-3">
                   {[
                     {
                       label: "Start",
@@ -171,12 +171,10 @@ export default function HomePage() {
                       key={c.label}
                       variants={fadeUpItem}
                       whileHover={{ y: -3, transition: deskSpring }}
-                      className="desk-stat-card glass"
+                      className="rail-card-fill glass min-w-0 flex-1 rounded-2xl px-4 py-3"
                     >
-                      <p className="desk-stat-card__label">{c.label}</p>
-                      <p className="desk-stat-card__value" title={c.value}>
-                        {c.value}
-                      </p>
+                      <p className="text-[10px] tracking-[0.16em] text-[var(--ar-subtle)] font-ui">{c.label}</p>
+                      <p className="mt-1 font-display text-lg tabular-nums text-[var(--ar-maroon)]">{c.value}</p>
                     </motion.div>
                   ))}
                 </div>

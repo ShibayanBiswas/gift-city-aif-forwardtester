@@ -145,8 +145,8 @@ export default function MonteCarloMatrixPage() {
             </div>
           </div>
 
-          <div className="mt-4 desk-card-rail">
-            <div className="desk-card-rail__inner">
+          <div className="mt-4 horizontal-rail-fill w-full">
+            <div className="horizontal-rail-fill-inner flex w-full gap-3">
             {[
               { label: "Paths", value: String(nPaths) },
               { label: "Trading Dates", value: String(nDates) },
@@ -172,11 +172,9 @@ export default function MonteCarloMatrixPage() {
                       : "—",
               },
             ].map((m) => (
-              <div key={m.label} className="desk-stat-card glass">
-                <p className="desk-stat-card__label">{m.label}</p>
-                <p className="desk-stat-card__value" title={m.value}>
-                  {m.value}
-                </p>
+              <div key={m.label} className="rail-card-fill glass min-w-0 flex-1 rounded-2xl px-4 py-3">
+                <p className="text-[10px] tracking-[0.16em] text-[var(--ar-subtle)] font-ui">{m.label}</p>
+                <p className="mt-1 font-display text-lg tabular-nums text-[var(--ar-maroon)]">{m.value}</p>
               </div>
             ))}
             </div>

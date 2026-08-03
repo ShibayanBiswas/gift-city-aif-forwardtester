@@ -56,8 +56,8 @@ export default function PathsPage() {
               labelB="Path End Date"
               valueB={formatDeskDate(pathDetail.end)}
             />
-            <section className="desk-card-rail">
-              <div className="desk-card-rail__inner">
+            <section className="horizontal-rail-fill w-full">
+              <div className="horizontal-rail-fill-inner flex w-full gap-3">
               {[
                 { label: "Path Number", value: String(pathId) },
                 { label: "Trading Days In Path", value: String(plausibleDates.length) },
@@ -76,12 +76,10 @@ export default function PathsPage() {
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: 0.05 * i }}
                   whileHover={{ y: -3 }}
-                  className="desk-stat-card glass"
+                  className="rail-card-fill glass min-w-0 flex-1 rounded-2xl px-4 py-3"
                 >
-                  <p className="desk-stat-card__label">{k.label}</p>
-                  <p className="desk-stat-card__value" title={k.value}>
-                    {k.value}
-                  </p>
+                  <p className="text-[10px] tracking-[0.16em] text-[var(--ar-subtle)] font-ui">{k.label}</p>
+                  <p className="mt-1 font-display text-xl tabular-nums text-[var(--ar-maroon)]">{k.value}</p>
                 </motion.div>
               ))}
               </div>

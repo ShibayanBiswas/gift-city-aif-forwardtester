@@ -96,30 +96,28 @@ function PathMeta({ path }: { path: PathSummary }) {
     { icon: TrendingUp, label: "End Nifty", value: formatNum(path.end_nifty, 2) },
   ];
   return (
-    <div className="desk-card-rail mt-3">
-      <div className="desk-card-rail__inner">
-        {items.map((it) => {
-          const Icon = it.icon;
-          return (
-            <motion.div
-              key={it.label}
-              layout
-              initial={{ opacity: 0, y: 6 }}
-              animate={{ opacity: 1, y: 0 }}
-              whileHover={{ y: -2, scale: 1.01 }}
-              className="meta-chip desk-stat-card min-w-[10.5rem]"
-            >
-              <div className="flex items-center gap-1.5 text-[10px] tracking-[0.16em] text-[var(--ar-subtle)] font-ui whitespace-nowrap">
-                <Icon className="h-3 w-3 shrink-0 text-[var(--ar-gold-dark)]" />
-                {it.label}
-              </div>
-              <p className="mt-1 font-display text-base tabular-nums text-[var(--ar-maroon)] leading-tight whitespace-nowrap">
-                {it.value}
-              </p>
-            </motion.div>
-          );
-        })}
-      </div>
+    <div className="mt-3 grid w-full gap-2 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-7">
+      {items.map((it) => {
+        const Icon = it.icon;
+        return (
+          <motion.div
+            key={it.label}
+            layout
+            initial={{ opacity: 0, y: 6 }}
+            animate={{ opacity: 1, y: 0 }}
+            whileHover={{ y: -2, scale: 1.01 }}
+            className="meta-chip"
+          >
+            <div className="flex items-center gap-1.5 text-[10px] tracking-[0.16em] text-[var(--ar-subtle)] font-ui">
+              <Icon className="h-3 w-3 text-[var(--ar-gold-dark)]" />
+              {it.label}
+            </div>
+            <p className="mt-1 font-display text-base tabular-nums text-[var(--ar-maroon)] leading-tight">
+              {it.value}
+            </p>
+          </motion.div>
+        );
+      })}
     </div>
   );
 }
@@ -609,54 +607,40 @@ export function KpiBand() {
     },
   ];
   return (
-    <motion.div
-      className="desk-card-rail"
-      initial="hidden"
-      animate="show"
-      variants={{
-        hidden: { opacity: 0 },
-        show: { opacity: 1, transition: { staggerChildren: 0.06, delayChildren: 0.05 } },
-      }}
-    >
-      <div className="desk-card-rail__inner">
+    <div className="desk-rail-scroll w-full overflow-x-auto pb-1">
+      <div className="flex min-w-full gap-3">
         {items.map((k) => (
           <motion.div
             key={k.label}
-            variants={{
-              hidden: { opacity: 0, y: 16, scale: 0.98 },
-              show: { opacity: 1, y: 0, scale: 1, transition: { duration: 0.4, ease: [0.22, 1, 0.36, 1] } },
-            }}
-            whileHover={{ y: -5, scale: 1.025 }}
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            whileHover={{ y: -4, scale: 1.02 }}
             transition={{ type: "spring", stiffness: 380, damping: 26 }}
-            className="desk-stat-card glass glass-glow-cyan min-w-[13.5rem] p-4"
+            className="glass glass-glow-cyan min-w-[11.5rem] flex-1 rounded-2xl p-4"
           >
-            <p className="desk-stat-card__label">{k.label}</p>
+            <p className="text-[10px] tracking-[0.16em] text-[var(--ar-subtle)] font-ui">{k.label}</p>
             {k.median != null ? (
               <div className="mt-2 grid grid-cols-2 gap-2">
                 <div>
-                  <p className="text-[9px] tracking-[0.12em] text-[var(--ar-subtle)] font-ui whitespace-nowrap">
+                  <p className="text-[9px] tracking-[0.12em] text-[var(--ar-subtle)] font-ui">
                     {"meanCaption" in k && k.meanCaption ? k.meanCaption : "Mean"}
                   </p>
-                  <p className="font-display text-xl tabular-nums text-[var(--ar-maroon)] whitespace-nowrap">
-                    {k.mean}
-                  </p>
+                  <p className="font-display text-xl tabular-nums text-[var(--ar-maroon)]">{k.mean}</p>
                 </div>
                 <div>
-                  <p className="text-[9px] tracking-[0.12em] text-[var(--ar-subtle)] font-ui whitespace-nowrap">
+                  <p className="text-[9px] tracking-[0.12em] text-[var(--ar-subtle)] font-ui">
                     {"medianCaption" in k && k.medianCaption ? k.medianCaption : "Median"}
                   </p>
-                  <p className="font-display text-xl tabular-nums text-[var(--ar-maroon)] whitespace-nowrap">
-                    {k.median}
-                  </p>
+                  <p className="font-display text-xl tabular-nums text-[var(--ar-maroon)]">{k.median}</p>
                 </div>
               </div>
             ) : (
-              <p className="desk-stat-card__value mt-2 text-2xl">{k.mean}</p>
+              <p className="mt-2 font-display text-2xl tabular-nums text-[var(--ar-maroon)]">{k.mean}</p>
             )}
           </motion.div>
         ))}
       </div>
-    </motion.div>
+    </div>
   );
 }
 

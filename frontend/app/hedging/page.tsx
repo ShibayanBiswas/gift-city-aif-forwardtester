@@ -166,8 +166,8 @@ export default function HedgingPage() {
           <>
             {tab === "observations" && (
               <>
-                <section className="desk-card-rail">
-                  <div className="desk-card-rail__inner">
+                <section className="horizontal-rail-fill w-full">
+                  <div className="horizontal-rail-fill-inner flex w-full gap-3">
                   {[
                     { label: "Spot At Inception", value: formatNum(pathDetail.spot0 ?? 0, 2) },
                     {
@@ -183,11 +183,9 @@ export default function HedgingPage() {
                       value: String(pathDetail.observations?.length ?? builds.length),
                     },
                   ].map((k) => (
-                    <div key={k.label} className="desk-stat-card glass">
-                      <p className="desk-stat-card__label">{k.label}</p>
-                      <p className="desk-stat-card__value" title={k.value}>
-                        {k.value}
-                      </p>
+                    <div key={k.label} className="rail-card-fill glass min-w-0 flex-1 rounded-2xl px-4 py-3">
+                      <p className="text-[10px] tracking-[0.16em] text-[var(--ar-subtle)] font-ui">{k.label}</p>
+                      <p className="mt-1 font-display text-xl tabular-nums text-[var(--ar-maroon)]">{k.value}</p>
                     </div>
                   ))}
                   </div>

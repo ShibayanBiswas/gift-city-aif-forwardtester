@@ -460,14 +460,87 @@ html.dark .input-glow:focus {
   white-space: nowrap;
 }
 
-/* Shared horizontal metric / product card rail */
+/* ── Card rails (Backtester parity) ───────────────────────────────────────
+   Fill rails: cards share the full width dynamically (no forced scroll).
+   Scroll rails: equal flex cards with a thin gold scrollbar that appears on hover.
+*/
+.horizontal-rail-fill {
+  width: 100%;
+}
+.horizontal-rail-fill-inner {
+  display: flex;
+  width: 100%;
+  gap: 0.75rem;
+}
+.rail-card-fill {
+  min-width: 0;
+  flex: 1 1 0;
+}
+
+.desk-rail-scroll {
+  width: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding-bottom: 0.35rem;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
+  scrollbar-color: transparent transparent;
+}
+.desk-rail-scroll:hover,
+.desk-rail-scroll:focus-within {
+  scrollbar-color: color-mix(in srgb, var(--ar-gold) 55%, transparent) transparent;
+}
+.desk-rail-scroll::-webkit-scrollbar {
+  height: 5px;
+  width: 5px;
+}
+.desk-rail-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+.desk-rail-scroll::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: transparent;
+}
+.desk-rail-scroll:hover::-webkit-scrollbar-thumb,
+.desk-rail-scroll:focus-within::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--ar-gold) 55%, var(--ar-maroon) 12%);
+}
+html.dark .desk-rail-scroll:hover,
+html.dark .desk-rail-scroll:focus-within {
+  scrollbar-color: color-mix(in srgb, var(--ar-gold) 45%, transparent) transparent;
+}
+html.dark .desk-rail-scroll:hover::-webkit-scrollbar-thumb,
+html.dark .desk-rail-scroll:focus-within::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--ar-gold) 48%, transparent);
+}
+
+/* Alias kept for older class names in pages */
 .desk-card-rail {
   width: 100%;
   overflow-x: auto;
   overflow-y: hidden;
-  padding-bottom: 0.25rem;
+  padding-bottom: 0.35rem;
   -webkit-overflow-scrolling: touch;
   scrollbar-width: thin;
+  scrollbar-color: transparent transparent;
+}
+.desk-card-rail:hover,
+.desk-card-rail:focus-within {
+  scrollbar-color: color-mix(in srgb, var(--ar-gold) 55%, transparent) transparent;
+}
+.desk-card-rail::-webkit-scrollbar {
+  height: 5px;
+}
+.desk-card-rail::-webkit-scrollbar-track {
+  background: transparent;
+}
+.desk-card-rail::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: transparent;
+}
+.desk-card-rail:hover::-webkit-scrollbar-thumb,
+.desk-card-rail:focus-within::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--ar-gold) 55%, var(--ar-maroon) 12%);
 }
 .desk-card-rail__inner {
   display: flex;
@@ -476,7 +549,7 @@ html.dark .input-glow:focus {
 }
 .desk-stat-card {
   flex: 1 1 0;
-  min-width: 11.5rem;
+  min-width: 0;
   border-radius: 1rem;
   border: 1px solid var(--ar-border);
   background: var(--ar-surface);
@@ -492,17 +565,16 @@ html.dark .input-glow:focus {
   letter-spacing: 0.16em;
   text-transform: uppercase;
   color: var(--ar-subtle);
-  white-space: nowrap;
 }
 .desk-stat-card__value {
   margin-top: 0.25rem;
   font-family: var(--font-serif);
-  font-size: 1.125rem;
+  font-size: clamp(0.95rem, 1.2vw, 1.125rem);
   font-weight: 700;
   font-variant-numeric: tabular-nums;
   color: var(--ar-maroon);
   line-height: 1.2;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
 }
 .data-table-premium tbody tr:hover {
   background: rgba(212, 178, 76, 0.08);
@@ -523,10 +595,6 @@ html.dark .input-glow:focus {
   border-color: rgba(212, 178, 76, 0.55);
   box-shadow: 0 12px 28px -16px rgba(122, 30, 44, 0.35);
 }
-
-.horizontal-rail-fill { width: 100%; }
-.horizontal-rail-fill-inner { display: flex; width: 100%; }
-.rail-card-fill { min-width: 0; flex: 1 1 0; }
 
 .chart-shell {
   position: relative;
@@ -585,10 +653,18 @@ html.dark .chart-since-pill {
   color: var(--ar-gold-light);
 }
 
-::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb {
-  background: rgba(212, 178, 76, 0.45);
+  background: color-mix(in srgb, var(--ar-gold) 50%, transparent);
   border-radius: 999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: color-mix(in srgb, var(--ar-gold) 70%, var(--ar-maroon) 10%);
+}
+html {
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, var(--ar-gold) 45%, transparent) transparent;
 }
 
 .sheet-card,
@@ -1477,6 +1553,7 @@ html.dark .desk-select {
   92% { opacity: 1; }
   100% { transform: translateX(360%); opacity: 0; }
 }
+/* Market meta strip — also use thin gold hover scrollbar if overflow appears */
 .market-meta-full {
   position: relative;
   z-index: 1;
@@ -1487,6 +1564,21 @@ html.dark .desk-select {
   max-width: 100%;
   box-sizing: border-box;
   padding: 0.7rem 1rem;
+  scrollbar-width: thin;
+  scrollbar-color: transparent transparent;
+}
+.market-meta-full:hover {
+  scrollbar-color: color-mix(in srgb, var(--ar-gold) 55%, transparent) transparent;
+}
+.market-meta-full::-webkit-scrollbar {
+  height: 5px;
+}
+.market-meta-full::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: transparent;
+}
+.market-meta-full:hover::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--ar-gold) 55%, var(--ar-maroon) 12%);
 }
 @media (min-width: 1024px) {
   .market-meta-full {
