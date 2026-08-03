@@ -7,7 +7,6 @@ import { useForwardTest } from "@/lib/store";
 import { EmptyRunHint, KpiBand } from "@/components/ui/Shared";
 import { ProductMetaStrip, ProductSpecTables } from "@/components/ProductSpecTables";
 import { DownloadButton } from "@/components/DownloadButton";
-import { SimulatedNiftyPathsChart } from "@/components/charts/SimulatedNiftyPathsChart";
 import { client, formatDeskDate, formatNum } from "@/lib/api";
 import { deskSpring, easeOut, fadeUpItem, pageSection, staggerContainer, tapPress } from "@/lib/motion";
 
@@ -120,7 +119,7 @@ export default function HomePage() {
           <KpiBand />
           {summary.gbm ? (
             <motion.section
-              className="sheet-card overflow-visible"
+              className="sheet-card overflow-hidden"
               initial={{ opacity: 0, y: 14 }}
               animate={{ opacity: 1, y: 0 }}
               transition={easeOut}
@@ -180,7 +179,6 @@ export default function HomePage() {
                   ))}
                 </div>
               </motion.div>
-              {jobId ? <SimulatedNiftyPathsChart jobId={jobId} /> : null}
             </motion.section>
           ) : null}
         </>

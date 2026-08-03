@@ -444,8 +444,6 @@ export const API_TIMEOUTS = {
   summary: 60_000,
   /** MC matrix on-screen preview can stream many GBM rows on constrained hosts. */
   mcMatrixPreview: 180_000,
-  /** Home fan chart — every path × even-sampled dates. */
-  mcMatrixChart: 180_000,
   marketHeavy: 90_000,
   upload: 60_000,
   sample: 45_000,
@@ -754,24 +752,6 @@ export const client = {
       `/api/forwardtest/${jobId}/mc-matrix/preview?max_paths=${maxPaths}&max_dates=${maxDates}`,
       { timeoutMs: API_TIMEOUTS.mcMatrixPreview },
     ),
-  mcMatrixChart: (jobId: string, maxDates = 220) =>
-    api<{
-      ok: boolean;
-      dates: string[];
-      series: number[][];
-      n_paths: number;
-      n_dates: number;
-      chart_dates: number;
-      date_sample?: string;
-      horizon_start?: string | null;
-      horizon_end?: string | null;
-      spot0?: number;
-      asof?: string;
-      first_date?: string | null;
-      last_date?: string | null;
-    }>(`/api/forwardtest/${jobId}/mc-matrix/chart?max_dates=${maxDates}`, {
-      timeoutMs: API_TIMEOUTS.mcMatrixChart,
-    }),
   downloadMcMatrix: async (
     jobId: string,
     onProgress?: (message: string, progress?: number) => void,
