@@ -38,13 +38,16 @@ _MONTHS = (
 )
 
 # Soft note + hard path cap on constrained hosts (see excel_export_path_cap).
-_EXCEL_CELL_SOFT_CAP = 800_000
+# Sized so the desk default (1000 paths × ~5Y tenure ≈ 1.1M cells) always exports fully.
+_EXCEL_CELL_SOFT_CAP = 1_250_000
+_EXCEL_FULL_EXPORT_PATHS = 1000
 
 
 def excel_export_path_cap(*, n_dates: int, n_paths: int) -> int | None:
     """Cap Excel path rows on free hosts so cells stay near the soft budget.
 
-    Returns None when no extra cap is needed (fat local hosts).
+    Returns None when no extra cap is needed (fat local hosts, or default-size
+    runs ≤ 1000 paths so desk 1000-path Excel is never truncated).
     """
     from .runtime import is_constrained_host
 
@@ -54,9 +57,12 @@ def excel_export_path_cap(*, n_dates: int, n_paths: int) -> int | None:
         return None
     if not is_constrained_host():
         return None
+    # Default Monte Carlo Paths = 1000 — never clip a standard desk export.
+    if n_paths <= _EXCEL_FULL_EXPORT_PATHS:
+        return None
     if n_dates <= 0:
-        return min(n_paths, 500)
-    capped = max(1, _EXCEL_CELL_SOFT_CAP // n_dates)
+        return min(n_paths, _EXCEL_FULL_EXPORT_PATHS)
+    capped = max(_EXCEL_FULL_EXPORT_PATHS, _EXCEL_CELL_SOFT_CAP // n_dates)
     if capped >= n_paths:
         return None
     return capped

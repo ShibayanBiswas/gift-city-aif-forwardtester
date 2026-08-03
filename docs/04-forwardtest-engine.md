@@ -60,7 +60,8 @@ Sheet mirror reference: [02-excel-sheet-logic.md](02-excel-sheet-logic.md). API 
 | Expiry builder | `calendar_build.py` | Historical NSE expiries (Thu→Tue era); `month_ends`; **`pin_current_month_roll_to_latest`** (Backtester parity) |
 | Hedging | `hedge.py` | Observations, legs, required futures delta (Backtester math; obs Nifty from path spots for GBM) |
 | Black–Scholes | `black_scholes.py` | Forward/discount puts, central ±0.5 delta — **byte-identical to Backtester** |
-| NAV / Computation | `nav.py` | Futures inventory, MTM, rolls, cash, Gsec, fees, tx, total, IRR — **byte-identical to Backtester** |
+| NAV / Computation | `nav.py` | Futures inventory, MTM, rolls, cash, Gsec, fees, tx, total, IRR — same ledger as Backtester; Forwardtester passes path-local roll points |
+| Hedge | `hedge.py` | Same quantity / strike / BS delta math as Backtester; observation Nifty from path GBM spots |
 | Orchestration | `forwardtest.py` | `run_forwardtest`, path detail |
 | Runtime | `runtime.py` | Process / thread / serial workers |
 
@@ -113,7 +114,8 @@ Header chips: **As Of Today** · **Product End** · **Tenure Days** · **Monte C
 
 | Module | Parity |
 |--------|--------|
-| `nav.py`, `black_scholes.py` | Identical files |
+| `black_scholes.py` | Byte-identical |
+| `nav.py` | Same ledger math; Forwardtester adds optional path-local roll points |
 | Product rate defaults | Identical (Forwardtester adds Monte Carlo Paths; Simulation End Days is legacy/ignored) |
 | `_recompute_roll_costs` | Same 7% first-TD / later-calendar rules |
 | `pin_current_month_roll_to_latest` | Same open-month pin on historical load + sync |

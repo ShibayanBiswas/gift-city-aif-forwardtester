@@ -42,8 +42,9 @@ Auto-sync triggers: API startup · `GET /api/sync` · `scripts/sync_market_data.
 
 | Check | Expected |
 |-------|----------|
-| `nav.py` / `black_scholes.py` | Identical to Gift AIF Backtester |
-| Product rate defaults | Identical (Forwardtester adds Simulation End Days only) |
+| `black_scholes.py` | Byte-identical to Gift AIF Backtester |
+| `nav.py` / `hedge.py` | Same ledger / contract math; FT uses path spots and path-local roll points |
+| Product rate defaults | Identical (Forwardtester adds Monte Carlo Paths) |
 | First roll | 19 TD → ≈ 4.7713 |
 | Open-month pin | `pin_current_month_roll_to_latest` on `load_market` + sync |
 | Hedge observation Nifty | Path spot on/before expiry (equals `market.nifty_on` on history) |

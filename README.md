@@ -15,7 +15,7 @@ Same hedging sheet, computation NAV, roll cost, delta, and product desk as the [
    - Every path: Start = as-of, End = Product End
    - Independent GBM seed per `path_id`
 5. Simulate each path: `S_t = S_{t-1} · exp(drift + σ · Z)`.
-6. Run the same hedge → NAV engine as the Backtester — `nav.py` / `black_scholes.py` byte-identical; roll calendar uses `pin_current_month_roll_to_latest`.
+6. Run the same hedge → NAV engine as the Backtester — `black_scholes.py` byte-identical; `nav.py` / `hedge.py` share the same math with path-spot and path-roll inputs; roll calendar uses `pin_current_month_roll_to_latest`.
 7. Intel sheets show rolls, expiries, and closes from as-of through Product End — no Source column.
 
 ## Run locally (Windows)
