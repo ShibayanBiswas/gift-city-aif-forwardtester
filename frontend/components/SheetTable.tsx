@@ -1,9 +1,19 @@
 "use client";
 
 import { DownloadButton } from "@/components/DownloadButton";
+import { withHorizontalMinus } from "@/lib/api";
 import { downloadExcel, type CellValue, type ColumnType } from "@/lib/download";
 
 const DEFAULT_STICKY_WIDTHS = [72, 118, 118];
+
+/** Keep numeric minus signs as a pure horizontal stroke in desk tables. */
+function displayCell(c: string | number): string {
+  if (typeof c === "number") {
+    if (!Number.isFinite(c)) return "—";
+    return withHorizontalMinus(String(c));
+  }
+  return c.replace(/^-/, "\u2212");
+}
 
 export function SheetTable({
   title,
@@ -175,7 +185,7 @@ export function SheetTable({
                               : undefined
                           }
                         >
-                          {c}
+                          {displayCell(c)}
                         </td>
                       );
                     })}

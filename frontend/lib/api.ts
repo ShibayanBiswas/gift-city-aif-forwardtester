@@ -8,30 +8,42 @@ function clampDigits(digits: number) {
   return Math.min(Math.max(0, Math.floor(digits)), MAX_DECIMALS);
 }
 
+/**
+ * ASCII hyphen-minus → Unicode minus (U+2212).
+ * Display fonts often draw `-` as a slanted hyphen; − stays a pure horizontal stroke.
+ */
+export function withHorizontalMinus(s: string): string {
+  return s.replace(/-/g, "\u2212");
+}
+
 /** Terminal value in crores — at most 3 decimal places. */
 export function formatCr(n: number, digits = 2) {
   if (!Number.isFinite(n)) return "—";
   const d = clampDigits(digits);
-  return n.toLocaleString("en-IN", {
-    minimumFractionDigits: d,
-    maximumFractionDigits: d,
-  });
+  return withHorizontalMinus(
+    n.toLocaleString("en-IN", {
+      minimumFractionDigits: d,
+      maximumFractionDigits: d,
+    }),
+  );
 }
 
 /** Fraction → percent string: 0.1332 → 13.32% · max 3 decimals. */
 export function formatPct(n: number, digits = 2) {
   if (!Number.isFinite(n)) return "—";
-  return `${(n * 100).toFixed(clampDigits(digits))}%`;
+  return withHorizontalMinus(`${(n * 100).toFixed(clampDigits(digits))}%`);
 }
 
 /** General numeric with Indian grouping · max 3 decimals. */
 export function formatNum(n: number, digits = 2) {
   if (!Number.isFinite(n)) return "—";
   const d = clampDigits(digits);
-  return n.toLocaleString("en-IN", {
-    maximumFractionDigits: d,
-    minimumFractionDigits: d,
-  });
+  return withHorizontalMinus(
+    n.toLocaleString("en-IN", {
+      maximumFractionDigits: d,
+      minimumFractionDigits: d,
+    }),
+  );
 }
 
 const DESK_MONTHS = [

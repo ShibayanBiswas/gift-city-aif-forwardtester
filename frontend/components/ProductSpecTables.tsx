@@ -2,7 +2,7 @@
 
 import { motion } from "framer-motion";
 import type { ProductSpec } from "@/lib/api";
-import { formatDeskDate, formatNum, tradeSideLabel } from "@/lib/api";
+import { formatDeskDate, formatNum, tradeSideLabel, withHorizontalMinus } from "@/lib/api";
 import { useForwardTest } from "@/lib/store";
 import { DownloadButton } from "@/components/DownloadButton";
 import { downloadBrandedExcel, type CellValue, type ColumnType } from "@/lib/download";
@@ -86,7 +86,7 @@ const LEG_HEADERS = [
 
 function pctLabel(v: number | undefined, digits = 2): string {
   if (v == null || !Number.isFinite(v)) return "—";
-  return `${(v * 100).toFixed(digits)}%`;
+  return withHorizontalMinus(`${(v * 100).toFixed(digits)}%`);
 }
 
 function fundEconomicsRows(product: ProductSpec): Array<[string, string]> {
@@ -292,18 +292,26 @@ export function ProductSpecTables({ product }: { product: ProductSpec }) {
                   <td className={`${tdClass} font-medium`}>{optionTypeText(l.option_type)}</td>
                   <td className={`${tdClass} tabular-nums font-medium`}>{formatNum(l.quantity, 1)}</td>
                   <td className={`${tdClass} tabular-nums`}>{formatNum(l.strike_pct, 3)}%</td>
-                  <td className={`${tdClass} tabular-nums`}>{(l.return_level * 100).toFixed(3)}%</td>
                   <td className={`${tdClass} tabular-nums`}>
-                    {l.forward_rate != null ? `${(l.forward_rate * 100).toFixed(3)}%` : "—"}
+                    {withHorizontalMinus(`${(l.return_level * 100).toFixed(3)}%`)}
                   </td>
                   <td className={`${tdClass} tabular-nums`}>
-                    {l.discount_rate != null ? `${(l.discount_rate * 100).toFixed(3)}%` : "—"}
+                    {l.forward_rate != null
+                      ? withHorizontalMinus(`${(l.forward_rate * 100).toFixed(3)}%`)
+                      : "—"}
                   </td>
                   <td className={`${tdClass} tabular-nums`}>
-                    {l.vol_near != null ? `${(l.vol_near * 100).toFixed(3)}%` : "—"}
+                    {l.discount_rate != null
+                      ? withHorizontalMinus(`${(l.discount_rate * 100).toFixed(3)}%`)
+                      : "—"}
                   </td>
                   <td className={`${tdClass} tabular-nums`}>
-                    {l.vol != null ? `${(l.vol * 100).toFixed(3)}%` : "—"}
+                    {l.vol_near != null
+                      ? withHorizontalMinus(`${(l.vol_near * 100).toFixed(3)}%`)
+                      : "—"}
+                  </td>
+                  <td className={`${tdClass} tabular-nums`}>
+                    {l.vol != null ? withHorizontalMinus(`${(l.vol * 100).toFixed(3)}%`) : "—"}
                   </td>
                 </tr>
               ))}

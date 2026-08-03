@@ -2,7 +2,7 @@
 
 import { useMemo } from "react";
 import { motion } from "framer-motion";
-import { formatDeskDate, formatNum, isPlausibleTradingDate, optionTypeLabel, tradeSideLabel } from "@/lib/api";
+import { formatDeskDate, formatNum, isPlausibleTradingDate, optionTypeLabel, tradeSideLabel, withHorizontalMinus } from "@/lib/api";
 
 export type OptionLegRow = {
   raw_qty?: number;
@@ -35,7 +35,7 @@ type StrikeGroup = {
 };
 
 function fmtPct(rate: number, digits = 0) {
-  return `${(rate * 100).toFixed(digits)}%`;
+  return withHorizontalMinus(`${(rate * 100).toFixed(digits)}%`);
 }
 
 function buildGroups(legs: OptionLegRow[]): StrikeGroup[] {
