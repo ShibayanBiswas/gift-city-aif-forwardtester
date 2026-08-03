@@ -8,7 +8,7 @@ import { EmptyRunHint, KpiBand } from "@/components/ui/Shared";
 import { SheetTable } from "@/components/SheetTable";
 
 export default function SummaryTablePage() {
-  const { filteredSummary, sinceYear, setSinceYear, years, setPathId, nPaths } = useForwardTest();
+  const { filteredSummary, setPathId, nPaths } = useForwardTest();
   const rows = useMemo(
     () =>
       filteredSummary.map((r) => [
@@ -58,43 +58,24 @@ export default function SummaryTablePage() {
   if (!filteredSummary.length) return <EmptyRunHint />;
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-4">
       <motion.section
-        initial={{ opacity: 0, y: 12 }}
+        initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
         className="ar-panel ar-band overflow-hidden"
       >
-        <div className="relative overflow-hidden border-b border-[var(--ar-border)] bg-gradient-to-r from-[var(--ar-table-head-from)] via-transparent to-[rgba(122,30,44,0.06)] px-6 py-6">
-          <div className="pointer-events-none absolute -right-8 -top-10 h-40 w-40 rounded-full bg-[rgba(212,178,76,0.18)] blur-3xl" />
+        <div className="relative border-b border-[var(--ar-border)] bg-gradient-to-r from-[var(--ar-table-head-from)] to-transparent px-6 py-5">
+          <div className="pointer-events-none absolute -right-8 -top-10 h-40 w-40 rounded-full bg-[rgba(212,178,76,0.12)] blur-3xl" />
           <div className="pointer-events-none absolute -bottom-12 left-1/3 h-36 w-36 rounded-full bg-[rgba(122,30,44,0.08)] blur-3xl" />
           <div className="relative z-[1] flex flex-wrap items-end justify-between gap-4">
             <div className="min-w-0 max-w-3xl">
               <p className="text-xs tracking-[0.22em] text-[var(--ar-subtle)] font-ui">Analytics · Summary</p>
-              <h2 className="font-display text-3xl text-[var(--ar-maroon)] md:text-4xl">
-                Path Summary Since {sinceYear}
-              </h2>
+              <h2 className="font-display text-3xl text-[var(--ar-maroon)] md:text-4xl">Path Summary</h2>
               <p className="mt-2 text-sm leading-relaxed text-[var(--ar-muted)] font-ui">
-                Every completed path from the Summary sheet. Filter from 2001 onward, then click a row to select that
-                path across Desk pages. Monte Carlo paths · {nPaths}.
+                Every completed Monte Carlo path. All paths share the same Start and Product End. Click a row to
+                select that path across Desk pages. Monte Carlo paths · {nPaths}.
               </p>
             </div>
-            <label className="block font-ui">
-              <span className="mb-1.5 block text-[10px] tracking-[0.18em] text-[var(--ar-subtle)]">
-                Since Calendar Year
-              </span>
-              <select
-                value={sinceYear}
-                onChange={(e) => setSinceYear(Number(e.target.value))}
-                className="desk-select min-w-[12rem]"
-              >
-                {(years.length ? years : [2001]).map((y) => (
-                  <option key={y} value={y}>
-                    Since {y}
-                  </option>
-                ))}
-              </select>
-            </label>
           </div>
 
           <div className="relative z-[1] mt-5">
@@ -104,27 +85,32 @@ export default function SummaryTablePage() {
       </motion.section>
 
       <SheetTable
-        title={`All Simulation Paths Since ${sinceYear}`}
+        title="All Monte Carlo Paths"
         subtitle="Click A Row To Select That Path Across Desk Pages · Horizontal Scroll Enabled"
         headers={[
-          "Path Number",
-          "Start Date",
-          "End Date",
+          "Path",
+          "Start",
+          "End",
           "Trading Days",
           "Start Nifty",
           "End Nifty",
-          "Investment In Crores",
-          "Futures MTM In Crores",
-          "Cash And Interest",
-          "G-Sec Interest",
+          "Investment",
+          "MTM Futures",
+          "Cash + Interest",
+          "G-Sec",
           "Transaction Cost",
-          "Management Fees",
-          "Terminal Total",
-          "Internal Rate Of Return",
-          "Absolute Nifty Return",
+          "Fees",
+          "Total",
+          "IRR",
+          "Abs Nifty Return",
         ]}
         rows={rows}
         exportRows={exportRows}
+        filename="path-summary.xlsx"
+        sheetName="Path Summary"
+        onRowClick={(i) => setPathId(filteredSummary[i]?.path_id ?? 1)}
+        minWidth={1200}
+        maxHeight={560}
         columnTypes={[
           "integer",
           "date",
@@ -142,11 +128,6 @@ export default function SummaryTablePage() {
           "percent",
           "percent",
         ]}
-        filename={`path-summary-since-${sinceYear}.xlsx`}
-        sheetName="Path Summary"
-        minWidth={1400}
-        maxHeight={640}
-        onRowClick={(i) => setPathId(filteredSummary[i].path_id)}
       />
     </div>
   );

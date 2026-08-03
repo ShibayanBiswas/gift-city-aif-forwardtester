@@ -320,7 +320,7 @@ export const logicModules: LogicModule[] = [
           "No staggered frequency starts. Path 1…N are identical calendar windows; only the GBM seed (path_id) differs. As-of = market.last_date after Yahoo sync.",
         bullets: [
           "As-of updates after deploy via /api/sync",
-          "N paths · same Start / End (default N = 100)",
+          "N paths · same Start / End (default N = 1000)",
           "Product End = path_end_calendar(asof, tenure)",
         ],
         steps: [
@@ -391,7 +391,7 @@ export const logicModules: LogicModule[] = [
         detail:
           "Each PathSpec carries path_id, start, end, dates[], and optional spots[]. All windows are identical; only seeds differ.",
         bullets: [
-          "Path count = N (Monte Carlo Paths, default 100)",
+          "Path count = N (Monte Carlo Paths, default 1000)",
           "path_from_window rebuilds one path for detail views",
           "black_scholes identical to Backtester; nav/hedge add path-local roll points and spots",
         ],
@@ -403,7 +403,7 @@ export const logicModules: LogicModule[] = [
       },
     ],
     defaults: [
-      { label: "Monte Carlo Paths", value: "100" },
+      { label: "Monte Carlo Paths", value: "1000" },
       { label: "Window", value: "As-Of → Product End" },
       { label: "Sessions", value: "Mon–Fri · No Weekends" },
     ],
@@ -420,7 +420,7 @@ export const logicModules: LogicModule[] = [
         title: "build_paths orchestration",
         body: "engine/paths.py::build_paths builds the forward market pad through Product End, then clones one tenure window for path_id 1…N (frequency ignored).",
         bullets: [
-          "N = Monte Carlo Paths (default 100, clamp 1…5000)",
+          "N = Monte Carlo Paths (default 1000, clamp 1…10000)",
           "tenure_days from ProductSpec → Product End",
           "observation_months still gate hedge feasibility",
         ],
@@ -434,7 +434,7 @@ export const logicModules: LogicModule[] = [
         title: "Single tenure window",
         body: "Every path uses the Backtester anniversary tenure end. There is no staggered start grid and no 7300-day Simulation End Days control.",
         bullets: [
-          "Default N = 100 Monte Carlo paths",
+          "Default N = 1000 Monte Carlo paths",
           "Start = as-of for all paths",
         ],
       },

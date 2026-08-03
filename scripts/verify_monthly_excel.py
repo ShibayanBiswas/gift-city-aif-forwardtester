@@ -27,7 +27,7 @@ def main() -> None:
     product = parse_product_workbook(ROOT / "Product_Input_File.xlsx")
     assert len(product.active_legs) == 6, product.active_legs
     assert all(lg.include for lg in product.legs), "sample product has no excluded legs"
-    assert DEFAULT_N_PATHS == 100
+    assert DEFAULT_N_PATHS == 1000
     assert resolved_n_paths(product) == DEFAULT_N_PATHS
     assert resolved_simulation_end_days(product) == product.tenure_days == 1930
 

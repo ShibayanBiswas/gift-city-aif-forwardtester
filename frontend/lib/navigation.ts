@@ -19,7 +19,7 @@ export const mainSections: NavSection[] = [
     href: "/analytics",
     match: (p) => p.startsWith("/analytics"),
     subNav: [
-      { href: "/analytics", label: "Yearly Lab", match: (p) => p === "/analytics" },
+      { href: "/analytics", label: "Path Charts", match: (p) => p === "/analytics" },
       { href: "/analytics/summary", label: "Path Summary", match: (p) => p.startsWith("/analytics/summary") },
     ],
   },

@@ -45,7 +45,7 @@ def main() -> int:
     horizon = resolved_simulation_end(asof, prod)
     sim_days = resolved_simulation_end_days(prod)
 
-    assert DEFAULT_N_PATHS == 100
+    assert DEFAULT_N_PATHS == 1000
     assert sim_days == prod.tenure_days == 1930
     assert horizon == path_end_calendar(asof, prod.tenure_days)
 
@@ -67,7 +67,8 @@ def main() -> int:
         assert date(2028, 2, 29) in fwd.date_to_idx
 
     trading = set(span)
-    fwd_rolls = [d for d in fwd.roll_shifts if asof <= d <= horizon]
+    # After as-of only: open-month hist roll may be pinned to as-of (not month-end).
+    fwd_rolls = [d for d in fwd.roll_shifts if asof < d <= horizon]
     fwd_exps = [e for e in fwd.expiries if asof < e <= horizon]
     for r in fwd_rolls:
         me = _month_end(r)

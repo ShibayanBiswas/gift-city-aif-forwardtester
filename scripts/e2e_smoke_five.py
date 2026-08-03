@@ -23,7 +23,7 @@ from app.engine.product import (
 
 
 def main() -> None:
-    assert DEFAULT_N_PATHS == 100
+    assert DEFAULT_N_PATHS == 1000
     p = parse_product_workbook(ROOT / "Product_Input_File.xlsx")
     assert resolved_n_paths(p) == DEFAULT_N_PATHS
     assert resolved_simulation_end_days(p) == p.tenure_days == 1930

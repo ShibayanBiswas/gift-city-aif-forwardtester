@@ -13,7 +13,7 @@ This document explains what each WF1 sheet does and how the Python engine mirror
 
 | Excel Sheet | Engine module(s) | Data / UI | Role |
 |-------------|------------------|-----------|------|
-| Macro Paths | `paths.py`, `gbm.py`, `forward_calendar.py` | Paths tab | **Forward** staggered tenure windows from as-of → Simulation End (no 235 CSV pins) |
+| Macro Paths | `paths.py`, `gbm.py`, `forward_calendar.py` | Paths tab | **Forward** Monte Carlo: N copies of one tenure window as-of → Product End (no 235 CSV pins) |
 | Roll Cost + Paths | `market.py`, `market_sync.py`, `forward_calendar.py` | `nifty_daily.csv`, `roll_costs.csv` · Intel | Historical through as-of; forward Mon–Fri closes + month-end shifts |
 | Expiry | `calendar_build.py`, `forward_calendar.py` | `nifty_expiries.csv` · Intel | Historical NSE calendar; forward = last Tuesday of each month |
 | As per HS | `hedge.py`, `black_scholes.py`, `product.py` | Hedging Sheet UI | Observations + options book + Req. Delta (Backtester-identical) |
@@ -36,24 +36,17 @@ No hidden sheets in WF1. Notes workbook has a single sheet **Notes**.
 
 | Item | Rule |
 |------|------|
-| Path 1 | Starts on **as-of** = latest Nifty session (dynamic after deploy / `/api/sync`) |
-| Simulation End | `asof + Simulation End Days` (product input, default **7300**); **final path ends** on last Mon–Fri on/before this date |
-| Tenure end | Same Backtester `path_end_calendar` rule for intermediate windows |
+| Path 1…N | Every path starts on **as-of** = latest Nifty session (dynamic after deploy / `/api/sync`) |
+| Product End | `path_end_calendar(asof, tenure)` — same Backtester anniversary rule; **every** path ends here |
+| Horizon | Single tenure window — **no** staggered start grid; legacy Simulation End Days / frequency are ignored |
+| Monte Carlo Paths | Default **1000**; presets 100 / 500 / 1000 / 5000 / 10000; clamp 1…10000 |
 | Trading days | Mon–Fri only on the forward pad; Sat/Sun never priced |
 | Spots | Per-path GBM from live S₀ along path trading days; μ/σ from **2001-01-01 → as-of** each Run |
-| Matrix Excel | Home **Download Simulated Nifty Paths** / Intel MC Matrix → columns = trading **dates** |
+| Matrix Excel | Home **Download Simulated Nifty Paths** / Intel Monte Carlo Matrix → columns = trading **dates** (full grid) |
+| Matrix preview | On-screen preview samples **early + late** dates so Product End stays visible |
 | Pins | **None** — no `macro_path_windows.csv` |
 
-### Frequencies
-
-| Frequency | Start rule |
-|-----------|------------|
-| Monthly | First trading day of each calendar month from as-of through last start |
-| Weekly | First trading day of each ISO week |
-| Daily | Every Mon–Fri session that still fits (UI default) |
-| Quarterly / Semi-annual | First trading day of quarter / half-year |
-
-Default UI frequency: **Daily**. Full calendar rules: [04-forwardtest-engine.md](04-forwardtest-engine.md).
+Full calendar rules: [04-forwardtest-engine.md](04-forwardtest-engine.md).
 
 ---
 
@@ -98,7 +91,7 @@ Working File Excel historically stops mid-year. The engine **extends** futures s
 
 | Rule | Detail |
 |------|--------|
-| Sessions | Mon–Fri only through Simulation End — no Sat/Sun closes |
+| Sessions | Mon–Fri only through Product End — no Sat/Sun closes |
 | Futures shift | **Last trading day of each calendar month** |
 | Roll cost | Same 7% model on **each path's** GBM closes (path_roll_vector) |
 | Incomplete months | Skipped — never invent a shift on a truncated pad day |
@@ -130,7 +123,7 @@ Historical months through as-of use NSE schedule + overrides (Thu era → Tue er
 | Rule | Detail |
 |------|--------|
 | Monthly option expiry | **Last Tuesday** of each calendar month |
-| Completeness | Tuesday must lie on the Mon–Fri pad and on/before Simulation End |
+| Completeness | Tuesday must lie on the Mon–Fri pad and on/before Product End |
 | Weeklies | Not synthesized on the forward pad (Intel monthly list = last Tuesdays) |
 
 Full forward calendar: [04-forwardtest-engine.md](04-forwardtest-engine.md).
@@ -145,7 +138,7 @@ Full forward calendar: [04-forwardtest-engine.md](04-forwardtest-engine.md).
 
 - Full weekly + monthly option calendar also built for Intel (`nifty_all_expiries.csv`): weeklies from Feb-2019 (Thu era) and Sep-2025+ (Tue era).
 - Hedging Sheet uses **monthly expiries only** for observation mapping.
-- Intel · Market Calendar shows **shared expiry / futures-shift dates only**. Path Nifty and roll points live on Hedging / Computation / MC Matrix.
+- Intel · Market Calendar shows **shared expiry / futures-shift dates only**. Path Nifty and roll points live on Hedging / Computation / Monte Carlo Matrix.
 
 ### Hedging observation mapping
 
@@ -314,7 +307,7 @@ Saved `Gift AIF Working File 1.xlsm` can have **A1 ≠ Computation body path**
 | 3 Base | Live links to Computation `AC` block |
 | 4+ | **Cached values** per path (col B = path id) — **do not auto-refresh** when A1 changes |
 
-Per-path Invt / MTM / Cash / Gsec / Tx / Fees / Total / IRR → Analytics yearly rollups.
+Per-path Invt / MTM / Cash / Gsec / Tx / Fees / Total / IRR → Analytics Path Charts / Path Summary (all paths share as-of — no yearly-by-start-year rollups).
 
 ### Known WF1 Summary artifacts (not engine bugs)
 
@@ -390,7 +383,7 @@ Path 5     25,583.00   25,924.99   25,771.45  …
 **Same day index ⇒ different prices across paths.** Path 1 Day 1 ≠ Path 2 Day 1.
 Each path draws its own \(Z\) sequence (engine seed keyed by `path_id`), so the whole Nifty series for path \(i\) is independent of path \(j\).
 
-Desk Forwardtester maps that idea onto **calendar dates** (Mon–Fri only): for a fixed trading date \(D\), simulated closes generally differ by path. That is why there is **no shared forward price database / Market Reference Workbook** — only shared **calendar rules** (when expiries and roll *dates* fall). Nifty levels and roll *points* are taken from the selected path’s column of the matrix (MC Matrix / Hedging / Computation).
+Desk Forwardtester maps that idea onto **calendar dates** (Mon–Fri only): for a fixed trading date \(D\), simulated closes generally differ by path. That is why there is **no shared forward price database / Market Reference Workbook** — only shared **calendar rules** (when expiries and roll *dates* fall). Nifty levels and roll *points* are taken from the selected path’s column of the matrix (Monte Carlo Matrix / Hedging / Computation).
 
 ### Desk vs Excel day-0
 

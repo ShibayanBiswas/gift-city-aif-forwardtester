@@ -1434,11 +1434,16 @@ html.dark .desk-select {
 .market-meta-full {
   position: relative;
   z-index: 1;
-  display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  display: flex;
+  flex-wrap: nowrap;
   gap: 0.55rem;
   width: 100%;
+  max-width: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
   padding: 0.65rem 1rem;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
 }
 @media (min-width: 1024px) {
   .market-meta-full {
@@ -1449,8 +1454,9 @@ html.dark .desk-select {
 .market-meta-card {
   position: relative;
   display: flex;
-  min-width: 0;
-  width: 100%;
+  min-width: 11.5rem;
+  flex: 0 0 auto;
+  width: auto;
   flex-direction: column;
   justify-content: center;
   overflow: hidden;
@@ -1568,12 +1574,11 @@ html.dark .market-meta-card:hover {
 }
 @media (max-width: 767px) {
   .market-meta-full {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 0.45rem;
     padding: 0.55rem 0.75rem;
   }
-  .market-meta-card:last-child:nth-child(odd) {
-    grid-column: 1 / -1;
+  .market-meta-card {
+    min-width: 10.5rem;
   }
 }
 @media (prefers-reduced-motion: reduce) {

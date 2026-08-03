@@ -540,37 +540,74 @@ export function EmptyRunHint() {
 }
 
 export function KpiBand() {
-  const { filteredKpis, filteredSummary, sinceYear, nPaths, product } = useForwardTest();
-  if (!filteredKpis) return null;
+  const { filteredKpis, filteredSummary, nPaths, product, summary } = useForwardTest();
+  if (!filteredKpis || !filteredSummary.length) return null;
   const principalCr = product?.principal_cr ?? 100;
   const principalLabel =
     Number.isInteger(principalCr) || Math.abs(principalCr - Math.round(principalCr)) < 1e-9
       ? `${Math.round(principalCr)}`
       : formatNum(principalCr, 2);
+  const meanTotal = filteredKpis.mean_total;
+  const medianTotal = filteredKpis.median_total;
+  const meanIrr = filteredKpis.mean_irr;
+  const medianIrr = filteredKpis.median_irr;
+  const aboveMeanTotal = filteredSummary.filter((s) => s.total > meanTotal).length;
+  const belowMeanTotal = filteredSummary.filter((s) => s.total < meanTotal).length;
+  const aboveMedianTotal = filteredSummary.filter((s) => s.total > medianTotal).length;
+  const belowMedianTotal = filteredSummary.filter((s) => s.total < medianTotal).length;
+  const aboveMeanIrr = filteredSummary.filter((s) => s.irr > meanIrr).length;
+  const belowMeanIrr = filteredSummary.filter((s) => s.irr < meanIrr).length;
+  const aboveMedianIrr = filteredSummary.filter((s) => s.irr > medianIrr).length;
+  const belowMedianIrr = filteredSummary.filter((s) => s.irr < medianIrr).length;
+  const runPaths = summary?.n_paths ?? summary?.path_count ?? nPaths;
+
   const items = [
     {
-      label: `Paths Since ${sinceYear}`,
-      mean: String(filteredSummary.length),
+      label: "Monte Carlo Paths",
+      mean: String(runPaths),
       median: null as string | null,
     },
     {
       label: "Terminal Value In ₹ Crores",
-      mean: formatNum(filteredKpis.mean_total, 3),
-      median: formatNum(filteredKpis.median_total, 3),
+      mean: formatNum(meanTotal, 3),
+      median: formatNum(medianTotal, 3),
+    },
+    {
+      label: "Paths Above / Below Mean Terminal",
+      mean: String(aboveMeanTotal),
+      median: String(belowMeanTotal),
+      meanCaption: "Above Mean",
+      medianCaption: "Below Mean",
+    },
+    {
+      label: "Paths Above / Below Median Terminal",
+      mean: String(aboveMedianTotal),
+      median: String(belowMedianTotal),
+      meanCaption: "Above Median",
+      medianCaption: "Below Median",
     },
     {
       label: "Internal Rate Of Return",
-      mean: formatPct(filteredKpis.mean_irr, 3),
-      median: formatPct(filteredKpis.median_irr, 3),
+      mean: formatPct(meanIrr, 3),
+      median: formatPct(medianIrr, 3),
+    },
+    {
+      label: "Paths Above / Below Mean IRR",
+      mean: String(aboveMeanIrr),
+      median: String(belowMeanIrr),
+      meanCaption: "Above Mean",
+      medianCaption: "Below Mean",
+    },
+    {
+      label: "Paths Above / Below Median IRR",
+      mean: String(aboveMedianIrr),
+      median: String(belowMedianIrr),
+      meanCaption: "Above Median",
+      medianCaption: "Below Median",
     },
     {
       label: `Share Finishing Above ${principalLabel} Crores`,
       mean: formatPct(filteredKpis.hit_rate_gt_100, 3),
-      median: null,
-    },
-    {
-      label: "Monte Carlo Paths",
-      mean: String(nPaths),
       median: null,
     },
   ];
@@ -594,17 +631,21 @@ export function KpiBand() {
             }}
             whileHover={{ y: -5, scale: 1.025 }}
             transition={{ type: "spring", stiffness: 380, damping: 26 }}
-            className="glass glass-glow-cyan min-w-[11.5rem] flex-1 rounded-2xl p-4"
+            className="glass glass-glow-cyan min-w-[12.5rem] flex-1 rounded-2xl p-4"
           >
             <p className="text-[10px] tracking-[0.16em] text-[var(--ar-subtle)] font-ui">{k.label}</p>
             {k.median != null ? (
               <div className="mt-2 grid grid-cols-2 gap-2">
                 <div>
-                  <p className="text-[9px] tracking-[0.12em] text-[var(--ar-subtle)] font-ui">Mean</p>
+                  <p className="text-[9px] tracking-[0.12em] text-[var(--ar-subtle)] font-ui">
+                    {"meanCaption" in k && k.meanCaption ? k.meanCaption : "Mean"}
+                  </p>
                   <p className="font-display text-xl tabular-nums text-[var(--ar-maroon)]">{k.mean}</p>
                 </div>
                 <div>
-                  <p className="text-[9px] tracking-[0.12em] text-[var(--ar-subtle)] font-ui">Median</p>
+                  <p className="text-[9px] tracking-[0.12em] text-[var(--ar-subtle)] font-ui">
+                    {"medianCaption" in k && k.medianCaption ? k.medianCaption : "Median"}
+                  </p>
                   <p className="font-display text-xl tabular-nums text-[var(--ar-maroon)]">{k.median}</p>
                 </div>
               </div>

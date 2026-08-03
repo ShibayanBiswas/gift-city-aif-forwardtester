@@ -18,10 +18,10 @@ $h = Invoke-RestMethod "$base/api/health"
 Check 'health' ($h.ok -eq $true) $h.service
 
 $prod = Invoke-RestMethod "$base/api/product/current"
-Check 'product' (($prod.tenure_days -eq 1930) -and ($prod.n_paths -eq 100)) "tenure=$($prod.tenure_days) n=$($prod.n_paths)"
+Check 'product' (($prod.tenure_days -eq 1930) -and ($prod.n_paths -eq 1000)) "tenure=$($prod.tenure_days) n=$($prod.n_paths)"
 
 $meta = Invoke-RestMethod "$base/api/market/meta"
-Check 'market_meta' (($meta.tenure_days -eq 1930) -and ($meta.n_paths -eq 100) -and ($meta.trading_days -gt 800)) ("td=$($meta.trading_days) n=$($meta.n_paths) end=$($meta.product_end)")
+Check 'market_meta' (($meta.tenure_days -eq 1930) -and ($meta.n_paths -eq 1000) -and ($meta.trading_days -gt 800)) ("td=$($meta.trading_days) n=$($meta.n_paths) end=$($meta.product_end)")
 
 $gbm = Invoke-RestMethod "$base/api/gbm/params"
 Check 'gbm' ($gbm.gbm.spot0 -gt 10000) ("S0=$([math]::Round($gbm.gbm.spot0, 2))")

@@ -35,9 +35,9 @@ ROLL_COST_BASE_RATE = 0.07
 
 # Forward-tester product window ends at tenure from as-of (no separate Simulation End Days).
 # Monte Carlo path count over that single window (path_id 1…N, independent GBM seeds).
-DEFAULT_N_PATHS = 100
+DEFAULT_N_PATHS = 1000
 MIN_N_PATHS = 1
-MAX_N_PATHS = 5000
+MAX_N_PATHS = 10000
 
 
 def _add_years(d: date, years: int) -> date:
@@ -167,7 +167,7 @@ class ProductSpec:
     rate_switch_date: date = DEFAULT_RATE_SWITCH_DATE
     # Legacy Product Input field — ignored for horizon (window = as-of → tenure end).
     simulation_end_days: int | None = None
-    # Optional Monte Carlo path count override (else FORWARDTEST_N_PATHS / default 100).
+    # Optional Monte Carlo path count override (else FORWARDTEST_N_PATHS / default 1000).
     n_paths: int | None = None
 
     def __post_init__(self) -> None:

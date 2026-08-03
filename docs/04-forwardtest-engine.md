@@ -1,6 +1,6 @@
 # 04 — Forward Test Engine
 
-The Forward Test Engine is a deterministic numpy pipeline under `backend/app/engine/`. It reproduces WF1 **As per HS + Computation** methodology for every forward path, with **Geometric Brownian Motion** spots from today’s as-of close through **Simulation End**.
+The Forward Test Engine is a deterministic numpy pipeline under `backend/app/engine/`. It reproduces WF1 **As per HS + Computation** methodology for every forward path, with **Geometric Brownian Motion** spots from today’s as-of close through **Product End**.
 
 **Authority:** WF1 formulas override Notes where they differ. Verification: [07-verification.md](07-verification.md).
 
@@ -12,7 +12,7 @@ The Forward Test Engine is a deterministic numpy pipeline under `backend/app/eng
 Product Excel (Product_Input_File.xlsx or upload)
  │
  ▼
- product.py parse → ProductSpec · Simulation End Days (default 7300)
+ product.py parse → ProductSpec · tenure · Monte Carlo Paths N (default 1000)
  │
  ▼
  market.py Nifty · expiries · rolls (CSV + LRU cache)
@@ -21,11 +21,11 @@ Product Excel (Product_Input_File.xlsx or upload)
  ▼
  forward_calendar.py + paths.py + mc_matrix.py
    As-of = latest Nifty session (dynamic after deploy)
-   Simulation End = as-of + Simulation End Days
+   Product End = path_end_calendar(asof, tenure)
    Forward sessions = Mon–Fri only (Sat/Sun closed)
    Forward rolls = last trading day of each month
    Forward monthly expiries = last Tuesday of each month
-   Path 1 starts at as-of; final path ends on Simulation End
+   Every path: Start = as-of, End = Product End (N independent GBM seeds)
    Logical GBM matrix: rows = paths, columns = trading dates — **never held fully in RAM**
    Each path regenerates its GBM row from seed + params on demand
    μ / σ / drift re-estimated each Run from Nifty **2001-01-01 → as-of**
@@ -34,10 +34,10 @@ Product Excel (Product_Input_File.xlsx or upload)
  For each path: simulate spots → hedge.py → nav.py  (same as Backtester)
  │
  ▼
- forwardtest.py run_forwardtest · KPIs · queued mc-matrix.xlsx · Intel desk market through Simulation End
+ forwardtest.py run_forwardtest · KPIs · queued mc-matrix.xlsx · Intel desk market through Product End
 ```
 
-Shared `/api/market/*` exposes **calendar horizon** (and historical Nifty for μ/σ). Simulated prices and roll points live on each path — Hedging / Computation / Simulated Nifty Paths. Intel · Market Calendar is dates only. Home and Intel · Simulated Nifty Paths download via queued `/api/forwardtest/{id}/mc-matrix/export` then `/mc-matrix.xlsx` (streaming Excel; job meta recovered from Mongo after Render restart when configured). All frequencies including Daily are allowed on free hosts — serial + path-by-path + export queue.
+Shared `/api/market/*` exposes **calendar horizon** (and historical Nifty for μ/σ). Simulated prices and roll points live on each path — Hedging / Computation / Simulated Nifty Paths. Intel · Market Calendar is dates only. Home and Intel · Simulated Nifty Paths download via queued `/api/forwardtest/{id}/mc-matrix/export` then `/mc-matrix.xlsx` (streaming Excel; job meta recovered from Mongo after Render restart when configured). Path count is **Monte Carlo Paths N** (not a frequency grid).
 
 **GBM (image / Excel parity):** \(S_t = S_{t-1}\cdot\exp(\mathrm{drift}+\sigma Z)\) with \(Z\sim N(0,1)\), independent seed stream per `path_id`. Engine uses float64 log-cumsum (stable on long horizons) and stores the matrix as float32.
 
@@ -49,14 +49,14 @@ Sheet mirror reference: [02-excel-sheet-logic.md](02-excel-sheet-logic.md). API 
 
 | Module | File | Responsibility |
 |--------|------|----------------|
-| Product parser | `product.py` | Excel → `ProductSpec`, Simulation End Days, legs |
+| Product parser | `product.py` | Excel → `ProductSpec`, tenure, Monte Carlo Paths, legs |
 | Market loader | `market.py` | Historical CSV load, `nifty_on`, roll model, LRU cache |
 | Market sync | `market_sync.py` | Yahoo `^NSEI` append through present; historical calendars |
 | Forward calendar | `forward_calendar.py` | Mon–Fri pad, month-end roll *dates*, last-Tuesday expiries |
 | Path rolls | `market.path_roll_vector` | 7% points from that path's GBM spots |
 | GBM | `gbm.py` | Estimate μ/σ from history **2001 → as-of** (dynamic); per-path `gbm_spots` |
-| MC matrix | `mc_matrix.py` | Build / persist / Excel-export path×date Nifty grid |
-| Path builder | `paths.py` | Staggered forward tenure windows from as-of → Simulation End |
+| Monte Carlo matrix | `mc_matrix.py` | Build / persist / Excel-export path×date Nifty grid |
+| Path builder | `paths.py` | N copies of one tenure window (as-of → Product End) |
 | Expiry builder | `calendar_build.py` | Historical NSE expiries (Thu→Tue era); `month_ends`; **`pin_current_month_roll_to_latest`** (Backtester parity) |
 | Hedging | `hedge.py` | Observations, legs, required futures delta (Backtester math; obs Nifty from path spots for GBM) |
 | Black–Scholes | `black_scholes.py` | Forward/discount puts, central ±0.5 delta — **byte-identical to Backtester** |
@@ -66,17 +66,19 @@ Sheet mirror reference: [02-excel-sheet-logic.md](02-excel-sheet-logic.md). API 
 
 ---
 
-## 1. Dynamic as-of and Simulation End
+## 1. Dynamic as-of and Product End
 
 | Concept | Rule |
 |---------|------|
 | **As-of** | `market.last_date` after CSV load + Yahoo sync = latest Nifty session (**As Of Today** in the header strip) |
-| **Simulation End Days** | Product Input field (default **7300**); must be > tenure days |
-| **Simulation End** | `asof + Simulation End Days` (calendar). Final path ends on the last Mon–Fri on/before this date |
-| **Trading Days / Monthly Expiries** | Header counts for **as-of → Simulation End** only (not full 2001→present history) |
-| After deploy | Startup + `/api/sync` refresh Nifty; as-of and horizon move with the live calendar |
+| **Tenure Days** | Product Input field (sample **1930**) |
+| **Product End** | `path_end_calendar(asof, tenure)` — Backtester anniversary rule when tenure ∈ [1700, 2000]; else `asof + tenure_days`. Every path ends here |
+| **Monte Carlo Paths** | Default **1000**; presets 100 / 500 / 1000 / 5000 / 10000; clamp 1…10000 |
+| **Simulation End Days** | Legacy Product Input field — **ignored** for horizon (API may still echo tenure span for compat) |
+| **Trading Days / Monthly Expiries** | Header counts for **as-of → Product End** only (not full 2001→present history) |
+| After deploy | Startup + `/api/sync` refresh Nifty; as-of and Product End move with the live calendar |
 
-Header chips: **As Of Today** · **Simulation End** · **Simulation End Days** · **Trading Days** · **Monthly Expiries**.
+Header chips: **As Of Today** · **Product End** · **Tenure Days** · **Monte Carlo Paths** · **Trading Days** · **Monthly Expiries** (horizontal scroll).
 
 ---
 
@@ -84,7 +86,7 @@ Header chips: **As Of Today** · **Simulation End** · **Simulation End Days** �
 
 ### Sessions (Nifty closes)
 
-- From the day **after** as-of through Simulation End (plus a short pad for path tenure / observations).
+- From the day **after** as-of through Product End (plus a short pad for path tenure / observations).
 - **Monday–Friday only.** Saturday and Sunday never receive a close.
 - Real calendar stepping: January 31, April 30, February 28 / **29 in leap years** (e.g. 2028-02-29) are handled via `datetime` month arithmetic (`month_ends`).
 - Forward pad does **not** model NSE holidays — every weekday is a session.
@@ -112,7 +114,7 @@ Header chips: **As Of Today** · **Simulation End** · **Simulation End Days** �
 | Module | Parity |
 |--------|--------|
 | `nav.py`, `black_scholes.py` | Identical files |
-| Product rate defaults | Identical (Forwardtester adds Simulation End Days only) |
+| Product rate defaults | Identical (Forwardtester adds Monte Carlo Paths; Simulation End Days is legacy/ignored) |
 | `_recompute_roll_costs` | Same 7% first-TD / later-calendar rules |
 | `pin_current_month_roll_to_latest` | Same open-month pin on historical load + sync |
 | `hedge.py` | Same BS / contract math; observation Nifty taken from **path spots** (required for GBM; on history equals `market.nifty_on`) |
@@ -125,11 +127,11 @@ Header chips: **As Of Today** · **Simulation End** · **Simulation End Days** �
 
 | Item | Behaviour |
 |------|-----------|
-| Path 1 start | **As-of** (latest Nifty close) |
-| Start grid | Frequency: daily / weekly / monthly / quarterly / semi-annual between as-of and last start |
-| Tenure end | Same Backtester rule: ~5Y anniversary floored to prior month-end when tenure ∈ [1700, 2000]; else `start + tenure_days` |
-| Final path | Calendar end snapped to **last trading day on/before Simulation End** |
-| Spots | GBM along **path trading days only** (no weekend prices); S₀ = live as-of Nifty |
+| Path 1…N start | **As-of** (latest Nifty close) — every path |
+| Start grid | **None** — frequency argument accepted for API compat but ignored |
+| Product End | Same Backtester `path_end_calendar`: ~5Y anniversary floored to prior month-end when tenure ∈ [1700, 2000]; else `start + tenure_days` |
+| Path count | **Monte Carlo Paths N** (default 1000; clamp 1…10000) |
+| Spots | GBM along **path trading days only** (no weekend prices); S₀ = live as-of Nifty; independent seed per `path_id` |
 | Hedge / NAV | Identical engines to Gift AIF Backtester; spots come from path GBM |
 
 ### GBM matrix (parity with desk Monte Carlo Excel)
@@ -151,8 +153,8 @@ Excel / download layout (authoritative):
 
 | Axis | Meaning |
 |------|---------|
-| **Rows (vertical)** | Path numbers \(1, 2, 3, 4, 5, \ldots\) |
-| **Columns (horizontal)** | Forward **trading dates** from as-of through Simulation End |
+| **Rows (vertical)** | Path numbers \(1, 2, 3, \ldots, N\) |
+| **Columns (horizontal)** | Forward **trading dates** from as-of through Product End |
 | Cell \((i,d)\) | Path \(i\) simulated Nifty on trading date \(d\) |
 | Params block | S₀, μ, σ (%), drift, estimation start/end, path & date counts, formula |
 
@@ -164,27 +166,20 @@ Downloads:
 | Surface | Action |
 |---------|--------|
 | Home | **Download Simulated Nifty Paths** |
-| Intel → Monte Carlo Matrix | Preview + Download Excel |
+| Intel → Monte Carlo Matrix | Preview (early + late date sample) + Download Excel (full grid) |
 | API | `GET /api/forwardtest/{job_id}/mc-matrix.xlsx` |
 
 Therefore:
 
 - **No** shared “Market Reference Workbook” of forward Nifty closes
 - **Yes** shared calendar rules (Mon–Fri sessions, last-Tuesday expiries, month-end roll *dates*)
-- **Yes** path-local Nifty, expiry marks, and roll *points* (Hedging / Computation / MC Matrix)
+- **Yes** path-local Nifty, expiry marks, and roll *points* (Hedging / Computation / Monte Carlo Matrix)
 
 There are **no** Macro Paths CSV pins (235 historical windows). Those belong to the Backtester.
 
-### Frequency start grids
+### Path count
 
-| Frequency | Start rule |
-|-----------|------------|
-| **Daily** (UI default) | Every Mon–Fri session from as-of through last start |
-| Weekly | First trading day of each ISO week |
-| Monthly | First trading day of each calendar month |
-| Quarterly / Semi-annual | First trading day of quarter / half-year |
-
-Path count = f(frequency, Simulation End Days, tenure, observation months) — not a fixed dropdown.
+Path count = **Monte Carlo Paths N** from the UI / product / `FORWARDTEST_N_PATHS` env — not f(frequency, horizon, tenure). Legacy frequency start grids are unused.
 
 ---
 
@@ -235,12 +230,12 @@ Same daily ledger as the Backtester: futures inventory, MTM, 7% rolls (gated aft
 
 | Sheet | Range | Columns (no Source) | Content |
 |-------|-------|---------------------|---------|
-| Market Calendar · Futures shifts | as-of → Simulation End | Row · Shift Date · Weekday | Month-end trading days (dates only) |
-| Market Calendar · Expiries | as-of → Simulation End | Row · Expiry · Weekday · Contract | Last Tuesdays (dates only) |
-| Monte Carlo Matrix | all paths × all horizon dates | Path \\ Date · desk dates | Full grid + Excel (same as Home download) |
+| Market Calendar · Futures shifts | as-of → Product End | Row · Shift Date · Weekday | Month-end trading days (dates only) |
+| Market Calendar · Expiries | as-of → Product End | Row · Expiry · Weekday · Contract | Last Tuesdays (dates only) |
+| Monte Carlo Matrix | all paths × all horizon dates | Path \\ Date · desk dates | Full grid + Excel (same as Home download); on-screen preview samples early + late dates |
 | Hedging / Computation | selected path tenure | Path Nifty · roll points · obs marks | Per-path GBM + `path_roll_vector` |
 
-UI meta cards on Market Calendar: As Of / Simulation End / shift count / expiry count. See [06-ui-ux.md](06-ui-ux.md).
+UI meta cards on Market Calendar: As Of / Product End / shift count / expiry count. See [06-ui-ux.md](06-ui-ux.md).
 
 See [02-excel-sheet-logic.md](02-excel-sheet-logic.md) for WF1 sheet names vs engine modules.
 
@@ -250,7 +245,7 @@ See [02-excel-sheet-logic.md](02-excel-sheet-logic.md) for WF1 sheet names vs en
 | Layer | Shared? | Contents |
 |-------|---------|----------|
 | Historical Nifty ≤ as-of | Yes | μ / σ / S₀ estimation sample |
-| Forward session calendar | Yes | Mon–Fri dates to Simulation End |
+| Forward session calendar | Yes | Mon–Fri dates to Product End |
 | Monthly expiry dates | Yes | Last Tuesday of complete months |
 | Futures shift dates | Yes | Last Mon–Fri of complete months |
 | Simulated Nifty closes | **No — per path** | `gbm_spots(..., path_id)` |

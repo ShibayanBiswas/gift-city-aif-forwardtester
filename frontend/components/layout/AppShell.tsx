@@ -51,7 +51,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           value: tenureDays != null ? String(tenureDays) : "—",
         },
         {
-          label: "MC Paths",
+          label: "Monte Carlo Paths",
           value: mcPaths != null ? String(mcPaths) : "—",
         },
         {

@@ -120,16 +120,16 @@ def main() -> int:
     for y in range(asof.year, min(asof.year + 2, horizon.year + 1)):
         for mo in range(1, 13):
             me = date(y, mo, monthrange(y, mo)[1])
-            if me < asof or me > horizon:
+            # Forward expiries are emitted for complete months after as-of only.
+            if date(y, mo, 1) <= asof or me > horizon:
                 continue
             tue = _last_tuesday_of_month_calendar(me)
             snap = _snap_to_prior_session(tue, trading)
             if snap is None:
                 continue
             if snap not in fwd.monthly_last_expiries and tue not in fwd.monthly_last_expiries:
-                # allow if month entirely outside
                 snap_ok = False
-    check("monthly_expiry_snap_present", snap_ok and len(ml) > 0, f"first={ml[0]}")
+    check("monthly_expiry_snap_present", snap_ok and len(ml) > 0, f"first={ml[0] if ml else None}")
 
     # First in-path roll must use calendar Δt from prior global shift (not seed N)
     p1 = paths[0]

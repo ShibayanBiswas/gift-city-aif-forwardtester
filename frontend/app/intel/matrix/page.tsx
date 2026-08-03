@@ -83,9 +83,17 @@ export default function MonteCarloMatrixPage() {
   const shownPaths = preview?.preview_paths ?? tableRows.length;
   const shownDates = preview?.preview_dates ?? Math.max(0, headers.length - 3);
   const truncated = Boolean(preview?.truncated);
+  const horizonNote =
+    preview?.horizon_start && preview?.horizon_end
+      ? ` · Full horizon ${formatDeskDate(preview.horizon_start)} → ${formatDeskDate(preview.horizon_end)}`
+      : "";
+  const sampleNote =
+    preview?.date_sample === "head_tail"
+      ? " · On-screen columns sample early and late dates (Product End included)"
+      : "";
   const tableSubtitle = truncated
-    ? `Showing ${shownPaths.toLocaleString("en-IN")} of ${Number(nPaths).toLocaleString("en-IN")} paths · ${shownDates.toLocaleString("en-IN")} of ${Number(nDates).toLocaleString("en-IN")} trading dates · scroll the grid · Download Excel for the complete file`
-    : `Showing all ${Number(nPaths).toLocaleString("en-IN")} paths · ${shownDates.toLocaleString("en-IN")} trading-date columns · scroll horizontally for more dates · Download Excel for the complete file`;
+    ? `Showing ${shownPaths.toLocaleString("en-IN")} of ${Number(nPaths).toLocaleString("en-IN")} paths · ${shownDates.toLocaleString("en-IN")} of ${Number(nDates).toLocaleString("en-IN")} trading dates${sampleNote}${horizonNote} · Download Excel for every trading date`
+    : `Showing all ${Number(nPaths).toLocaleString("en-IN")} paths · ${shownDates.toLocaleString("en-IN")} trading-date columns${horizonNote} · Download Excel for the complete file`;
 
   return (
     <div className="page-enter space-y-6">
@@ -100,7 +108,9 @@ export default function MonteCarloMatrixPage() {
               <p className="text-xs uppercase tracking-[0.22em] text-[var(--ar-subtle)] font-ui">Intel</p>
               <h2 className="font-display text-3xl text-[var(--ar-maroon)] md:text-4xl">Simulated Nifty Paths</h2>
               <p className="mt-1 max-w-3xl text-sm leading-relaxed text-[var(--ar-muted)] font-ui">
-                Path rows and trading-date columns from As Of Today through Product End (tenure).
+                Path rows and trading-date columns from As Of Today through Product End (tenure). The on-screen
+                preview samples early and late dates so Product End stays visible; Download Excel for the full
+                trading-day grid.
               </p>
             </div>
             <div className="flex flex-wrap gap-2 items-center">

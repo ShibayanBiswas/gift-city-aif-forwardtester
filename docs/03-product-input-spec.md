@@ -39,7 +39,8 @@ The parser (`backend/app/engine/product.py`) scans the **first sheet** that look
 | GST Rate | `GST Rate` | WF1 AG = AF × rate (sample **18%**); cash AF currently 0 |
 | Futures Roll Rate | `Futures Roll Rate` | Sample **7%** — scales `roll_costs.csv` (built at 7%) |
 | Tax Benefit On Roll | `Tax Benefit On Roll` | Sample **42.744%** of roll cost |
-| Simulation End Days | `Simulation End Days` / `Horizon Days` | Calendar days from as-of to **final path end**. default **7300** if omitted. Must exceed Tenure Days. Changing this rebuilds header horizon, Intel sheets, and path atlas on next Run / upload. |
+| Monte Carlo Paths | `Monte Carlo Paths` / `N Paths` / `Path Count` | Independent GBM seeds over the single as-of → Product End window. Default **1000** if omitted; clamp **1…10000**. Presets in UI: 100 / 500 / 1000 / 5000 / 10000. |
+| Simulation End Days | `Simulation End Days` / `Horizon Days` | **Legacy only** — parsed for workbook compat but **ignored as horizon**. Product End = `path_end_calendar(asof, tenure)`. |
 | Observation months | Column under an `Observation` header | Offsets in `[1, 120]`; sample: **38, 41, 44, 47, 50, 53, 56** |
 | Options book | Header row with `Qty` / `Quantity` | One row per strike level; signed quantities |
 
@@ -128,14 +129,15 @@ Observation months (separate column): **38, 41, 44, 47, 50, 53, 56**.
 | `principal_cr` | Derived: principal / 1e7 |
 | `cash_buffer_cr` / `gsec_opening_cr` | Derived: principal_cr × cash_pct / gsec_pct |
 | `n_obs` | `len(observation_months)` — divisor for contract qty (7 for sample) |
-| `simulation_end_days` | Optional Excel int; `to_dict()` always exposes **resolved** days (default **7300**) |
-| `simulation_end_days_source` | `"excel"` if workbook set the field; else `"default"` |
+| `n_paths` | Optional Excel int; `to_dict()` always exposes **resolved** Monte Carlo Paths (default **1000**, clamp 1…10000) |
+| `simulation_end_days` | Legacy Excel int if present — **not** used for horizon; `to_dict()` exposes tenure days as API compat span |
+| `simulation_end_days_source` | Always `"tenure"` for the live horizon |
 
 Each `OptionLegSpec` carries: `quantity`, strike/return, `option_type`, `forward_rate`, `discount_rate`, `vol_near`, `vol`, `include`.
 
 Defaults when rate cells blank (WF1 HS): Forward **6.6%**, Discount **7.6%**. UI shows `—` when absent rather than inventing display rates.
 
-Changing Simulation End Days (or any product field) refreshes header horizon meta; a prior Run is cleared when the product fingerprint no longer matches. Market Calendar dates refresh with the product horizon; per-path GBM Nifty / rolls rebuild on the next Run.
+Changing tenure or Monte Carlo Paths (or any product field) refreshes header horizon meta; a prior Run is cleared when the product fingerprint no longer matches. Market Calendar dates refresh with Product End; per-path GBM Nifty / rolls rebuild on the next Run.
 
 ---
 
@@ -175,7 +177,7 @@ Daily **Req. Delta** = sum of central BS delta × contract_qty across all leg×o
 2. Put observation months in one clean numeric column under header **Observation** (or similar).
 3. Align return / strike / qty / option / forward / discount / vols / Include in one table.
 4. Mark full-hedge or unused levels with `Include=No` (red fill optional).
-5. **Upload** → confirm **Product** tab (six sections: spec + observation map + options book) → **Run monthly** → spot-check Path 1 Hedging Sheet vs WF1.
+5. **Upload** → confirm **Product** tab (six sections: spec + observation map + options book) → set **Monte Carlo Paths** → **Run** → spot-check Path 1 Hedging Sheet vs WF1.
 6. Do not rely on Notes 7%/8%/13.3% BS rates — live WF1 book uses **6.6%/7.6%** + Near/Far.
 
 ---
@@ -185,7 +187,7 @@ Daily **Req. Delta** = sum of central BS delta × contract_qty across all leg×o
 | Step | Pass criterion |
 |------|----------------|
 | Product tab | 6 active put legs; obs months **38…56** |
-| Path 1 Run (monthly) | Total ≈ **180.7851** if book matches sample |
+| Path 1 Run | Total ≈ **180.7851** if book matches sample (Backtester hist gold; Forwardtester uses GBM) |
 | Hedging Sheet | Fwd **6.6%**, Disc **7.6%**, vols match table above |
 | Parser smoke | `len(active_legs) == 6`; no 0.6 qty leg |
 

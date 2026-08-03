@@ -11,7 +11,7 @@ Same hedging sheet, computation NAV, roll cost, delta, and product desk as the [
 1. Load Nifty closes from **2001-01-01 → latest session** (Yahoo sync keeps this current).
 2. Compute daily returns → **μ** (mean), **σ** (stdev), **drift = μ − ½σ²**.
 3. Resolve **Product End** = `path_end_calendar(as-of, tenure)` (same Backtester anniversary rule).
-4. Build **N Monte Carlo paths** over one window (default **N = 100**):
+4. Build **N Monte Carlo paths** over one window (default **N = 1000**):
    - Every path: Start = as-of, End = Product End
    - Independent GBM seed per `path_id`
 5. Simulate each path: `S_t = S_{t-1} · exp(drift + σ · Z)`.
@@ -33,8 +33,8 @@ cd "C:\Users\shiba\OneDrive\Desktop\Gift AIF Forwardtester"
 
 ## Desk controls
 
-- **Header strip**: As Of Today · Product End · Tenure Days · MC Paths · Trading Days · Monthly Expiries
-- **Monte Carlo Paths**: default **100** (nav input or Product Input `Monte Carlo Paths` / env `FORWARDTEST_N_PATHS`)
+- **Header strip** (horizontal scroll): As Of Today · Product End · Tenure Days · Monte Carlo Paths · Trading Days · Monthly Expiries
+- **Monte Carlo Paths**: default **1000**; presets 100 / 500 / 1000 / 5000 / 10000 (max); custom text ≤ 10000; computation-limits confirm at ≥ 1000
 - **Product End**: tenure calendar end from as-of (not a separate Simulation End Days control)
 - Product upload (same `Product_Input_File.xlsx` format as the product desk)
 - **Nifty Path Parameters** (after Run): S₀ / daily return / standard deviation / drift from **2001-01-01 → as-of**, plus desk **Download Excel**

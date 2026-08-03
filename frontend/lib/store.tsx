@@ -305,13 +305,13 @@ export function ForwardTestProvider({ children }: { children: ReactNode }) {
 
   const filteredSummary = useMemo(() => {
     if (!summary) return [];
-    return summary.summary.filter((s) => s.year >= sinceYear);
-  }, [summary, sinceYear]);
+    return summary.summary;
+  }, [summary]);
 
   const filteredYearly = useMemo(() => {
     if (!summary) return [];
-    return summary.yearly.filter((y) => y.year >= sinceYear);
-  }, [summary, sinceYear]);
+    return summary.yearly;
+  }, [summary]);
 
   const filteredKpis = useMemo(() => {
     if (!filteredSummary.length) return summary?.kpis ?? null;

@@ -4,7 +4,7 @@
 
 Gift City AIF Forward Tester is a production-style Anand Rathi Wealth desk application that answers:
 
-> *From today’s Nifty close through Simulation End, what do terminal value, IRR, and path behaviour look like under Geometric Brownian Motion, using the same hedge and Computation engine as the Backtester?*
+> *From today’s Nifty close through Product End, what do terminal value, IRR, and path behaviour look like under Geometric Brownian Motion, using the same hedge and Computation engine as the Backtester?*
 
 The web app is a **live reimplementation** of `Gift AIF Working File 1.xlsm` hedging and Computation methodology. Path starts are forward from **as-of** (latest Nifty session), not historical 2001 rolling windows. Narrative methodology lives in `AIF - Notes.xlsx` (local, gitignored). Visual language: maroon / gold glass panels, Cormorant Garamond display type, full-width desk sections.
 
@@ -16,20 +16,20 @@ The web app is a **live reimplementation** of `Gift AIF Working File 1.xlsm` hed
 
 | Capability | Detail |
 |------------|--------|
-| Any product input | Parse principal, tenure days, Simulation End Days, observation months, option book |
-| Forward path atlas | Frequency starts from **as-of** through last start so the **final path ends on Simulation End** |
+| Any product input | Parse principal, tenure days, Monte Carlo Paths, observation months, option book |
+| Forward path atlas | **Single tenure window**: Start = as-of; End = **Product End** = `path_end_calendar(asof, tenure)` for every path |
 | Forward calendars | Sat/Sun closed; monthly expiry = last Tuesday; futures shift = last trading day of month; leap/30/31 aware |
 | Hedging Sheet parity | Same as Backtester: `month × 30.5` → expiry map; options book; required futures delta (obs Nifty from path spots) |
 | Computation | MTM, rolls, cash, G-Sec, fees, tx, NAV, IRR — same formulas; Forwardtester feeds **path-local** roll points |
 | Historical roll calendar | Same as Backtester: finished months = monthly option expiry; open month pinned via `pin_current_month_roll_to_latest` |
-| Header horizon strip | **As Of Today** · Simulation End · Simulation End Days · Trading Days · Monthly Expiries (calendar counts as-of→horizon) |
+| Header horizon strip | **As Of Today** · Product End · Tenure Days · Monte Carlo Paths · Trading Days · Monthly Expiries (**horizontal scroll**) |
 | Intel · Market Calendar | Shared futures shift dates · monthly last-Tuesday expiries (no path prices) |
-| GBM paths | Matrix like desk Monte Carlo Excel: vertical path ids; columns = **trading dates**; \(S_t = S_{t-1}\cdot\exp(\mathrm{drift}+\sigma Z)\); μ/σ from **2001→as-of** every Run |
+| GBM paths | Matrix like desk Monte Carlo Excel: vertical path ids \(1…N\); columns = **trading dates**; \(S_t = S_{t-1}\cdot\exp(\mathrm{drift}+\sigma Z)\); μ/σ from **2001→as-of** every Run |
 | Home Excel download | **Download Excel** on Nifty Path Parameters → branded Parameters + Simulated Nifty path×date sheets |
 | Desk UX | Full-form labels, Title Case, branded Excel downloads, Backtester-parity glass / meta-chip layouts |
 | Ops | Local `./start.ps1`, optional MongoDB Atlas, Vercel + Render · repo https://github.com/ShibayanBiswas/gift-city-aif-forwardtester |
 
-Default UI / API path frequency: **Daily**. Simulation End Days default: **7300**. See [04-forwardtest-engine.md](04-forwardtest-engine.md).
+Default **Monte Carlo Paths** = **1000** (presets 100 / 500 / 1000 / 5000 / 10000; max 10000). There is no path-frequency start grid; legacy Simulation End Days does not drive the horizon. See [04-forwardtest-engine.md](04-forwardtest-engine.md).
 
 ---
 
@@ -60,18 +60,19 @@ Strike = `Spot₀ × Strike% / 100`. Path 1 Total (WF1 Summary / engine) ≈ **1
 Product_Input_File.xlsx (or upload)
  │
  ▼
- product.py → ProductSpec (principal, tenure, Simulation End Days, obs months, legs)
+ product.py → ProductSpec (principal, tenure, Monte Carlo Paths N, obs months, legs)
  │
  ▼
  market.py + market_sync.py → historical Nifty / rolls / expiries through present (as-of)
  │
  ▼
- forward_calendar.py → Mon–Fri pad to Simulation End (calendar dates only)
+ forward_calendar.py → Mon–Fri pad to Product End (calendar dates only)
                          · last-Tuesday monthly expiries
                          · month-end futures shifts
  │
  ▼
- paths.py + mc_matrix.py → staggered forward tenure windows + shared path×date GBM matrix
+ paths.py + mc_matrix.py → N identical tenure windows (Start = as-of, End = Product End)
+            + shared path×date GBM matrix (independent seeds per path_id)
             μ / σ / drift estimated from Nifty **2001-01-01 → as-of** (dynamic)
             per-path spots sliced from the matrix for hedge / NAV
  │
@@ -80,7 +81,7 @@ Product_Input_File.xlsx (or upload)
  └─► nav.py → daily Computation · summary · IRR     (path-local rolls)
  │
  ▼
- FastAPI job → KPIs · yearly rollup · on-demand path detail · mc-matrix.xlsx
+ FastAPI job → KPIs · on-demand path detail · mc-matrix.xlsx
  │
  ▼
  Next.js desk → Home (Nifty Path Parameters · Download Excel) · Analytics · Desk · Intel
@@ -101,9 +102,8 @@ Forwardtester **path starts are from as-of**, not 2001 Macro Path pins. The rows
 | WF1 Path 10 Total | **216.4729879081** Cr WF1 · engine Δ ≈ 10⁻⁷ |
 | First futures roll (hist) | 19 TD from Jan-2001 → ≈ **4.7713** pts |
 | Open-month futures roll | Pinned to latest Nifty session (`pin_current_month_roll_to_latest`) — Backtester parity |
-| Forward Path 1 | Starts on **As Of Today** (latest Nifty session) |
-| Forward final path | Ends on **Simulation End** (as-of + Simulation End Days) |
-| Header Trading Days / Expiries | Count **as-of → Simulation End** (Mon–Fri; last-Tuesday expiries) |
+| Forward Path 1…N | Each starts on **As Of Today**; ends on **Product End** (`path_end_calendar`) |
+| Header Trading Days / Expiries | Count **as-of → Product End** (Mon–Fri; last-Tuesday expiries) |
 | Intel columns | Row / dates / levels only — **no Source** column (Backtester UI parity) |
 
 ---
@@ -133,7 +133,7 @@ BS inputs: Forward **6.6%**, Discount **7.6%**, Vol Near on observation 1, Vol F
 | [01-overview.md](01-overview.md) | This page — purpose, default product, gold pins, authority rule |
 | [02-excel-sheet-logic.md](02-excel-sheet-logic.md) | WF1 sheet-by-sheet formulas and engine mirror |
 | [03-product-input-spec.md](03-product-input-spec.md) | Upload format, parser, active book |
-| [04-forwardtest-engine.md](04-forwardtest-engine.md) | Engine pipeline, modules, frequencies |
+| [04-forwardtest-engine.md](04-forwardtest-engine.md) | Engine pipeline, modules, Monte Carlo Paths |
 | [05-architecture.md](05-architecture.md) | Repo layout, API, persistence, performance |
 | [06-ui-ux.md](06-ui-ux.md) | Desk tabs, path picker, Logic Atlas |
 | [07-verification.md](07-verification.md) | Smoke tests, parity anchors, regen scripts |
@@ -147,8 +147,8 @@ Master index: [README.md](README.md).
 ## Quick Desk Workflow
 
 1. Open UI → **Sample Input** (or upload custom product) → confirm Product tab shows six put legs and observation months **38…56**.
-2. Set **Path Frequency** (default **Daily**) → **Run**.
+2. Set **Monte Carlo Paths** (default **1000**) → **Run**.
 3. On **Home**: confirm Nifty Path Parameters → **Download Excel** for the path×date workbook.
-4. Spot-check **Path 1** on Hedging Sheet and Computation; use Analytics for distribution; Intel · Market Calendar / MC Matrix / Logic Atlas as needed.
+4. Spot-check **Path 1** on Hedging Sheet and Computation; use Analytics (**Path Charts** / **Path Summary**); Intel · Market Calendar / Monte Carlo Matrix / Logic Atlas as needed.
 5. After engine changes, run verification in [07-verification.md](07-verification.md).
 6. Production deploy: follow the layman guide [08-deploy-vercel-render.md](08-deploy-vercel-render.md).

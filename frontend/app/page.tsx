@@ -5,33 +5,15 @@ import { motion } from "framer-motion";
 import Link from "next/link";
 import { useForwardTest } from "@/lib/store";
 import { EmptyRunHint, KpiBand } from "@/components/ui/Shared";
-import { ChartFrame, YearlyTotalChart } from "@/components/charts/Charts";
 import { ProductMetaStrip, ProductSpecTables } from "@/components/ProductSpecTables";
-import { SheetTable } from "@/components/SheetTable";
 import { DownloadButton } from "@/components/DownloadButton";
 import { client, formatDeskDate, formatNum } from "@/lib/api";
 import { deskSpring, easeOut, fadeUpItem, pageSection, staggerContainer, tapPress } from "@/lib/motion";
 
 export default function HomePage() {
-  const { product, summary, filteredYearly, sinceYear, market, jobId, clearResults } = useForwardTest();
+  const { product, summary, market, jobId, clearResults } = useForwardTest();
   const [downloadError, setDownloadError] = useState<string | null>(null);
   const displayName = product?.name === "Default Product" ? "Current Product" : product?.name ?? "Loading…";
-  const principalCr = product?.principal_cr ?? 100;
-  const principalLabel =
-    Number.isInteger(principalCr) || Math.abs(principalCr - Math.round(principalCr)) < 1e-9
-      ? String(Math.round(principalCr))
-      : principalCr.toFixed(2);
-
-  const yearlyRows = filteredYearly.map((y) => [
-    String(y.year),
-    y.paths,
-    Number(y.mean_total.toFixed(3)),
-    Number(y.median_total.toFixed(3)),
-    Number(y.min_total.toFixed(3)),
-    Number(y.max_total.toFixed(3)),
-    Number((y.mean_irr * 100).toFixed(3)),
-    Number((y.hit_rate_gt_100 * 100).toFixed(3)),
-  ]);
 
   const gbmEstStart = summary?.gbm?.first_date ?? market?.first_date ?? "2001-01-01";
   const gbmEstEnd =
@@ -199,42 +181,6 @@ export default function HomePage() {
               </motion.div>
             </motion.section>
           ) : null}
-          <ChartFrame
-            title="Yearly Mean And Median Terminal Value"
-            subtitle="Home · Summary"
-            sinceYear={sinceYear}
-          >
-            <YearlyTotalChart data={filteredYearly} sinceYear={sinceYear} />
-          </ChartFrame>
-          <SheetTable
-            title={`Yearly Rollup Since ${sinceYear}`}
-            subtitle="Mean, Median, Extremes, IRR, And Hit Rate By Start Year · Through Latest Complete Tenure Window"
-            headers={[
-              "Start Year",
-              "Number Of Paths",
-              "Mean Terminal In Crores",
-              "Median Terminal In Crores",
-              "Minimum Terminal In Crores",
-              "Maximum Terminal In Crores",
-              "Mean IRR %",
-              `Share Above ${principalLabel} Crores %`,
-            ]}
-            rows={yearlyRows}
-            filename={`yearly-rollup-since-${sinceYear}.xlsx`}
-            sheetName="Yearly Rollup"
-            columnTypes={[
-              "year",
-              "integer",
-              "currency",
-              "currency",
-              "currency",
-              "currency",
-              "pct_points",
-              "pct_points",
-            ]}
-            minWidth={900}
-            maxHeight={480}
-          />
         </>
       )}
     </div>

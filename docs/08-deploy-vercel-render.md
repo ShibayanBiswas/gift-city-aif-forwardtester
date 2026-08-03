@@ -211,10 +211,10 @@ Optional: `NEXT_PUBLIC_BACKEND_URL` = same URL.
 
 1. Optional: open the site once, wait ~1 minute (wake Render), or hit `/api/wake`.
 2. **Sample Input** → download product Excel.
-3. Set path frequency (e.g. **Daily** or **Monthly**). Path count = f(frequency, Simulation End Days, tenure) — not a fixed 235 Macro Paths list.
+3. Set **Monte Carlo Paths** (default **1000**; presets 100 / 500 / 1000 / 5000 / 10000). Path count is N over one as-of → Product End window — not a frequency grid or 235 Macro Paths list.
 4. **Run**.
 5. Check **Home**: GBM band (μ/σ from **2001 → as-of**) + **Download Simulated Nifty Paths** (path×date Excel).
-6. Check **Desk → Hedging / Computation**, **Intel → Market Calendar**, **Intel → MC Matrix**.
+6. Check **Desk → Hedging / Computation**, **Intel → Market Calendar**, **Intel → Monte Carlo Matrix**.
 
 ---
 
@@ -267,13 +267,13 @@ Auto-extends through latest Nifty session on:
 curl -s https://YOUR-SERVICE.onrender.com/api/sync
 ```
 
-Expect `market.first_date` ≈ `2001-01-01`, `market.last_date` = latest session, plus horizon fields for Simulation End. GBM μ / σ are re-estimated from that full history on every Run.
+Expect `market.first_date` ≈ `2001-01-01`, `market.last_date` = latest session, plus horizon fields for Product End. GBM μ / σ are re-estimated from that full history on every Run.
 
 Free Render disk is ephemeral; git `data/*.csv` are the seed; startup re-extends.
 
-Header chips: As Of Today · Simulation End · Simulation End Days · Trading Days · Monthly Expiries.  
+Header chips: As Of Today · Product End · Tenure Days · Monte Carlo Paths · Trading Days · Monthly Expiries (horizontal scroll).  
 Intel · Market Calendar is **shared dates** (no forward prices). Path Nifty / rolls: Hedging / Simulated Nifty Paths.  
-Default Run frequency: **Monthly**. Daily is allowed via serial path-by-path GBM + queued Excel export.  
+Default **Monte Carlo Paths = 1000** (max 10000). Simulation End Days / frequency grids are legacy and unused.  
 Download Excel uses a streaming writer + Mongo job recovery after restarts.  
 
 Home **Download Simulated Nifty Paths** exports the shared Monte Carlo path×date grid.
@@ -293,13 +293,15 @@ Home **Download Simulated Nifty Paths** exports the shared Monte Carlo path×dat
 ### Functional
 
 - [ ] Sample Input downloads
-- [ ] Run completes for chosen frequency
+- [ ] Run completes for chosen Monte Carlo Paths (default 1000)
 - [ ] Home shows GBM S₀ / μ / σ / drift after Run (estimation 2001→as-of)
 - [ ] Home **Download Simulated Nifty Paths** opens Excel with date columns
 - [ ] Hedging Sheet + Computation populate for a path
 - [ ] Intel → Market Calendar: Futures shift dates + monthly expiry dates (no price columns)
-- [ ] Intel → MC Matrix: preview table + Download Excel (`/api/forwardtest/{job}/mc-matrix.xlsx`)
-- [ ] Header chips show live Simulation End Days (default 7300)
+- [ ] Intel → Monte Carlo Matrix: preview samples early + late dates (Product End visible) + Download Excel (`/api/forwardtest/{job}/mc-matrix.xlsx`)
+- [ ] Header chips show As Of Today · Product End · Tenure Days · Monte Carlo Paths · Trading Days · Monthly Expiries
+- [ ] Analytics = Path Charts + Path Summary (no yearly-by-start-year)
+- [ ] KPIs lead with Monte Carlo Paths; no “Paths Since YEAR”
 
 ### Resilience
 
@@ -317,13 +319,13 @@ Home **Download Simulated Nifty Paths** exports the shared Monte Carlo path×dat
 | First request 30–90s | Free Render cold start | Wait; use `/api/wake` or `NEXT_PUBLIC_BACKEND_URL` |
 | 502/504 on Run | API still waking / crash | Render logs; hit `/api/health` directly |
 | Previous run lost on Download | Render recycled / OOM restart wiped ephemeral job | Click **Run** again; Mongo restores slim job meta when configured |
-| Web Service exceeded memory | Full MC matrix + old Excel writer in RAM | Engine no longer builds full matrix; Excel export is queued + streaming `write_only` |
+| Web Service exceeded memory | Full Monte Carlo matrix + old Excel writer in RAM | Engine no longer builds full matrix; Excel export is queued + streaming `write_only` |
 | Render `ModuleNotFoundError` | Root Directory ≠ `backend` | Set Root = `backend` |
 | Vercel can't find pages | Root Directory ≠ `frontend` | Set Root = `frontend` |
 | Mongo auth failed | Bad password / `@` not encoded | Use `%40`; check Atlas network |
-| Daily run slow on free tier | ~3k paths × ~4k dates streamed | Wait for Run + Download queue; prefer Monthly when you need a quick desk check |
+| Large-N run slow on free tier | High Monte Carlo Paths × tenure trading days streamed | Wait for Run + Download queue; prefer 100–1000 for a quick desk check |
 | Download timeout via Vercel | Proxy idle limit | Set `NEXT_PUBLIC_BACKEND_URL` to Render so the browser downloads directly |
-| MC Excel missing dates | Old deploy | Redeploy backend with current `mc_matrix.py` |
+| Monte Carlo Excel missing dates | Old deploy | Redeploy backend with current `mc_matrix.py` |
 
 ### Debug sequence
 
@@ -354,7 +356,7 @@ Vercel (Next.js)  ── /api/* rewrite ──►  Render (FastAPI + GBM engine 
 | Sample product | `Product_Input_File.xlsx` in git |
 | Uploaded products | Mongo (optional) + ephemeral upload |
 | Forward-test results | In-memory + optional Mongo summary; path ledgers on demand |
-| MC path×date matrix | `data/jobs/{id}/mc_matrix.npz` + Excel download |
+| Monte Carlo path×date matrix | `data/jobs/{id}/mc_matrix.npz` + Excel download |
 | WF1 / Notes Excel | Local only (gitignored) — not needed in production |
 
 ---
@@ -368,9 +370,9 @@ Vercel (Next.js)  ── /api/* rewrite ──►  Render (FastAPI + GBM engine 
 
 | Changed | Re-verify |
 |---------|-----------|
-| `gbm.py` / `mc_matrix.py` / `paths.py` | Home Excel: 2001→as-of params + date columns; MC Matrix differs by path |
+| `gbm.py` / `mc_matrix.py` / `paths.py` | Home Excel: 2001→as-of params + date columns; Monte Carlo Matrix differs by path |
 | `nav.py` / `hedge.py` | Path totals / hedge rows |
-| `product.py` | Simulation End Days + six-leg book |
+| `product.py` | Tenure → Product End + Monte Carlo Paths + six-leg book |
 | `next.config.ts` / env | Proxy `/api/health` |
 | `data/*.csv` | `/api/sync` dates |
 

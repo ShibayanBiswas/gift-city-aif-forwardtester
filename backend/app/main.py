@@ -476,7 +476,7 @@ def _startup() -> None:
 class RunRequest(BaseModel):
     """Optional frequency kept for older clients — ignored by the engine."""
     frequency: Literal["monthly", "weekly", "daily", "quarterly", "semi_annual"] = "monthly"
-    """Optional path-count override (else FORWARDTEST_N_PATHS / product / default 100)."""
+    """Optional path-count override (else FORWARDTEST_N_PATHS / product / default 1000)."""
     n_paths: int | None = None
     """Browser-generated id for this Run click — duplicate POSTs return the same job."""
     client_run_id: str | None = None
@@ -1306,7 +1306,7 @@ def job_mc_matrix_preview(
         **matrix_preview(
             payload,
             max_paths=max(1, min(int(max_paths), 400)),
-            max_dates=max(1, min(int(max_dates), 250)),
+            max_dates=max(1, min(int(max_dates), 400)),
         ),
     }
 

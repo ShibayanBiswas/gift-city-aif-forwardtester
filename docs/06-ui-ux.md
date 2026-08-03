@@ -13,7 +13,7 @@ The Gift City AIF Forward Tester desk UI follows **Anand Rathi Wealth Primary SP
 | Main | Subtabs | Route |
 |------|---------|-------|
 | Home | — | `/` |
-| Analytics | Yearly Lab · Path Summary | `/analytics`, `/analytics/summary` |
+| Analytics | Path Charts · Path Summary | `/analytics`, `/analytics/summary` |
 | Desk | Product · Paths · Hedging Sheet · Computation · Daily Ledger | `/product`, `/paths`, `/hedging`, `/computation`, `/computation/ledger` |
 | Intel | Market Calendar · Monte Carlo Matrix · Logic Atlas | `/intel`, `/intel/matrix`, `/intel/logic` |
 
@@ -21,23 +21,24 @@ The Gift City AIF Forward Tester desk UI follows **Anand Rathi Wealth Primary SP
 
 | Control | Behaviour |
 |---------|-----------|
-| **Since Calendar Year** | Analytics filter; default **2001** |
-| **Path Frequency** | Default **Monthly**; also Daily · Weekly · Quarterly · Semi-annually — all frequencies allowed; Daily streams/queues on free hosts |
+| **Monte Carlo Paths** | Default **1000**; presets **100 / 500 / 1000 / 5000 / 10000**; custom clamp **1…10000** |
 | **Sample Input** | `GET /api/product/sample` — branded `Product_Input_File.xlsx` |
 | **Upload** | `POST /api/product/upload` — becomes current product for next Run |
 | **Run** | Starts forward test; cancels prior job if running |
 | Theme toggle | Light / dark desk palette |
-| Market strip | **As Of Today** · **Simulation End** · **Simulation End Days** · **Trading Days** · **Monthly Expiries** — responsive **grid**. Trading Days / Monthly Expiries count **as-of → Simulation End** only. Default Simulation End Days = **7300**. |
+| Market strip | **As Of Today** · **Product End** · **Tenure Days** · **Monte Carlo Paths** · **Trading Days** · **Monthly Expiries** — **horizontal scroll**. Trading Days / Monthly Expiries count **as-of → Product End** only. |
 
-**Naming:** Excel “As per HS” → UI **Hedging Sheet** (URL `/hedging` unchanged). Headings, tabs, and short button labels use **Title Case**.
+**Naming:** Excel “As per HS” → UI **Hedging Sheet** (URL `/hedging` unchanged). Headings, tabs, and short button labels use **Title Case**. Always say **Monte Carlo** (never “MC”) in desk copy.
 
 Options book Trade Side: **Sold Put Option** / **Bought Put Option** (default book is six puts: −91.5@137 … +1@70).
+
+There is **no Path Frequency** control and **no Since Calendar Year** filter — every path shares As Of Today, so yearly-by-start-year views are gone.
 
 ---
 
 ## Desk card rails
 
-Metric chips (product meta, KPI band, GBM params, path meta) use a **horizontal scroll rail** only when needed for overflow. Header market meta uses a **static responsive grid** — no sheen / slide animations.
+Metric chips (product meta, KPI band, GBM params, path meta, header market meta) use a **horizontal scroll rail** when needed for overflow.
 
 **Sizing (desk lock):** cards are **compact** — ~10–10.5 rem min-width, moderate padding, value text ~1.05–1.28 rem (KPI means use `text-lg` / `text-xl`, not oversized `text-2xl`).
 
@@ -57,7 +58,7 @@ Used on Product, Paths, Hedging Sheet, Computation, Analytics.
 | Dropdown | Fixed **496px** list height — exactly **4** options visible on every tab |
 | Menu rows | Partition Start / End / Days / Nifty |
 
-Path 1 starts on **as-of** (latest Nifty session). The final path ends on **Simulation End**. Intermediate paths use Backtester tenure windows under GBM spots.
+Every path starts on **as-of** (latest Nifty session) and ends on **Product End** (`path_end_calendar`). Independent GBM seeds only — no staggered start grid.
 
 ---
 
@@ -67,10 +68,9 @@ Path 1 starts on **as-of** (latest Nifty session). The final path ends on **Simu
 
 | Section | Content |
 |---------|---------|
-| Product strip | Principal · Tenure · Obs · Legs · Simulation End Days · Simulation End — horizontal card rail |
-| KPI band | After Run: **Total Paths · frequency**, Paths Since year, mean/median terminal, hit rate, IRR — horizontal card rail |
+| Product strip | Principal · Tenure · Obs · Legs · Product End · Monte Carlo Paths — horizontal card rail |
+| KPI band | After Run: **Monte Carlo Paths** first, then mean/median terminal & IRR, above/below mean & median terminal & IRR counts, hit rate — **no “Paths Since YEAR”** |
 | Nifty Path Parameters | Date range + cards for spot · daily return · stdev · drift; desk **Download Excel** (Parameters + Simulated Nifty sheets) |
-| Yearly chart | Mean / median terminal by start year (filtered by Since year) |
 
 Empty state: **Desk Ready** hint — upload / sample + Run.
 
@@ -121,7 +121,7 @@ Download Excel on each table.
 | **Daily Rows** | Full Computation column strip |
 | **Trade Cost Ledger** | Days with futures quantity change (tx ≠ 0) |
 
-Path 1 Result Total should read ≈ **180.7724** Cr for sample product after monthly Run spot-check.
+Path 1 Result Total should read ≈ **180.7724** Cr for sample product after a historical-parity spot-check (Forwardtester Run uses GBM).
 
 ### Daily Ledger (`/computation/ledger`)
 
@@ -140,8 +140,8 @@ Gradient areas; axis labels; ≤ 3 decimal places in tooltips.
 
 | Subtab | Content |
 |--------|---------|
-| **Yearly Lab** | Bar chart — **Mean Terminal In Crores** · **Median Terminal In Crores** by start year; single-path delta chart |
-| **Path Summary** | KPI band (mean + median); sortable table with Start/End Nifty; click row to select path |
+| **Path Charts** | Cohort KPI band + single-path **Net Required Futures Delta** chart (NAV on Computation). No yearly-by-start-year bars — all paths share As Of Today |
+| **Path Summary** | KPI band; sortable table with Start/End Nifty; click row to select path |
 
 Path picker on both subtabs.
 
@@ -149,11 +149,11 @@ Path picker on both subtabs.
 
 | Subtab | Content |
 |--------|---------|
-| **Market Calendar** | Shared forward **dates only** (As Of Today → Simulation End): futures shift dates · monthly option expiries. No Nifty levels or roll cost points (those vary by path). |
-| **Simulated Nifty Paths** | Full As Of → Simulation End grid — rows = path number, columns = **trading dates** — plus Excel download (identical to Home button; streaming writer on the API) |
+| **Market Calendar** | Shared forward **dates only** (As Of Today → Product End): futures shift dates · monthly option expiries. No Nifty levels or roll cost points (those vary by path). |
+| **Monte Carlo Matrix** / Simulated Nifty Paths | On-screen preview samples **early + late** trading dates so Product End is visible; Excel download is the **full** As Of → Product End grid (rows = path number, columns = trading dates) — identical to Home |
 | **Logic Atlas** | Module rail + Active Pipeline step cards |
 
-**Run frequency:** default **Monthly**. The frequency dropdown shows live path counts. **Daily** is allowed everywhere — the engine stays serial, regenerates GBM path-by-path, and Excel export queues in the background. Download may take several minutes on large grids; wait for the button status. After a server restart, if the previous run was lost — click **Run** again.
+**Run:** set **Monte Carlo Paths** (default **1000**), then **Run**. The engine stays serial / path-by-path on constrained hosts, and Excel export queues in the background. Download may take several minutes on large N; wait for the button status. After a server restart, if the previous run was lost — click **Run** again.
 
 **Market Calendar tabs:**
 
@@ -190,10 +190,10 @@ The Logic Atlas is the in-app **pipeline map** for desk education — it does no
 Maps to engine modules in [04-forwardtest-engine.md](04-forwardtest-engine.md) and [05-architecture.md](05-architecture.md)
 
 ```
-Product Input → product.py (+ Simulation End Days)
+Product Input → product.py (+ tenure · Monte Carlo Paths)
 Market CSVs → market.py / market_sync.py (+ pin_current_month_roll_to_latest)
 Forward pad → forward_calendar.py (Mon–Fri · last-Tue · month-end rolls)
-Path windows → paths.py + gbm.py (as-of → Simulation End; no 235 CSV pins)
+Path windows → paths.py + gbm.py (as-of → Product End; N seeds; no 235 CSV pins)
 Hedging Sheet → hedge.py + black_scholes.py
 Computation → nav.py
 Job / API → forwardtest.py + main.py
@@ -207,7 +207,7 @@ Authority note shown in Atlas copy: **WF1 > Notes** for BS rates (6.6%/7.6%/Near
 
 | Rule | Detail |
 |------|--------|
-| Bar legends | **Mean Terminal In Crores** · **Median Terminal In Crores** — never raw `mean_total` keys |
+| Path Charts | Single-path delta (and related series) — **not** mean/median by start year |
 | Line legends | **Net Asset Value In ₹ Crores** · **Net Required Futures Delta** |
 | Formatting | Axes labelled; gradient fills; numbers ≤ 3 decimals in tooltips |
 | Hit rate | Display as percent; formula in [09-formulas-and-product-books.md](09-formulas-and-product-books.md) |
@@ -224,7 +224,7 @@ All desk exports use `lib/download.ts` **except** the Monte Carlo matrix, which 
 | Typing | Native Excel number / date / percent cell types |
 | `exportRows` / `columnTypes` | UI display formatting vs raw typed export values |
 | Triggers | Per-table **Download Excel**; Computation path packs |
-| **Simulated Nifty Paths** | Home single button + Intel MC Matrix — params block + `Path \\ Date` × ISO dates |
+| **Simulated Nifty Paths** | Home single button + Intel Monte Carlo Matrix — params block + `Path \\ Date` × ISO dates (full grid) |
 
 ---
 
@@ -255,9 +255,9 @@ All desk exports use `lib/download.ts` **except** the Monte Carlo matrix, which 
 ## Desk Verification Flow (UI)
 
 1. **Sample Input** → Product tab: 6 puts, obs **38…56**, Fwd/Disc/vols match [03-product-input-spec.md](03-product-input-spec.md).
-2. **Run** → Home GBM band shows estimation **2001-01-01 → As Of Today**; μ / σ / drift populated.
+2. **Run** (Monte Carlo Paths default 1000) → Home GBM band shows estimation **2001-01-01 → As Of Today**; μ / σ / drift populated.
 3. **Download Excel** on Nifty Path Parameters → branded Parameters + Simulated Nifty sheets.
-4. Hedging Sheet / Computation for selected path; MC Matrix for full path×date Nifty; Market Calendar for shared dates.
+4. Hedging Sheet / Computation for selected path; Monte Carlo Matrix for full path×date Nifty; Market Calendar for shared dates.
 5. Intel Logic Atlas: confirm pipeline order matches engine.
 6. Full script checklist: [07-verification.md](07-verification.md). Deploy: [08-deploy-vercel-render.md](08-deploy-vercel-render.md).
 

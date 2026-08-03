@@ -37,7 +37,7 @@ def main() -> int:
     expect_end = path_end_calendar(asof, product.tenure_days)
     n = resolved_n_paths(product)
 
-    assert DEFAULT_N_PATHS == 100
+    assert DEFAULT_N_PATHS == 1000
     assert n == count_monte_carlo_paths(product)
     assert n == resolved_n_paths(product)
     assert horizon == expect_end

@@ -45,18 +45,18 @@ gift-city-aif-forwardtester/   # https://github.com/ShibayanBiswas/gift-city-aif
 
 | Module | File | Inputs | Outputs |
 |--------|------|--------|---------|
-| Product | `product.py` | `.xlsx` upload / sample | `ProductSpec` (+ Simulation End Days) |
+| Product | `product.py` | `.xlsx` upload / sample | `ProductSpec` (+ tenure, Monte Carlo Paths) |
 | Market | `market.py` | `data/*.csv` | Historical `MarketDB`, lookups, cache |
 | Market sync | `market_sync.py` | Yahoo API, CSVs | Updated CSVs through present (as-of) |
 | Calendar (hist) | `calendar_build.py` | Overrides, NSE eras, **`pin_current_month_roll_to_latest`** | Historical expiries / open-month roll pin |
 | Forward calendar | `forward_calendar.py` | Hist market, horizon | Mon–Fri pad, month-end rolls, last-Tue expiries |
 | GBM | `gbm.py` | Historical returns **2001→as-of** | μ/σ/drift (dynamic each Run), `gbm_spots` |
-| MC matrix | `mc_matrix.py` | GbmParams, horizon dates, n_paths | Path×date matrix, `.npz`, Excel export |
-| Paths | `paths.py` | Market, product, frequency | Forward `PathSpec[]` (as-of → Simulation End) |
+| Monte Carlo matrix | `mc_matrix.py` | GbmParams, horizon dates, n_paths | Path×date matrix, `.npz`, Excel export |
+| Paths | `paths.py` | Market, product, n_paths | Forward `PathSpec[]` (as-of → Product End; frequency ignored) |
 | Hedge | `hedge.py` | Product, path, market | `req_delta`, legs, observations |
 | Black–Scholes | `black_scholes.py` | Spot, strike, τ, σ, rates | Price, central delta |
 | NAV | `nav.py` | Deltas, spots, rolls | Summary + daily rows |
-| Forward test | `forwardtest.py` | Product, market, frequency | Job results, KPIs |
+| Forward test | `forwardtest.py` | Product, market, n_paths | Job results, KPIs |
 | Runtime | `runtime.py` | Host env | Parallelism mode |
 | Init | `__init__.py` | — | Package exports |
 
@@ -100,7 +100,7 @@ Bootstrap: frontend calls `/api/sync` first to wake sleeping Render instance and
 | GET | `/api/health` | Liveness |
 | GET | `/api/sync` | Extend Nifty / rolls / expiries; clear cache |
 | GET | `/api/mongo/status` | Atlas connectivity |
-| GET | `/api/market/meta` | Horizon meta: asof, simulation_end, simulation_end_days, trading_days & expiries for **as-of→Simulation End** |
+| GET | `/api/market/meta` | Horizon meta: asof, product_end, tenure_days, n_paths, trading_days & expiries for **as-of→Product End** |
 | GET | `/api/market/nifty` | Daily series |
 | GET | `/api/market/expiries` | Monthly (+ Nifty on expiry) |
 | GET | `/api/market/rolls` | Shift dates + roll costs |
@@ -117,19 +117,19 @@ Bootstrap: frontend calls `/api/sync` first to wake sleeping Render instance and
 
 | Method | Path | Purpose |
 |--------|------|---------|
-| POST | `/api/forwardtest/run` | `{ "frequency": "daily"|"monthly"|… }` → `{ job_id }` |
+| POST | `/api/forwardtest/run` | `{ "n_paths": 1000 }` (optional; default 1000) → `{ job_id }` |
 | GET | `/api/forwardtest/{id}/status` | Progress, phase, error |
 | GET | `/api/forwardtest/{id}/summary` | All-path KPIs + rows |
 | GET | `/api/forwardtest/{id}/paths/{pathId}` | Computation detail + series |
 | GET | `/api/forwardtest/{id}/paths/{pathId}/hedging` | Hedging Sheet payload |
-| GET | `/api/forwardtest/{id}/paths/{pathId}/horizon-market` | Full as-of→Simulation End path market payload (API; UI calendar uses `/api/market/*`) |
+| GET | `/api/forwardtest/{id}/paths/{pathId}/horizon-market` | Full as-of→Product End path market payload (API; UI calendar uses `/api/market/*`) |
 | GET | `/api/forwardtest/{id}/mc-matrix` | Matrix meta (n_paths, n_dates, GBM params) |
-| GET | `/api/forwardtest/{id}/mc-matrix/preview` | Truncated grid for Intel UI |
+| GET | `/api/forwardtest/{id}/mc-matrix/preview` | Truncated grid for Intel UI (early + late date sample) |
 | GET | `/api/forwardtest/{id}/mc-matrix.xlsx` | Full Excel download (Home + Intel) |
 
 **Job lifecycle:**
 
-1. `POST /api/forwardtest/run` — default UI frequency **daily**
+1. `POST /api/forwardtest/run` — default **Monte Carlo Paths = 1000**
 2. Poll `/status` until `done` (or `cancelled` / `error`)
 3. Load `/summary` then `/paths/{pathId}` for detail; optionally download `/mc-matrix.xlsx`
 
@@ -160,13 +160,13 @@ Render injects `PORT`, `RENDER`, `RENDER_SERVICE_ID` — do not set manually. Ne
 | `lib/store.tsx` | Product, job, path selection, progress, filtered KPIs, cancel-safe runs |
 | `lib/download.ts` | Branded `.xlsx` — logo, typed number/date/percent cells |
 | `components/ui/Shared.tsx` | Path picker, KpiBand (mean + median), tabs |
-| `app/page.tsx` | Home — product strip, KPIs, GBM band, **Download Simulated Nifty Paths**, yearly chart |
+| `app/page.tsx` | Home — product strip, KPIs, GBM band, **Download Simulated Nifty Paths** |
 | `app/product` | Spec tables + observation map |
 | `app/paths` | Trading calendar |
 | `app/hedging` | Hedging Sheet |
 | `app/computation` | Result, Buy/Sell, Brokerage/GST, Daily Rows, Trade Cost Ledger |
 | `app/computation/ledger` | Daily Ledger charts (NAV + Req. Delta) |
-| `app/analytics` | Yearly Lab + Path Summary |
+| `app/analytics` | Path Charts + Path Summary |
 | `app/intel` | Market Calendar + Monte Carlo Matrix + Logic Atlas |
 
 Theme: Cormorant Garamond display + Source Sans 3 UI; AR maroon/gold tokens in `globals.css`. Full UX spec: [06-ui-ux.md](06-ui-ux.md).
@@ -179,7 +179,7 @@ Theme: Cormorant Garamond display + Source Sans 3 UI; AR maroon/gold tokens in `
 |-------|----------|-----|
 | `data/nifty_daily.csv` etc. | Market history (auto-extended) | Tracked |
 | `data/nifty_daily.csv` | Historical Nifty closes for GBM μ/σ |
-| Header `/api/market/meta` | As Of Today, Simulation End, horizon Trading Days & Monthly Expiries | Live |
+| Header `/api/market/meta` | As Of Today, Product End, Tenure Days, Monte Carlo Paths, Trading Days & Monthly Expiries | Live |
 | `data/uploads/` | Current product workbook | Ignored |
 | `data/jobs/` | Slim forward-test results + `mc_matrix.npz` (~12 newest kept) | Ignored |
 | Mongo (optional) | Product upsert, upload log, job KPI snapshot | Cloud |
@@ -207,17 +207,17 @@ Status polling interval: **~180–280ms** (faster while warming).
 
 | Host | Mode | Typical latency |
 |------|------|-----------------|
-| Local (ample RAM) | Process pool for daily | ~10–15s daily; ~2–5s monthly |
+| Local (ample RAM) | Process / thread pool | Scales with Monte Carlo Paths N and tenure trading days |
 | Render free / constrained | Threads or serial | Higher; avoids OOM |
 
-Env: prefer `FORWARDTEST_CONSTRAINED`, `FORWARDTEST_WORKERS`, `FORWARDTEST_MODE` (legacy `BACKTEST_*` still accepted).
+Env: prefer `FORWARDTEST_CONSTRAINED`, `FORWARDTEST_WORKERS`, `FORWARDTEST_MODE` (legacy `BACKTEST_*` still accepted). Optional `FORWARDTEST_N_PATHS` overrides default path count.
 
-| Frequency | Path count |
-|-----------|------------|
-| Any | **f(frequency, Simulation End Days, tenure, observations)** — not a fixed dropdown |
-| Example (7300 end days, sample tenure) | Daily / weekly / monthly counts change with as-of and product |
+| Monte Carlo Paths | Notes |
+|-------------------|-------|
+| Default **1000** | Presets 100 / 500 / 1000 / 5000 / 10000; clamp 1…10000 |
+| Larger N | Longer Run + Excel queue; prefer 100–1000 for quick desk checks on free hosts |
 
-Do **not** hardcode “235 Macro Paths” or fixed daily counts in ops docs — the Forwardtester atlas is horizon-driven.
+Do **not** hardcode “235 Macro Paths” or frequency-driven path counts in ops docs — the Forwardtester atlas is **N independent seeds** over one as-of → Product End window.
 
 ---
 
@@ -229,7 +229,7 @@ Do **not** hardcode “235 Macro Paths” or fixed daily counts in ops docs — 
 | Observation months | 38, 41, 44, 47, 50, 53, 56 |
 | BS Forward / Discount | 6.6% / 7.6% |
 | Path 1 Total | ≈ 180.7724 Cr (WF1 / Backtester historical gold — hedge/NAV parity) |
-| Forward path count | Frequency × horizon driven — no fixed 235 Macro Path pin file |
+| Forward path count | **Monte Carlo Paths N** (default 1000) — no fixed 235 Macro Path pin file; no frequency start grid |
 | Open-month hist roll | `pin_current_month_roll_to_latest` through latest Nifty session |
 
 ---

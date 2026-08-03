@@ -107,10 +107,14 @@ export function isDeskHorizonMeta(m: {
   );
 }
 
-/** Default / clamp for Monte Carlo path count (matches backend DEFAULT_N_PATHS). */
-export const DEFAULT_N_PATHS = 100;
+/** Default / clamp for Monte Carlo path count (matches backend). */
+export const DEFAULT_N_PATHS = 1000;
 export const MIN_N_PATHS = 1;
-export const MAX_N_PATHS = 5000;
+export const MAX_N_PATHS = 10000;
+/** Preset choices for the desk dropdown (max = MAX_N_PATHS). */
+export const MONTE_CARLO_PATH_PRESETS = [100, 500, 1000, 5000, 10000] as const;
+/** Warn about run time / host limits at or above this path count. */
+export const MONTE_CARLO_LIMITS_WARN_AT = 1000;
 
 export function clampNPaths(n: number): number {
   if (!Number.isFinite(n)) return DEFAULT_N_PATHS;
@@ -684,6 +688,9 @@ export const client = {
       headers: string[];
       rows: Array<Array<number | string>>;
       truncated: boolean;
+      date_sample?: "head_tail" | "full" | string;
+      horizon_start?: string | null;
+      horizon_end?: string | null;
       spot0?: number;
       drift?: number;
       std_dev?: number;

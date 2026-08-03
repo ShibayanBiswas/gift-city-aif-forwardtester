@@ -282,15 +282,27 @@ def matrix_preview(
     max_paths: int = 25,
     max_dates: int = 40,
 ) -> dict[str, Any]:
-    """Preview without requiring the full matrix in RAM — stream GBM rows."""
+    """Preview without requiring the full matrix in RAM — stream GBM rows.
+
+    When the horizon is longer than ``max_dates``, take the first half and last
+    half of trading dates so Product End remains visible (not only early columns).
+    """
     dates: list[date] = payload["dates"]
     mat = payload.get("matrix")
     total_paths = int(payload.get("n_paths") or (mat.shape[0] if mat is not None else 0))
     total_dates = int(payload.get("n_dates") or len(dates))
     n_paths = min(int(max_paths), total_paths)
-    n_dates = min(int(max_dates), total_dates, len(dates))
+    budget = min(int(max_dates), total_dates, len(dates))
+    if total_dates <= budget:
+        date_indices = list(range(total_dates))
+    else:
+        head = budget // 2
+        tail = budget - head
+        date_indices = list(range(head)) + list(range(total_dates - tail, total_dates))
+    preview_dates = [dates[i] for i in date_indices]
+    n_dates = len(preview_dates)
     windows = _path_window_map(payload, total_paths)
-    headers = ["Path", "Start Date", "End Date"] + [d.isoformat() for d in dates[:n_dates]]
+    headers = ["Path", "Start Date", "End Date"] + [d.isoformat() for d in preview_dates]
     rows: list[list[float | int | str]] = []
     base_seed = int(payload.get("base_seed") or GBM_BASE_SEED)
     if mat is not None:
@@ -298,7 +310,8 @@ def matrix_preview(
             pid = i + 1
             start, end = windows.get(pid, ("", ""))
             rows.append(
-                [pid, start, end] + [round(float(mat[i, j]), 4) for j in range(n_dates)]
+                [pid, start, end]
+                + [round(float(mat[i, j]), 4) for j in date_indices]
             )
     else:
         params = GbmParams(
@@ -322,7 +335,8 @@ def matrix_preview(
             )
             start, end = windows.get(path_id, ("", ""))
             rows.append(
-                [path_id, start, end] + [round(float(spots[j]), 4) for j in range(n_dates)]
+                [path_id, start, end]
+                + [round(float(spots[j]), 4) for j in date_indices]
             )
     return {
         **matrix_meta(payload),
@@ -331,6 +345,9 @@ def matrix_preview(
         "headers": headers,
         "rows": rows,
         "truncated": total_paths > n_paths or total_dates > n_dates,
+        "date_sample": "head_tail" if total_dates > n_dates else "full",
+        "horizon_start": dates[0].isoformat() if dates else None,
+        "horizon_end": dates[-1].isoformat() if dates else None,
     }
 
 
