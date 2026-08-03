@@ -70,41 +70,6 @@ function newClientRunId(): string {
   return `run-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
 }
 
-function productFingerprint(p: {
-  principal_cr?: number;
-  tenure_days?: number;
-  n_paths?: number | null;
-  n_obs?: number;
-  observation_months?: number[];
-  legs?: unknown[];
-  roll_rate?: number;
-  fee_rate?: number;
-  cash_rate?: number;
-  gsec_rate?: number;
-} | null | undefined): string {
-  if (!p) return "";
-  return [
-    p.principal_cr,
-    p.tenure_days,
-    p.n_paths,
-    p.n_obs,
-    (p.observation_months ?? []).join(","),
-    Array.isArray(p.legs) ? p.legs.length : 0,
-    p.roll_rate,
-    p.fee_rate,
-    p.cash_rate,
-    p.gsec_rate,
-  ].join("|");
-}
-
-function productsMatch(
-  live: Parameters<typeof productFingerprint>[0],
-  job: Parameters<typeof productFingerprint>[0],
-): boolean {
-  if (!live || !job) return false;
-  return productFingerprint(live) === productFingerprint(job);
-}
-
 function clearDeskResults(
   setSummary: (v: ForwardTestSummary | null) => void,
   setJobId: (v: string | null) => void,
@@ -141,11 +106,16 @@ export function ForwardTestProvider({ children }: { children: ReactNode }) {
   /** Sync lock — React state `running` is too slow to block double-clicks. */
   const runningLockRef = useRef(false);
   const jobIdRef = useRef<string | null>(null);
+  const nPathsRef = useRef(nPaths);
   const intentionalCancelRef = useRef(false);
 
   useEffect(() => {
     jobIdRef.current = jobId;
   }, [jobId]);
+
+  useEffect(() => {
+    nPathsRef.current = nPaths;
+  }, [nPaths]);
 
   useEffect(() => {
     document.documentElement.classList.toggle("dark", dark);
@@ -232,12 +202,9 @@ export function ForwardTestProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
-  // Any Product Input change invalidates a prior run that used a different book / horizon.
-  useEffect(() => {
-    if (!product || !summary?.product) return;
-    if (productsMatch(product, summary.product)) return;
-    clearDeskResults(setSummary, setJobId, setPathDetail, setPathDetailError, setPathId);
-  }, [product, summary]);
+  // Product uploads already clear results in `upload`. Do not auto-wipe a finished
+  // run when ProductSpec is refreshed on tab changes (e.g. Logic Atlas) — fingerprint
+  // drift on n_paths / legs would otherwise flash EmptyRunHint across the desk.
 
   // Browser refresh / tab close → stop the one active simulation cleanly (no zombie cancel race).
   useEffect(() => {
@@ -282,7 +249,10 @@ export function ForwardTestProvider({ children }: { children: ReactNode }) {
       // One simulation at a time — ignore N changes mid-run.
       return;
     }
-    setNPathsState(clampNPaths(n));
+    const next = clampNPaths(n);
+    // Same count — keep current results; do not flash EmptyRunHint.
+    if (next === nPathsRef.current) return;
+    setNPathsState(next);
     // Changing path count invalidates the on-screen book until the next Run.
     setSummary(null);
     setJobId(null);

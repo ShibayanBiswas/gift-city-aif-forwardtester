@@ -511,6 +511,10 @@ export function PathDetailGate({
 }
 
 export function EmptyRunHint() {
+  const { running } = useForwardTest();
+  // Progress modal already covers an in-flight run — never flash Get Started mid-run or on tab switch.
+  if (running) return null;
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 16 }}
