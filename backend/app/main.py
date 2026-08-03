@@ -90,7 +90,7 @@ _current_product = None
 _active_job_id: str | None = None
 # client_run_id → job_id so duplicate POSTs (cold-start retry / double-click) reuse one job.
 _client_run_jobs: dict[str, str] = {}
-_MAX_JOB_FILES = 12
+_MAX_JOB_FILES = 24
 _run_lock: asyncio.Lock | None = None
 _desk_cache_key: tuple[Any, ...] | None = None
 _desk_cache: dict[str, Any] | None = None
@@ -865,7 +865,7 @@ async def cancel_forwardtest(body: CancelRequest = CancelRequest()) -> dict:
     target_id = (body.job_id or _active_job_id or "").strip() or None
     if not target_id:
         return {"ok": True, "cancelled": False, "reason": "no_active_job"}
-    job = _jobs.get(target_id)
+    job = _get_job(target_id)
     if not job:
         return {"ok": True, "cancelled": False, "reason": "unknown_job"}
     reason = (body.reason or "Cancelled by user.").strip()[:200]

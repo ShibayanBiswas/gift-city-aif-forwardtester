@@ -423,6 +423,16 @@ export function isTransientPathDetailError(msg: string): boolean {
   );
 }
 
+/** Free-host / proxy blips — soft-retry status polls and summary fetches. */
+export function isTransientNetworkError(msg: string): boolean {
+  return (
+    msg === "PATH_DETAIL_TIMEOUT" ||
+    /timed out|Failed to fetch|NetworkError|network error|Load failed|fetch failed|502|503|504|ECONNRESET|asleep|cold start/i.test(
+      msg,
+    )
+  );
+}
+
 /**
  * Optional direct Render origin (no Vercel proxy hop).
  * Set NEXT_PUBLIC_BACKEND_URL on Vercel to the Render base URL for faster cold starts.
@@ -438,14 +448,15 @@ function apiUrl(path: string): string {
   /** Request timeout budgets (ms). Render free tier can cold-start ~30–90s. */
 export const API_TIMEOUTS = {
   default: 30_000,
-  status: 15_000,
+  /** Status polls must survive mid-run free-host wake blips. */
+  status: 45_000,
   /** First wake attempt — fail fast so UI can retry / show parallel payloads. */
   wake: 25_000,
   bootstrap: 45_000,
   /** Start job POST — allow full cold wake; idempotent client_run_id prevents duplicates. */
   runStart: 120_000,
   pathDetail: 120_000,
-  summary: 60_000,
+  summary: 90_000,
   /** MC matrix on-screen preview can stream many GBM rows on constrained hosts. */
   mcMatrixPreview: 180_000,
   marketHeavy: 90_000,
@@ -561,7 +572,7 @@ export const client = {
       path_counts?: Partial<Record<Frequency | string, number>>;
     }>("/api/market/meta", { timeoutMs: API_TIMEOUTS.bootstrap }, 2),
   nifty: () =>
-    api<{
+    apiRetry<{
       rows: Array<{ date: string; close: number; source?: string }>;
       count: number;
       asof?: string;
@@ -569,9 +580,9 @@ export const client = {
       simulation_end_days?: number;
     }>("/api/market/nifty", {
       timeoutMs: API_TIMEOUTS.marketHeavy,
-    }),
+    }, 2),
   expiries: (full = true) =>
-    api<{
+    apiRetry<{
       rows: Array<{
         expiry_date: string;
         nifty_close: number | null;
@@ -588,13 +599,13 @@ export const client = {
       simulation_end_days?: number;
     }>(`/api/market/expiries?full=${full ? "true" : "false"}`, { timeoutMs: API_TIMEOUTS.marketHeavy }),
   rolls: () =>
-    api<{
+    apiRetry<{
       rows: Array<{ shift_date: string; roll_cost: number | null; source?: string }>;
       count: number;
       asof?: string;
       simulation_end?: string;
       simulation_end_days?: number;
-    }>("/api/market/rolls", { timeoutMs: API_TIMEOUTS.marketHeavy }),
+    }>("/api/market/rolls", { timeoutMs: API_TIMEOUTS.marketHeavy }, 2),
   currentProduct: () =>
     apiRetry<ProductSpec>("/api/product/current", { timeoutMs: API_TIMEOUTS.bootstrap }, 2),
   downloadSample: async () => {
@@ -681,14 +692,23 @@ export const client = {
       timeoutMs: API_TIMEOUTS.status,
     }).catch(() => ({ ok: false, cancelled: false })),
   jobStatus: (id: string) =>
-    api<{ status: string; progress: number; message: string; error?: string }>(
+    apiRetry<{ status: string; progress: number; message: string; error?: string }>(
       `/api/forwardtest/${id}/status`,
       { timeoutMs: API_TIMEOUTS.status },
+      3,
     ),
   summary: (id: string) =>
-    api<ForwardTestSummary>(`/api/forwardtest/${id}/summary`, { timeoutMs: API_TIMEOUTS.summary }),
+    apiRetry<ForwardTestSummary>(
+      `/api/forwardtest/${id}/summary`,
+      { timeoutMs: API_TIMEOUTS.summary },
+      3,
+    ),
   pathDetail: (jobId: string, pathId: number) =>
-    api<PathDetail>(`/api/forwardtest/${jobId}/paths/${pathId}`, { timeoutMs: API_TIMEOUTS.pathDetail }),
+    apiRetry<PathDetail>(
+      `/api/forwardtest/${jobId}/paths/${pathId}`,
+      { timeoutMs: API_TIMEOUTS.pathDetail },
+      2,
+    ),
   pathHorizonMarket: (jobId: string, pathId: number) =>
     api<{
       ok: boolean;
@@ -732,7 +752,7 @@ export const client = {
       dates?: string[];
     }>(`/api/forwardtest/${jobId}/mc-matrix`, { timeoutMs: API_TIMEOUTS.summary }),
   mcMatrixPreview: (jobId: string, maxPaths = 200, maxDates = 120) =>
-    api<{
+    apiRetry<{
       ok: boolean;
       n_paths: number;
       n_dates: number;
@@ -755,6 +775,7 @@ export const client = {
     }>(
       `/api/forwardtest/${jobId}/mc-matrix/preview?max_paths=${maxPaths}&max_dates=${maxDates}`,
       { timeoutMs: API_TIMEOUTS.mcMatrixPreview },
+      2,
     ),
   downloadMcMatrix: async (
     jobId: string,

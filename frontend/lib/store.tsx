@@ -19,6 +19,7 @@ import {
   clampNPaths,
   DEFAULT_N_PATHS,
   isDeskHorizonMeta,
+  isTransientNetworkError,
   isTransientPathDetailError,
   keepApiAwake,
 } from "@/lib/api";
@@ -97,12 +98,24 @@ function readCachedSession(): CachedSession | null {
   }
 }
 
-function writeCachedSession(payload: CachedSession) {
-  if (typeof window === "undefined") return;
+function slimSummaryForCache(summary: ForwardTestSummary): ForwardTestSummary {
+  // Drop bulky date grids so sessionStorage stays under quota on large path counts.
+  if (!summary.mc_matrix?.dates?.length) return summary;
+  const { dates: _dates, ...mcRest } = summary.mc_matrix;
+  return { ...summary, mc_matrix: { ...mcRest } };
+}
+
+function writeCachedSession(payload: CachedSession): boolean {
+  if (typeof window === "undefined") return false;
   try {
-    sessionStorage.setItem(SESSION_KEY, JSON.stringify(payload));
+    sessionStorage.setItem(
+      SESSION_KEY,
+      JSON.stringify({ ...payload, summary: slimSummaryForCache(payload.summary) }),
+    );
+    return true;
   } catch {
     /* quota / private mode — in-memory store still covers SPA tab switches */
+    return false;
   }
 }
 
@@ -121,12 +134,14 @@ function clearDeskResults(
   setPathDetail: (v: PathDetail | null) => void,
   setPathDetailError: (v: string | null) => void,
   setPathId: (v: number) => void,
+  cacheQuotaWarnedRef?: { current: boolean },
 ) {
   setSummary(null);
   setJobId(null);
   setPathDetail(null);
   setPathDetailError(null);
   setPathId(1);
+  if (cacheQuotaWarnedRef) cacheQuotaWarnedRef.current = false;
   clearCachedSession();
   try {
     localStorage.removeItem(LS_KEY);
@@ -160,6 +175,8 @@ export function ForwardTestProvider({ children }: { children: ReactNode }) {
   const nPathsRef = useRef(nPaths);
   const intentionalCancelRef = useRef(false);
   const restoredSessionRef = useRef(false);
+  const summaryRef = useRef<ForwardTestSummary | null>(null);
+  const cacheQuotaWarnedRef = useRef(false);
 
   useEffect(() => {
     jobIdRef.current = jobId;
@@ -168,6 +185,10 @@ export function ForwardTestProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     nPathsRef.current = nPaths;
   }, [nPaths]);
+
+  useEffect(() => {
+    summaryRef.current = summary;
+  }, [summary]);
 
   useEffect(() => {
     document.documentElement.classList.toggle("dark", dark);
@@ -329,6 +350,7 @@ export function ForwardTestProvider({ children }: { children: ReactNode }) {
     setPathId(1);
     setError(null);
     clearCachedSession();
+    cacheQuotaWarnedRef.current = false;
     try {
       localStorage.removeItem(LS_KEY);
     } catch {
@@ -390,13 +412,23 @@ export function ForwardTestProvider({ children }: { children: ReactNode }) {
   // Keep session cache in sync when the user picks another path.
   useEffect(() => {
     if (!sessionReady || !summary) return;
-    writeCachedSession({
+    const ok = writeCachedSession({
       v: 1,
       jobId: jobId ?? "",
       nPaths: nPathsRef.current,
       pathId,
       summary,
     });
+    if (!ok) {
+      if (!cacheQuotaWarnedRef.current) {
+        cacheQuotaWarnedRef.current = true;
+        setError(
+          "This run is too large to cache in the browser tab. Avoid refresh — switch tabs freely while this session stays open.",
+        );
+      }
+    } else {
+      cacheQuotaWarnedRef.current = false;
+    }
   }, [sessionReady, summary, jobId, pathId]);
 
   useEffect(() => {
@@ -432,7 +464,7 @@ export function ForwardTestProvider({ children }: { children: ReactNode }) {
           if (cancelled) return;
           const msg = e instanceof Error ? e.message : String(e);
           if (/superseded by a newer run/i.test(msg)) {
-            clearDeskResults(setSummary, setJobId, setPathDetail, setPathDetailError, setPathId);
+            clearDeskResults(setSummary, setJobId, setPathDetail, setPathDetailError, setPathId, cacheQuotaWarnedRef);
             setPathDetailLoading(false);
             return;
           }
@@ -498,7 +530,7 @@ export function ForwardTestProvider({ children }: { children: ReactNode }) {
       const res = await client.uploadProduct(file);
       setProduct(res.product);
       if (res.product?.n_paths != null) setNPathsState(clampNPaths(Number(res.product.n_paths)));
-      clearDeskResults(setSummary, setJobId, setPathDetail, setPathDetailError, setPathId);
+      clearDeskResults(setSummary, setJobId, setPathDetail, setPathDetailError, setPathId, cacheQuotaWarnedRef);
       if (res.market && isDeskHorizonMeta(res.market)) {
         setMarket(res.market);
       } else {
@@ -529,7 +561,10 @@ export function ForwardTestProvider({ children }: { children: ReactNode }) {
     try {
       const [p, m] = await Promise.all([client.currentProduct(), client.marketMeta()]);
       setProduct(p);
-      if (p?.n_paths != null) setNPathsState(clampNPaths(Number(p.n_paths)));
+      // Never overwrite path count for a finished book (Logic Atlas remounts call this).
+      if (p?.n_paths != null && !summaryRef.current) {
+        setNPathsState(clampNPaths(Number(p.n_paths)));
+      }
       if (isDeskHorizonMeta(m)) setMarket(m);
     } catch {
       // Keep last known product if API is waking / offline.
@@ -549,15 +584,18 @@ export function ForwardTestProvider({ children }: { children: ReactNode }) {
 
     const gen = ++runGenRef.current;
     const clientRunId = newClientRunId();
+    // Keep prior summary on screen until the new run finishes — never flash EmptyRunHint mid-wake.
+    const priorSummary = summaryRef.current;
     setError(null);
     setPathDetailError(null);
+    setPathDetail(null);
     setRunning(true);
     setProgress(0);
     setMessage("Waking API…");
-    clearDeskResults(setSummary, setJobId, setPathDetail, setPathDetailError, setPathId);
     const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
     const startedAt = Date.now();
     const maxWallMs = 45 * 60_000;
+    let pollSoftFails = 0;
     try {
       // Cold Render: wake first so the Run POST is not raced by proxy retries.
       setMessage("Waking API…");
@@ -568,24 +606,41 @@ export function ForwardTestProvider({ children }: { children: ReactNode }) {
       if (gen !== runGenRef.current) return;
       setJobId(job_id);
       jobIdRef.current = job_id;
-      localStorage.setItem(LS_KEY, JSON.stringify({ jobId: job_id, nPaths: runN }));
+      try {
+        localStorage.setItem(LS_KEY, JSON.stringify({ jobId: job_id, nPaths: runN }));
+      } catch {
+        /* ignore */
+      }
       setMessage("Queued — starting paths…");
       for (;;) {
         if (gen !== runGenRef.current) return;
         if (Date.now() - startedAt > maxWallMs) {
           setError("Forward test timed out waiting for the server. Please try again.");
           setJobId(null);
-          localStorage.removeItem(LS_KEY);
+          try {
+            localStorage.removeItem(LS_KEY);
+          } catch {
+            /* ignore */
+          }
           break;
         }
         let st: Awaited<ReturnType<typeof client.jobStatus>>;
         try {
           st = await client.jobStatus(job_id);
+          pollSoftFails = 0;
         } catch (e) {
           const msg = e instanceof Error ? e.message : String(e);
-          if (/timed out|PATH_DETAIL_TIMEOUT/i.test(msg)) {
-            await sleep(800);
-            continue;
+          if (
+            isTransientNetworkError(msg) ||
+            /no longer on the server|Unknown job|unknown forward test job/i.test(msg)
+          ) {
+            pollSoftFails += 1;
+            if (pollSoftFails <= 12) {
+              setMessage("Reconnecting to the API…");
+              void keepApiAwake();
+              await sleep(Math.min(4_000, 600 * pollSoftFails));
+              continue;
+            }
           }
           throw e;
         }
@@ -597,30 +652,56 @@ export function ForwardTestProvider({ children }: { children: ReactNode }) {
           .trim();
         setMessage(cleanMsg || "Computing paths…");
         if (st.status === "done") {
-          const s = await client.summary(job_id);
+          let s: ForwardTestSummary | null = null;
+          for (let attempt = 0; attempt < 4; attempt++) {
+            try {
+              s = await client.summary(job_id);
+              break;
+            } catch (e) {
+              const msg = e instanceof Error ? e.message : String(e);
+              if (attempt < 3 && isTransientNetworkError(msg)) {
+                void keepApiAwake();
+                await sleep(800 * (attempt + 1));
+                continue;
+              }
+              throw e;
+            }
+          }
+          if (!s) throw new Error("Summary was empty after a successful run.");
           if (gen !== runGenRef.current) return;
           const resultN = s.n_paths ?? s.path_count;
+          let cachedN = runN;
           if (resultN != null && Number(resultN) !== runN) {
             const serverN = Number(resultN);
             // Deploy hosts may clamp path count below the desk request — adopt server value.
             if (Number.isFinite(serverN) && serverN > 0 && serverN <= runN) {
-              setNPathsState(clampNPaths(serverN));
+              cachedN = clampNPaths(serverN);
+              setNPathsState(cachedN);
             } else {
               setError("Received results for a different path count. Please run again.");
               setJobId(null);
-              localStorage.removeItem(LS_KEY);
+              try {
+                localStorage.removeItem(LS_KEY);
+              } catch {
+                /* ignore */
+              }
               break;
             }
           }
           setSummary(s);
           setPathId(1);
-          writeCachedSession({
+          const cached = writeCachedSession({
             v: 1,
             jobId: job_id,
-            nPaths: runN,
+            nPaths: cachedN,
             pathId: 1,
             summary: s,
           });
+          if (!cached) {
+            setError(
+              "Results loaded, but this run is too large to cache in the browser tab. Avoid refresh while working.",
+            );
+          }
           // Drop in-progress pointer; completed payload is in sessionStorage for this tab.
           try {
             localStorage.removeItem(LS_KEY);
@@ -633,19 +714,33 @@ export function ForwardTestProvider({ children }: { children: ReactNode }) {
           if (gen !== runGenRef.current || intentionalCancelRef.current) {
             setError(null);
             setJobId(null);
-            localStorage.removeItem(LS_KEY);
+            try {
+              localStorage.removeItem(LS_KEY);
+            } catch {
+              /* ignore */
+            }
             break;
           }
-          // Unexpected cancel (should be rare with single-flight + idempotency).
+          // Unexpected cancel — keep prior book if we still have it.
           setError("Simulation stopped. Only one run can be active — click Run once and wait for it to finish.");
           setJobId(null);
-          localStorage.removeItem(LS_KEY);
+          if (priorSummary && !summaryRef.current) setSummary(priorSummary);
+          try {
+            localStorage.removeItem(LS_KEY);
+          } catch {
+            /* ignore */
+          }
           break;
         }
         if (st.status === "error") {
           setError(st.error || st.message);
           setJobId(null);
-          localStorage.removeItem(LS_KEY);
+          if (priorSummary) setSummary(priorSummary);
+          try {
+            localStorage.removeItem(LS_KEY);
+          } catch {
+            /* ignore */
+          }
           break;
         }
         await sleep(st.progress < 5 ? 180 : 280);
@@ -654,7 +749,13 @@ export function ForwardTestProvider({ children }: { children: ReactNode }) {
       if (gen !== runGenRef.current) return;
       setError(e instanceof Error ? e.message : String(e));
       setJobId(null);
-      localStorage.removeItem(LS_KEY);
+      // Restore prior finished book if the new run never delivered a summary.
+      if (priorSummary) setSummary(priorSummary);
+      try {
+        localStorage.removeItem(LS_KEY);
+      } catch {
+        /* ignore */
+      }
     } finally {
       if (gen === runGenRef.current) {
         runningLockRef.current = false;

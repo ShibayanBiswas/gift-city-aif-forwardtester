@@ -512,27 +512,24 @@ export function PathDetailGate({
 
 export function EmptyRunHint() {
   const { running, sessionReady } = useForwardTest();
-  // Wait for session hydrate so a finished run never flashes Get Started on tab switch.
+  // Wait for session hydrate so a finished run never flashes the empty desk on tab switch.
   if (!sessionReady || running) return null;
 
   return (
     <motion.div
-      initial={{ opacity: 0, y: 16 }}
+      initial={{ opacity: 0, y: 12 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
-      className="ar-panel ar-band glass glass-glow-cyan relative overflow-hidden p-12 text-center"
+      className="ar-panel ar-band glass glass-glow-cyan overflow-hidden p-12 text-center"
     >
-      <div className="hero-ambient opacity-70" aria-hidden />
-      <div className="relative">
-        <div className="desk-gold-rule desk-gold-rule--wide empty-desk-pulse mb-4" />
-        <p className="text-xs tracking-[0.28em] text-[var(--ar-subtle)] font-ui">Get Started</p>
-        <h2 className="mt-2 font-display text-3xl text-[var(--ar-maroon)] md:text-4xl">
-          Run A Forward Test
-        </h2>
-        <p className="mx-auto mt-3 max-w-xl text-sm leading-relaxed text-[var(--ar-muted)] font-ui">
-          Upload a product sheet if needed, then press Run. Results appear across charts, tables, and analytics.
-        </p>
-      </div>
+      <div className="mx-auto mb-4 h-1 w-24 rounded-full bg-gradient-to-r from-[var(--ar-maroon)] via-[var(--ar-gold)] to-[var(--ar-maroon)]" />
+      <p className="text-xs tracking-[0.28em] text-[var(--ar-subtle)] font-ui">Desk Ready</p>
+      <h2 className="mt-2 font-display text-3xl text-[var(--ar-maroon)] md:text-4xl">
+        Run A Forward Test To Illuminate The Desk
+      </h2>
+      <p className="mx-auto mt-3 max-w-xl text-sm leading-relaxed text-[var(--ar-muted)] font-ui">
+        Set the path count, upload a product sheet if needed, then press Run. Simulated paths from As Of Today
+        through Product End will populate every desk surface.
+      </p>
     </motion.div>
   );
 }
