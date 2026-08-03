@@ -107,7 +107,7 @@ function fundEconomicsRows(product: ProductSpec): Array<[string, string]> {
     ["Tax Benefit On Roll", pctLabel(product.tax_benefit_rate ?? 0.42744)],
   ];
   if (product.n_paths != null) {
-    rows.push(["Monte Carlo Paths", String(product.n_paths)]);
+    rows.push(["Paths", String(product.n_paths)]);
   }
   return rows;
 }
@@ -336,7 +336,7 @@ export function ProductMetaStrip({ product }: { product: ProductSpec }) {
     { label: "Observation Count", value: Number(product.n_obs).toLocaleString("en-IN") },
     { label: "Active Option Legs", value: activeCount.toLocaleString("en-IN") },
     {
-      label: "Monte Carlo Paths",
+      label: "Paths",
       value: mcPaths != null ? mcPaths.toLocaleString("en-IN") : "—",
     },
   ];

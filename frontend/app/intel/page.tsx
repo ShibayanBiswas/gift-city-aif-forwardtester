@@ -123,7 +123,6 @@ export default function IntelPage() {
               </h2>
               <p className="mt-1 max-w-3xl text-sm leading-relaxed text-[var(--ar-muted)] font-ui">
                 Futures shift dates and monthly Nifty option expiry dates from As Of Today through Product End.
-                Path prices and roll costs differ by path — see Simulated Nifty Paths, Hedging Sheet, and Computation.
               </p>
             </div>
             <div className="flex flex-wrap gap-2">

@@ -48,8 +48,7 @@ export default function AnalyticsPage() {
             </p>
             <h2 className="font-display text-2xl text-[var(--ar-maroon)]">Path Charts</h2>
             <p className="mt-1 text-sm text-[var(--ar-muted)] font-ui">
-              All Monte Carlo paths share the same start date. Review cohort KPIs here, then inspect net required
-              futures delta for a selected path. NAV lives on Computation.
+              Review summary results, then use the path selector below to chart futures delta for one path.
             </p>
           </div>
         </div>
@@ -60,12 +59,12 @@ export default function AnalyticsPage() {
       <section className="ar-panel ar-band p-5">
         <div className="mb-4 flex w-full flex-col gap-3">
           <div>
-            <p className="text-xs tracking-[0.18em] text-[var(--ar-subtle)] font-ui">Single Path</p>
+            <p className="text-xs tracking-[0.18em] text-[var(--ar-subtle)] font-ui">Selected Path</p>
             <h3 className="font-display text-xl text-[var(--ar-maroon)]">
-              Net Required Futures Delta · Path {pathId}
+              Futures Delta · Path {pathId}
             </h3>
             <p className="mt-1 text-sm text-[var(--ar-muted)] font-ui">
-              Sum of option deltas times contract quantity for the selected path.
+              Daily net futures delta for the path chosen above.
             </p>
           </div>
           <PathSelect className="w-full" />
@@ -92,7 +91,7 @@ export default function AnalyticsPage() {
               </div>
               <ChartFrame
                 title={`Path ${pathId} · Net Required Futures Delta`}
-                subtitle="Single Path Series"
+                subtitle="Selected path"
                 height="h-72"
               >
                 <PathSeriesChart

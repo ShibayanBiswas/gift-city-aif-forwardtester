@@ -61,7 +61,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           icon: Hourglass,
         },
         {
-          label: "Monte Carlo Paths",
+          label: "Paths",
           value: mcPaths != null ? mcPaths.toLocaleString("en-IN") : "—",
           icon: Dices,
         },

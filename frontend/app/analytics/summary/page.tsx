@@ -4,11 +4,11 @@ import { useMemo } from "react";
 import { motion } from "framer-motion";
 import { useForwardTest } from "@/lib/store";
 import { formatDeskDate, formatNum, formatPct, isPlausibleTradingDate } from "@/lib/api";
-import { EmptyRunHint, KpiBand } from "@/components/ui/Shared";
+import { EmptyRunHint, KpiBand, PathSelect } from "@/components/ui/Shared";
 import { SheetTable } from "@/components/SheetTable";
 
 export default function SummaryTablePage() {
-  const { filteredSummary, setPathId, nPaths } = useForwardTest();
+  const { filteredSummary, setPathId } = useForwardTest();
   const rows = useMemo(
     () =>
       filteredSummary.map((r) => [
@@ -72,21 +72,21 @@ export default function SummaryTablePage() {
               <p className="text-xs tracking-[0.22em] text-[var(--ar-subtle)] font-ui">Analytics · Summary</p>
               <h2 className="font-display text-3xl text-[var(--ar-maroon)] md:text-4xl">Path Summary</h2>
               <p className="mt-2 text-sm leading-relaxed text-[var(--ar-muted)] font-ui">
-                Every completed Monte Carlo path. All paths share the same Start and Product End. Click a row to
-                select that path across Desk pages. Monte Carlo paths · {nPaths}.
+                One row per path. Use the selector below, or click a row, to open that path on Desk pages.
               </p>
             </div>
           </div>
 
-          <div className="relative z-[1] mt-5">
+          <div className="relative z-[1] mt-5 space-y-4">
+            <PathSelect className="w-full" />
             <KpiBand />
           </div>
         </div>
       </motion.section>
 
       <SheetTable
-        title="All Monte Carlo Paths"
-        subtitle="Click A Row To Select That Path Across Desk Pages · Horizontal Scroll Enabled"
+        title="Path Results"
+        subtitle="Click a row to select that path"
         headers={[
           "Path",
           "Start",

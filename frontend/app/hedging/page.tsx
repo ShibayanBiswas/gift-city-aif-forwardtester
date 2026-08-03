@@ -144,7 +144,7 @@ export default function HedgingPage() {
               Hedging Sheet · Path {pathId}
             </h2>
             <p className="mt-1 max-w-2xl text-sm text-[var(--ar-muted)] font-ui">
-              Observation schedule and options book for the selected simulation path
+              Observation schedule and options book for the path selected below.
             </p>
           </div>
           <PathSelect className="w-full" showMeta />

@@ -38,10 +38,9 @@ export default function PathsPage() {
       >
         <div className="mb-5 max-w-3xl">
           <p className="text-xs tracking-[0.22em] text-[var(--ar-subtle)] font-ui">Desk · Paths</p>
-          <h2 className="font-display text-3xl text-[var(--ar-maroon)] md:text-4xl">Simulation Path Atlas</h2>
+          <h2 className="font-display text-3xl text-[var(--ar-maroon)] md:text-4xl">Path Calendar</h2>
           <p className="mt-2 text-sm leading-relaxed text-[var(--ar-muted)] font-ui">
-            Choose any rolling path. The picker spans the full desk width and partitions Start Date, End Date,
-            Trading Days, and Calendar Days.
+            Use the path selector below to open a path and review its trading calendar.
           </p>
         </div>
         <PathSelect className="w-full" showMeta />

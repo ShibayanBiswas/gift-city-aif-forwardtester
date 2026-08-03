@@ -248,7 +248,7 @@ export function PathSelect({
   if (!active) {
     return (
       <div className={`font-ui ${className}`}>
-        <p className="text-sm text-[var(--ar-muted)]">No simulation paths available yet.</p>
+        <p className="text-sm text-[var(--ar-muted)]">No paths available yet.</p>
       </div>
     );
   }
@@ -308,8 +308,8 @@ export function PathSelect({
                         pickPath(visiblePaths[0].path_id);
                       }
                     }}
-                    placeholder="Search Path · Year · Date · Nifty…"
-                    aria-label="Search simulation paths"
+                    placeholder="Search path · year · date · Nifty…"
+                    aria-label="Search paths"
                     className="path-select-search-input"
                   />
                   {q ? (
@@ -329,7 +329,7 @@ export function PathSelect({
                 <p className="mt-1.5 text-[10px] tracking-[0.18em] text-[var(--ar-subtle)]">
                   {q
                     ? `${visiblePaths.length} Match${visiblePaths.length === 1 ? "" : "es"} · ${filteredSummary.length} Total`
-                    : `${filteredSummary.length} Paths · Showing 4 At A Time · Start · End · Days · Nifty`}
+                    : `${filteredSummary.length} Paths · Showing 4 at a time`}
                 </p>
               </div>
               <div
@@ -408,7 +408,7 @@ export function PathSelect({
     <div className={`w-full space-y-3 font-ui ${className}`}>
       <div ref={triggerWrapRef} className="relative w-full">
         <label className="mb-1.5 block text-[10px] tracking-[0.2em] text-[var(--ar-subtle)]">
-          Select Simulation Path
+          Select Path
         </label>
         <button
           ref={triggerBtnRef}
@@ -494,7 +494,7 @@ export function PathDetailGate({
 
   if (!matched) {
     return (
-      <p className="text-sm text-[var(--ar-muted)] font-ui">Select a simulation path to continue.</p>
+      <p className="text-sm text-[var(--ar-muted)] font-ui">Select a path to continue.</p>
     );
   }
 
@@ -523,11 +523,10 @@ export function EmptyRunHint() {
         <div className="desk-gold-rule desk-gold-rule--wide empty-desk-pulse mb-4" />
         <p className="text-xs tracking-[0.28em] text-[var(--ar-subtle)] font-ui">Get Started</p>
         <h2 className="mt-2 font-display text-3xl text-[var(--ar-maroon)] md:text-4xl">
-          Run a Forward Test
+          Run A Forward Test
         </h2>
         <p className="mx-auto mt-3 max-w-xl text-sm leading-relaxed text-[var(--ar-muted)] font-ui">
-          Choose Monte Carlo paths, upload a product sheet if needed, then press Run. Every path uses the same start
-          date and product end date. Results will appear across charts, tables, and analytics.
+          Upload a product sheet if needed, then press Run. Results appear across charts, tables, and analytics.
         </p>
       </div>
     </motion.div>
@@ -556,7 +555,7 @@ export function KpiBand() {
 
   const items = [
     {
-      label: "Monte Carlo Paths",
+      label: "Paths",
       mean: fmtCount(runPaths),
       median: null as string | null,
     },

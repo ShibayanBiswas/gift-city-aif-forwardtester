@@ -58,9 +58,9 @@ function MonteCarloDialog({
       ? (
           <>
             You selected{" "}
-            <strong className="text-[var(--ar-ink)]">{dialog.n.toLocaleString("en-IN")}</strong> Monte
-            Carlo paths. Larger counts take longer and use more memory. Prefer 100 to 1,000 for interactive
-            work. Free cloud hosts may cap near 2,000 paths.
+            <strong className="text-[var(--ar-ink)]">{dialog.n.toLocaleString("en-IN")}</strong> paths.
+            Larger counts take longer and use more memory. Prefer 100 to 1,000 for interactive work. Free cloud
+            hosts may cap near 2,000 paths.
           </>
         )
       : (
@@ -94,7 +94,7 @@ function MonteCarloDialog({
             <div className="pointer-events-none absolute -bottom-10 -left-6 h-28 w-28 rounded-full bg-[rgba(122,30,44,0.14)] blur-2xl" />
             <div className="relative px-6 py-5">
               <p className="text-[10px] uppercase tracking-[0.22em] text-[var(--ar-subtle)]">
-                {isLimits ? "Computation Limits" : "Monte Carlo Paths"}
+                {isLimits ? "Computation Limits" : "Paths"}
               </p>
               <h2 id="mc-dialog-title" className="mt-1 font-serif text-2xl text-[var(--ar-maroon)]">
                 {title}
@@ -299,10 +299,10 @@ export function SiteNav() {
         <div className="flex flex-wrap items-center gap-2 font-ui">
           <div
             className="inline-flex flex-wrap items-center gap-1.5 text-xs text-[var(--ar-muted)]"
-            title={`Monte Carlo paths over the tenure window · ${MIN_N_PATHS} to ${MAX_N_PATHS}`}
+            title={`Path count for this run · ${MIN_N_PATHS} to ${MAX_N_PATHS}`}
           >
             <label htmlFor={pathInputId} className="hidden sm:inline">
-              Monte Carlo Paths
+              Paths
             </label>
             <select
               id={pathInputId}
@@ -310,7 +310,7 @@ export function SiteNav() {
               disabled={running}
               value={selectValue}
               onChange={(e) => onSelectChange(e.target.value)}
-              aria-label="Monte Carlo Paths"
+              aria-label="Paths"
             >
               {MONTE_CARLO_PATH_PRESETS.map((n) => (
                 <option key={n} value={n}>
@@ -327,7 +327,7 @@ export function SiteNav() {
                 disabled={running}
                 value={customDraft}
                 placeholder={`1–${MAX_N_PATHS}`}
-                aria-label="Custom Monte Carlo path count"
+                aria-label="Custom path count"
                 onChange={(e) => setCustomDraft(e.target.value.replace(/[^\d]/g, ""))}
                 onBlur={commitCustomDraft}
                 onKeyDown={(e) => {

@@ -142,7 +142,7 @@ export function parseMonteCarloPathInput(raw: string): {
     return {
       ok: false,
       title: "Invalid Path Count",
-      body: "Monte Carlo path count must be a whole number. Do not use decimals, letters, or symbols.",
+      body: "Path count must be a whole number. Do not use decimals, letters, or symbols.",
     };
   }
   const n = Number(trimmed);
@@ -157,14 +157,14 @@ export function parseMonteCarloPathInput(raw: string): {
     return {
       ok: false,
       title: "Path Count Too Low",
-      body: `Monte Carlo path count must be at least ${MIN_N_PATHS.toLocaleString("en-IN")}.`,
+      body: `Path count must be at least ${MIN_N_PATHS.toLocaleString("en-IN")}.`,
     };
   }
   if (n > MAX_N_PATHS) {
     return {
       ok: false,
       title: "Path Count Too High",
-      body: `Monte Carlo path count must be at most ${MAX_N_PATHS.toLocaleString("en-IN")}. Choose a preset or enter a smaller custom value.`,
+      body: `Path count must be at most ${MAX_N_PATHS.toLocaleString("en-IN")}. Choose a preset or enter a smaller custom value.`,
     };
   }
   return { ok: true, n: clampNPaths(n) };

@@ -74,8 +74,8 @@ export default function ProductPage() {
           <p className="text-xs tracking-[0.18em] text-[var(--ar-subtle)] font-ui">Desk · Product</p>
           <h2 className="font-serif text-2xl text-[var(--ar-maroon)] md:text-3xl">{displayName}</h2>
           <p className="mt-1 max-w-3xl text-sm text-[var(--ar-muted)] font-ui">
-            Full product definition from the Product Input Excel. After a run, pick any path to inspect
-            observation expiries under each strike level.
+            Product definition from the uploaded sheet. After a run, use the path selector to review observation
+            expiries under each strike.
           </p>
         </div>
         <div className="space-y-5 px-6 py-5">

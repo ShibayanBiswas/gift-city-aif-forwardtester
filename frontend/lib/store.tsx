@@ -490,7 +490,7 @@ export function ForwardTestProvider({ children }: { children: ReactNode }) {
       setJobId(job_id);
       jobIdRef.current = job_id;
       localStorage.setItem(LS_KEY, JSON.stringify({ jobId: job_id, nPaths: runN }));
-      setMessage("Queued — starting Monte Carlo paths…");
+      setMessage("Queued — starting paths…");
       for (;;) {
         if (gen !== runGenRef.current) return;
         if (Date.now() - startedAt > maxWallMs) {
@@ -527,7 +527,7 @@ export function ForwardTestProvider({ children }: { children: ReactNode }) {
             if (Number.isFinite(serverN) && serverN > 0 && serverN <= runN) {
               setNPathsState(clampNPaths(serverN));
             } else {
-              setError("Received results for a different Monte Carlo path count. Please run again.");
+              setError("Received results for a different path count. Please run again.");
               setJobId(null);
               localStorage.removeItem(LS_KEY);
               break;

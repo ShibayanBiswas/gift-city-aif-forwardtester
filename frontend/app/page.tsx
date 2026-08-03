@@ -43,7 +43,7 @@ export default function HomePage() {
     { href: "/hedging", label: "Hedging Sheet" },
     { href: "/computation", label: "Computation" },
     { href: "/paths", label: "Path Calendar" },
-    { href: "/analytics", label: "Analytics Lab", primary: true },
+    { href: "/analytics", label: "Analytics", primary: true },
   ];
 
   return (
@@ -75,8 +75,8 @@ export default function HomePage() {
                 {displayName}
               </motion.h2>
               <p className="mt-2 max-w-2xl text-sm leading-relaxed text-[var(--ar-muted)] font-ui">
-                Structured units forward-tested from today&apos;s Nifty close through Product End. Upload a product
-                sheet, set Monte Carlo paths, and press Run.
+                Structured units tested from today&apos;s Nifty close through Product End. Upload a product sheet if
+                needed, then press Run.
               </p>
             </div>
             <motion.div
