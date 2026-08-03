@@ -766,7 +766,7 @@ export function ForwardTestProvider({ children }: { children: ReactNode }) {
   }, [nPaths]);
 
   const clearResults = useCallback(() => {
-    clearDeskResults(setSummary, setJobId, setPathDetail, setPathDetailError, setPathId);
+    clearDeskResults(setSummary, setJobId, setPathDetail, setPathDetailError, setPathId, cacheQuotaWarnedRef);
     setError(null);
     setMessage("");
     setProgress(0);
