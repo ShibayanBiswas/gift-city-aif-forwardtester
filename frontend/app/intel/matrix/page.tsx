@@ -22,7 +22,7 @@ function previewLimits(pathCount: number | undefined): { paths: number; dates: n
 }
 
 export default function MonteCarloMatrixPage() {
-  const { summary, jobId, clearResults } = useForwardTest();
+  const { summary, jobId } = useForwardTest();
   const [preview, setPreview] = useState<PreviewPayload | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -75,15 +75,17 @@ export default function MonteCarloMatrixPage() {
     await client.downloadMcMatrix(jobId, onProgress);
   };
 
-  if (!summary || !jobId) return <EmptyRunHint />;
+  if (!summary) return <EmptyRunHint />;
 
   const meta = summary.mc_matrix;
   const nPaths = preview?.n_paths ?? meta?.n_paths ?? summary.path_count;
   const nDates = preview?.n_dates ?? meta?.n_dates ?? meta?.dates?.length ?? "—";
   const truncated = Boolean(preview?.truncated);
-  const tableSubtitle = truncated
-    ? "On-screen preview of early and late dates · Download Excel for the full file"
-    : "Full on-screen preview · Download Excel for the complete file";
+  const tableSubtitle = !jobId
+    ? "Server job expired — click Run again to reload the path grid"
+    : truncated
+      ? "On-screen preview of early and late dates · Download Excel for the full file"
+      : "Full on-screen preview · Download Excel for the complete file";
 
   return (
     <div className="page-enter space-y-6">
@@ -126,9 +128,6 @@ export default function MonteCarloMatrixPage() {
                   } catch (e) {
                     const msg = e instanceof Error ? e.message : "Download failed";
                     setError(msg);
-                    if (/no longer on the server|Unknown job|Run a fresh|Click Run/i.test(msg)) {
-                      clearResults();
-                    }
                   }
                 }}
               />

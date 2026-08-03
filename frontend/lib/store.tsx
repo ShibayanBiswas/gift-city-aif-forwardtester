@@ -53,6 +53,8 @@ type Store = {
   run: (overrideNPaths?: number) => Promise<void>;
   /** Clear stale Run results (e.g. after Render restart / Unknown job). */
   clearResults: () => void;
+  /** False until sessionStorage hydrate finishes — gates EmptyRunHint to avoid flash. */
+  sessionReady: boolean;
   /** Force Yahoo + calendar refresh and reload market meta for the desk strip. */
   refreshMarket: () => Promise<void>;
   /** Reload current ProductSpec so Intel / Product chips stay in sync after uploads. */
@@ -62,12 +64,55 @@ type Store = {
 
 const Ctx = createContext<Store | null>(null);
 const LS_KEY = "gift-aif-forward-job";
+/** Completed-run cache — survives SPA remounts within the browser tab. */
+const SESSION_KEY = "gift-aif-forward-session";
+
+type CachedSession = {
+  v: 1;
+  jobId: string;
+  nPaths: number;
+  pathId: number;
+  summary: ForwardTestSummary;
+};
 
 function newClientRunId(): string {
   if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
     return crypto.randomUUID();
   }
   return `run-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+}
+
+function readCachedSession(): CachedSession | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = sessionStorage.getItem(SESSION_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as CachedSession;
+    if (parsed?.v !== 1 || !parsed.summary || typeof parsed.summary !== "object") return null;
+    if (!Array.isArray(parsed.summary.summary) || !parsed.summary.summary.length) return null;
+    if (!Number.isFinite(parsed.nPaths) || parsed.nPaths < 1) return null;
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+
+function writeCachedSession(payload: CachedSession) {
+  if (typeof window === "undefined") return;
+  try {
+    sessionStorage.setItem(SESSION_KEY, JSON.stringify(payload));
+  } catch {
+    /* quota / private mode — in-memory store still covers SPA tab switches */
+  }
+}
+
+function clearCachedSession() {
+  if (typeof window === "undefined") return;
+  try {
+    sessionStorage.removeItem(SESSION_KEY);
+  } catch {
+    /* ignore */
+  }
 }
 
 function clearDeskResults(
@@ -82,7 +127,12 @@ function clearDeskResults(
   setPathDetail(null);
   setPathDetailError(null);
   setPathId(1);
-  localStorage.removeItem(LS_KEY);
+  clearCachedSession();
+  try {
+    localStorage.removeItem(LS_KEY);
+  } catch {
+    /* ignore */
+  }
 }
 
 export function ForwardTestProvider({ children }: { children: ReactNode }) {
@@ -102,12 +152,14 @@ export function ForwardTestProvider({ children }: { children: ReactNode }) {
   const [progress, setProgress] = useState(0);
   const [message, setMessage] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [sessionReady, setSessionReady] = useState(false);
   const runGenRef = useRef(0);
   /** Sync lock — React state `running` is too slow to block double-clicks. */
   const runningLockRef = useRef(false);
   const jobIdRef = useRef<string | null>(null);
   const nPathsRef = useRef(nPaths);
   const intentionalCancelRef = useRef(false);
+  const restoredSessionRef = useRef(false);
 
   useEffect(() => {
     jobIdRef.current = jobId;
@@ -122,6 +174,16 @@ export function ForwardTestProvider({ children }: { children: ReactNode }) {
   }, [dark]);
 
   useEffect(() => {
+    const cached = readCachedSession();
+    if (cached) {
+      restoredSessionRef.current = true;
+      setSummary(cached.summary);
+      setJobId(cached.jobId || null);
+      setNPathsState(clampNPaths(cached.nPaths));
+      setPathId(Math.max(1, Math.trunc(cached.pathId) || 1));
+    }
+    setSessionReady(true);
+
     void (async () => {
       try {
         // Non-blocking wake: apply horizon meta as soon as sync returns; do not wait on it.
@@ -149,16 +211,22 @@ export function ForwardTestProvider({ children }: { children: ReactNode }) {
           setMarket(m);
         }
         setProduct(p);
-        if (p?.n_paths != null) setNPathsState(clampNPaths(Number(p.n_paths)));
-        else if (m?.n_paths != null) setNPathsState(clampNPaths(Number(m.n_paths)));
+        // Keep restored path count when a finished run is cached in this tab.
+        if (!restoredSessionRef.current) {
+          if (p?.n_paths != null) setNPathsState(clampNPaths(Number(p.n_paths)));
+          else if (m?.n_paths != null) setNPathsState(clampNPaths(Number(m.n_paths)));
+        }
         // Dynamic as-of year from latest Nifty session (not a hardcoded 2001 default).
         if (m?.last_date) {
           const y = Number(String(m.last_date).slice(0, 4));
           if (Number.isFinite(y) && y >= 2001) setSinceYear(y);
         }
-        // Forwardtester desk: never restore a prior Run on reload (unlike Backtester).
-        // Deployment refreshes must show an empty results desk until the user clicks Run again.
-        localStorage.removeItem(LS_KEY);
+        // Drop in-progress job pointer only — completed runs live in sessionStorage.
+        try {
+          localStorage.removeItem(LS_KEY);
+        } catch {
+          /* ignore */
+        }
       } catch (e) {
         setError(String(e));
       }
@@ -260,7 +328,12 @@ export function ForwardTestProvider({ children }: { children: ReactNode }) {
     setPathDetailError(null);
     setPathId(1);
     setError(null);
-    localStorage.removeItem(LS_KEY);
+    clearCachedSession();
+    try {
+      localStorage.removeItem(LS_KEY);
+    } catch {
+      /* ignore */
+    }
   }, []);
 
   const years = useMemo(() => {
@@ -314,6 +387,18 @@ export function ForwardTestProvider({ children }: { children: ReactNode }) {
     if (!exists) setPathId(summary.summary[0]?.path_id ?? 1);
   }, [summary, pathId]);
 
+  // Keep session cache in sync when the user picks another path.
+  useEffect(() => {
+    if (!sessionReady || !summary) return;
+    writeCachedSession({
+      v: 1,
+      jobId: jobId ?? "",
+      nPaths: nPathsRef.current,
+      pathId,
+      summary,
+    });
+  }, [sessionReady, summary, jobId, pathId]);
+
   useEffect(() => {
     if (!jobId || !summary || running) {
       setPathDetailLoading(false);
@@ -346,9 +431,33 @@ export function ForwardTestProvider({ children }: { children: ReactNode }) {
         } catch (e) {
           if (cancelled) return;
           const msg = e instanceof Error ? e.message : String(e);
-          if (/unknown forward test job|Unknown job|superseded by a newer run/i.test(msg)) {
+          if (/superseded by a newer run/i.test(msg)) {
             clearDeskResults(setSummary, setJobId, setPathDetail, setPathDetailError, setPathId);
             setPathDetailLoading(false);
+            return;
+          }
+          // Free hosts recycle memory — keep cached summary so Analytics tabs stay filled.
+          if (/unknown forward test job|Unknown job|no longer on the server/i.test(msg)) {
+            setJobId(null);
+            setPathDetail(null);
+            setPathDetailError(
+              "This run is no longer held on the server (common after free-host sleep). Path Summary stays available — click Run again for path ledgers and charts.",
+            );
+            setPathDetailLoading(false);
+            try {
+              localStorage.removeItem(LS_KEY);
+            } catch {
+              /* ignore */
+            }
+            if (summary) {
+              writeCachedSession({
+                v: 1,
+                jobId: "",
+                nPaths: nPathsRef.current,
+                pathId: expectedPath,
+                summary,
+              });
+            }
             return;
           }
           if (isTransientPathDetailError(msg) && attempt < maxAttempts - 1) {
@@ -505,8 +614,19 @@ export function ForwardTestProvider({ children }: { children: ReactNode }) {
           }
           setSummary(s);
           setPathId(1);
-          // Do not persist completed jobs — reload must not resurrect desk results.
-          localStorage.removeItem(LS_KEY);
+          writeCachedSession({
+            v: 1,
+            jobId: job_id,
+            nPaths: runN,
+            pathId: 1,
+            summary: s,
+          });
+          // Drop in-progress pointer; completed payload is in sessionStorage for this tab.
+          try {
+            localStorage.removeItem(LS_KEY);
+          } catch {
+            /* ignore */
+          }
           break;
         }
         if (st.status === "cancelled") {
@@ -579,6 +699,7 @@ export function ForwardTestProvider({ children }: { children: ReactNode }) {
     upload,
     run,
     clearResults,
+    sessionReady,
     refreshMarket,
     refreshProduct,
     years,

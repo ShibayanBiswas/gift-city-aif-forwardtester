@@ -511,9 +511,9 @@ export function PathDetailGate({
 }
 
 export function EmptyRunHint() {
-  const { running } = useForwardTest();
-  // Progress modal already covers an in-flight run — never flash Get Started mid-run or on tab switch.
-  if (running) return null;
+  const { running, sessionReady } = useForwardTest();
+  // Wait for session hydrate so a finished run never flashes Get Started on tab switch.
+  if (!sessionReady || running) return null;
 
   return (
     <motion.div

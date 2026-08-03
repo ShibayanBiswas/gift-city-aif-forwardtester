@@ -111,10 +111,14 @@ export function isDeskHorizonMeta(m: {
 export const DEFAULT_N_PATHS = 1000;
 export const MIN_N_PATHS = 1;
 export const MAX_N_PATHS = 10000;
+/** Free-host / deploy soft ceiling — warn when selecting above this. */
+export const DEPLOY_PATH_SOFT_CAP = 2000;
+/** Stronger warning for very large path counts (memory / timeout risk). */
+export const DEPLOY_PATH_HARD_WARN_AT = 5000;
 /** Preset choices for the desk dropdown (max = MAX_N_PATHS). */
 export const MONTE_CARLO_PATH_PRESETS = [100, 500, 1000, 5000, 10000] as const;
-/** Warn about run time / host limits at or above this path count (above the desk default). */
-export const MONTE_CARLO_LIMITS_WARN_AT = 5000;
+/** Warn about run time / host limits at or above this path count. */
+export const MONTE_CARLO_LIMITS_WARN_AT = DEPLOY_PATH_SOFT_CAP;
 
 export function clampNPaths(n: number): number {
   if (!Number.isFinite(n)) return DEFAULT_N_PATHS;

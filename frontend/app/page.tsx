@@ -11,7 +11,7 @@ import { client, formatDeskDate, formatNum } from "@/lib/api";
 import { deskSpring, easeOut, fadeUpItem, pageSection, staggerContainer, tapPress } from "@/lib/motion";
 
 export default function HomePage() {
-  const { product, summary, market, jobId, clearResults } = useForwardTest();
+  const { product, summary, market, jobId } = useForwardTest();
   const [downloadError, setDownloadError] = useState<string | null>(null);
   const displayName = product?.name === "Default Product" ? "Current Product" : product?.name ?? "Loading…";
 
@@ -32,9 +32,7 @@ export default function HomePage() {
     } catch (e) {
       const msg = e instanceof Error ? e.message : "Download failed";
       setDownloadError(msg);
-      if (/no longer on the server|Unknown job|Run a fresh|Click Run/i.test(msg)) {
-        clearResults();
-      }
+      // Keep cached summary/tables — only the server job is gone.
     }
   };
 

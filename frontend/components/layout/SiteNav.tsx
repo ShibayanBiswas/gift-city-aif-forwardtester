@@ -10,6 +10,8 @@ import { mainSections, resolveNav } from "@/lib/navigation";
 import {
   cn,
   client,
+  DEPLOY_PATH_HARD_WARN_AT,
+  DEPLOY_PATH_SOFT_CAP,
   MAX_N_PATHS,
   MIN_N_PATHS,
   MONTE_CARLO_LIMITS_WARN_AT,
@@ -47,10 +49,19 @@ function MonteCarloDialog({
   if (!mounted) return null;
 
   const isLimits = dialog?.kind === "limits";
+  const softCap =
+    dialog?.kind === "limits" &&
+    dialog.n >= DEPLOY_PATH_SOFT_CAP &&
+    dialog.n < DEPLOY_PATH_HARD_WARN_AT;
+  const hardCap = dialog?.kind === "limits" && dialog.n >= DEPLOY_PATH_HARD_WARN_AT;
   const title = !dialog
     ? ""
     : isLimits
-      ? "Larger Path Count"
+      ? hardCap
+        ? "High Path Count — Deploy Limits"
+        : softCap
+          ? "Above Free-Host Soft Cap"
+          : "Larger Path Count"
       : dialog.title;
   const body = !dialog
     ? null
@@ -59,8 +70,27 @@ function MonteCarloDialog({
           <>
             You selected{" "}
             <strong className="text-[var(--ar-ink)]">{dialog.n.toLocaleString("en-IN")}</strong> paths.
-            Larger counts take longer and use more memory. Prefer 100 to 1,000 for interactive work. Free cloud
-            hosts may cap near 2,000 paths.
+            {hardCap ? (
+              <>
+                {" "}
+                Counts at or above {DEPLOY_PATH_HARD_WARN_AT.toLocaleString("en-IN")} take much longer and use
+                more memory. Free cloud hosts often time out or cap near{" "}
+                {DEPLOY_PATH_SOFT_CAP.toLocaleString("en-IN")} paths — prefer 100 to 1,000 for interactive desk
+                work. Continue only if your deployment can finish this run.
+              </>
+            ) : softCap ? (
+              <>
+                {" "}
+                This exceeds the free-host soft ceiling of about{" "}
+                {DEPLOY_PATH_SOFT_CAP.toLocaleString("en-IN")} paths. The server may clamp, slow down, or fail
+                under memory pressure. Prefer 100 to 1,000 for day-to-day work.
+              </>
+            ) : (
+              <>
+                {" "}
+                Larger counts take longer and use more memory. Prefer 100 to 1,000 for interactive work.
+              </>
+            )}
           </>
         )
       : (
