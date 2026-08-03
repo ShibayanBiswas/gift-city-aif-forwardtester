@@ -33,11 +33,12 @@ cd "C:\Users\shiba\OneDrive\Desktop\Gift AIF Forwardtester"
 
 ## Desk controls
 
-- **Header strip** (horizontal scroll): As Of Today · Product End · Tenure Days · Monte Carlo Paths · Trading Days · Monthly Expiries
-- **Monte Carlo Paths**: default **1000**; presets 100 / 500 / 1000 / 5000 / 10000 (max); custom text ≤ 10000; computation-limits confirm at ≥ 1000
-- **Product End**: tenure calendar end from as-of (not a separate Simulation End Days control)
+- **Header strip**: As Of Today · Product End · Tenure Days · Monte Carlo Paths · Trading Days · Monthly Expiries — full-width equal cards; wraps on smaller screens
+- **Monte Carlo Paths**: default **1000**; presets 100 / 500 / 1000 / 5000 / 10000; Custom… for any whole number 1…10000; confirm dialog at **5000+** (centered like the progress modal)
+- **Product End**: tenure calendar end from as-of
+- Free cloud hosts clamp runs near **2000** paths and skip auto Excel after Run; download Excel on demand still works
 - Product upload (same `Product_Input_File.xlsx` format as the product desk)
-- **Nifty Path Parameters** (after Run): S₀ / daily return / standard deviation / drift from **2001-01-01 → as-of**, plus desk **Download Excel**
+- **Nifty Path Parameters** after Run: S₀ / daily return / standard deviation / drift from **2001-01-01 → as-of**, plus desk **Download Excel**
 - **Intel**: Path Market · Simulated Nifty Paths · Logic Atlas
 
 ## Simulated Nifty Excel

@@ -39,7 +39,7 @@ The parser (`backend/app/engine/product.py`) scans the **first sheet** that look
 | GST Rate | `GST Rate` | WF1 AG = AF × rate (sample **18%**); cash AF currently 0 |
 | Futures Roll Rate | `Futures Roll Rate` | Sample **7%** — scales `roll_costs.csv` (built at 7%) |
 | Tax Benefit On Roll | `Tax Benefit On Roll` | Sample **42.744%** of roll cost |
-| Monte Carlo Paths | `Monte Carlo Paths` / `N Paths` / `Path Count` | Independent GBM seeds over the single as-of → Product End window. Default **1000** if omitted; clamp **1…10000**. Presets in UI: 100 / 500 / 1000 / 5000 / 10000. |
+| Monte Carlo Paths | `Monte Carlo Paths` / `N Paths` / `Path Count` | Independent GBM seeds over the single as-of → Product End window. Default **1000** if omitted; clamp **1…10000**. UI presets 100 / 500 / 1000 / 5000 / 10000 or Custom. Confirm at ≥ 5000. Free hosts clamp near **2000**. |
 | Simulation End Days | `Simulation End Days` / `Horizon Days` | **Legacy only** — parsed for workbook compat but **ignored as horizon**. Product End = `path_end_calendar(asof, tenure)`. |
 | Observation months | Column under an `Observation` header | Offsets in `[1, 120]`; sample: **38, 41, 44, 47, 50, 53, 56** |
 | Options book | Header row with `Qty` / `Quantity` | One row per strike level; signed quantities |

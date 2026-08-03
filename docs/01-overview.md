@@ -22,14 +22,14 @@ The web app is a **live reimplementation** of `Gift AIF Working File 1.xlsm` hed
 | Hedging Sheet parity | Same as Backtester: `month × 30.5` → expiry map; options book; required futures delta (obs Nifty from path spots) |
 | Computation | MTM, rolls, cash, G-Sec, fees, tx, NAV, IRR — same formulas; Forwardtester feeds **path-local** roll points |
 | Historical roll calendar | Same as Backtester: finished months = monthly option expiry; open month pinned via `pin_current_month_roll_to_latest` |
-| Header horizon strip | **As Of Today** · Product End · Tenure Days · Monte Carlo Paths · Trading Days · Monthly Expiries (**horizontal scroll**) |
+| Header horizon strip | **As Of Today** · Product End · Tenure Days · Monte Carlo Paths · Trading Days · Monthly Expiries — full-width equal cards |
 | Intel · Market Calendar | Shared futures shift dates · monthly last-Tuesday expiries (no path prices) |
 | GBM paths | Matrix like desk Monte Carlo Excel: vertical path ids \(1…N\); columns = **trading dates**; \(S_t = S_{t-1}\cdot\exp(\mathrm{drift}+\sigma Z)\); μ/σ from **2001→as-of** every Run |
 | Home Excel download | **Download Excel** on Nifty Path Parameters → branded Parameters + Simulated Nifty path×date sheets |
 | Desk UX | Full-form labels, Title Case, branded Excel downloads, Backtester-parity glass / meta-chip layouts |
 | Ops | Local `./start.ps1`, optional MongoDB Atlas, Vercel + Render · repo https://github.com/ShibayanBiswas/gift-city-aif-forwardtester |
 
-Default **Monte Carlo Paths** = **1000** (presets 100 / 500 / 1000 / 5000 / 10000; max 10000). There is no path-frequency start grid; legacy Simulation End Days does not drive the horizon. See [04-forwardtest-engine.md](04-forwardtest-engine.md).
+Default **Monte Carlo Paths** = **1000** (presets 100 / 500 / 1000 / 5000 / 10000; Custom 1…10000; confirm at ≥ 5000). Free cloud hosts clamp near **2000** and skip auto Excel after Run. There is no path-frequency start grid; legacy Simulation End Days does not drive the horizon. See [04-forwardtest-engine.md](04-forwardtest-engine.md).
 
 ---
 

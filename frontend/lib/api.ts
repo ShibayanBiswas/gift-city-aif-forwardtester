@@ -142,7 +142,7 @@ export function parseMonteCarloPathInput(raw: string): {
     return {
       ok: false,
       title: "Invalid Path Count",
-      body: "Monte Carlo path count must be a whole number (no decimals, letters, or symbols).",
+      body: "Monte Carlo path count must be a whole number. Do not use decimals, letters, or symbols.",
     };
   }
   const n = Number(trimmed);

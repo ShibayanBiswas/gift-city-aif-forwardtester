@@ -211,9 +211,9 @@ Optional: `NEXT_PUBLIC_BACKEND_URL` = same URL.
 
 1. Optional: open the site once, wait ~1 minute (wake Render), or hit `/api/wake`.
 2. **Sample Input** → download product Excel.
-3. Set **Monte Carlo Paths** (default **1000**; presets 100 / 500 / 1000 / 5000 / 10000). Path count is N over one as-of → Product End window — not a frequency grid or 235 Macro Paths list.
-4. **Run**.
-5. Check **Home**: GBM band (μ/σ from **2001 → as-of**) + **Download Simulated Nifty Paths** (path×date Excel).
+3. Set **Monte Carlo Paths** — default **1000**; presets 100 / 500 / 1000 / 5000 / 10000 or Custom. Confirm at ≥ 5000. Free hosts clamp near **2000**.
+4. **Run**. Prefer 100–1000 on free tier. Excel is not auto-queued on constrained hosts — use Download when needed.
+5. Check **Home**: GBM band from **2001 → as-of** + **Download Simulated Nifty Paths**.
 6. Check **Desk → Hedging / Computation**, **Intel → Market Calendar**, **Intel → Monte Carlo Matrix**.
 
 ---
@@ -271,10 +271,10 @@ Expect `market.first_date` ≈ `2001-01-01`, `market.last_date` = latest session
 
 Free Render disk is ephemeral; git `data/*.csv` are the seed; startup re-extends.
 
-Header chips: As Of Today · Product End · Tenure Days · Monte Carlo Paths · Trading Days · Monthly Expiries (horizontal scroll).  
-Intel · Market Calendar is **shared dates** (no forward prices). Path Nifty / rolls: Hedging / Simulated Nifty Paths.  
-Default **Monte Carlo Paths = 1000** (max 10000). Simulation End Days / frequency grids are legacy and unused.  
-Download Excel uses a streaming writer + Mongo job recovery after restarts.  
+Header chips: As Of Today · Product End · Tenure Days · Monte Carlo Paths · Trading Days · Monthly Expiries — full-width equal cards.  
+Intel · Market Calendar is **shared dates** only. Path Nifty / rolls: Hedging / Simulated Nifty Paths.  
+Default **Monte Carlo Paths = 1000** (max 10000; free hosts ~2000). Simulation End Days / frequency grids are legacy and unused.  
+Download Excel uses a streaming writer + Mongo job recovery after restarts. Free hosts skip auto Excel after Run.  
 
 Home **Download Simulated Nifty Paths** exports the shared Monte Carlo path×date grid.
 
@@ -323,7 +323,7 @@ Home **Download Simulated Nifty Paths** exports the shared Monte Carlo path×dat
 | Render `ModuleNotFoundError` | Root Directory ≠ `backend` | Set Root = `backend` |
 | Vercel can't find pages | Root Directory ≠ `frontend` | Set Root = `frontend` |
 | Mongo auth failed | Bad password / `@` not encoded | Use `%40`; check Atlas network |
-| Large-N run slow on free tier | High Monte Carlo Paths × tenure trading days streamed | Wait for Run + Download queue; prefer 100–1000 for a quick desk check |
+| Large-N run slow on free tier | High Monte Carlo Paths × tenure trading days | Prefer 100–1000; free hosts clamp near 2000; wait for Run; Excel download is on demand |
 | Download timeout via Vercel | Proxy idle limit | Set `NEXT_PUBLIC_BACKEND_URL` to Render so the browser downloads directly |
 | Monte Carlo Excel missing dates | Old deploy | Redeploy backend with current `mc_matrix.py` |
 

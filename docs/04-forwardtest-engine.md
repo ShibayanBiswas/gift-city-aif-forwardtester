@@ -73,12 +73,12 @@ Sheet mirror reference: [02-excel-sheet-logic.md](02-excel-sheet-logic.md). API 
 | **As-of** | `market.last_date` after CSV load + Yahoo sync = latest Nifty session (**As Of Today** in the header strip) |
 | **Tenure Days** | Product Input field (sample **1930**) |
 | **Product End** | `path_end_calendar(asof, tenure)` — Backtester anniversary rule when tenure ∈ [1700, 2000]; else `asof + tenure_days`. Every path ends here |
-| **Monte Carlo Paths** | Default **1000**; presets 100 / 500 / 1000 / 5000 / 10000; clamp 1…10000 |
+| **Monte Carlo Paths** | Default **1000**; presets 100 / 500 / 1000 / 5000 / 10000 or Custom 1…10000; confirm at ≥ 5000; free hosts clamp near **2000** |
 | **Simulation End Days** | Legacy Product Input field — **ignored** for horizon (API may still echo tenure span for compat) |
 | **Trading Days / Monthly Expiries** | Header counts for **as-of → Product End** only (not full 2001→present history) |
 | After deploy | Startup + `/api/sync` refresh Nifty; as-of and Product End move with the live calendar |
 
-Header chips: **As Of Today** · **Product End** · **Tenure Days** · **Monte Carlo Paths** · **Trading Days** · **Monthly Expiries** (horizontal scroll).
+Header chips: **As Of Today** · **Product End** · **Tenure Days** · **Monte Carlo Paths** · **Trading Days** · **Monthly Expiries** — full-width equal cards.
 
 ---
 
@@ -130,7 +130,7 @@ Header chips: **As Of Today** · **Product End** · **Tenure Days** · **Monte C
 | Path 1…N start | **As-of** (latest Nifty close) — every path |
 | Start grid | **None** — frequency argument accepted for API compat but ignored |
 | Product End | Same Backtester `path_end_calendar`: ~5Y anniversary floored to prior month-end when tenure ∈ [1700, 2000]; else `start + tenure_days` |
-| Path count | **Monte Carlo Paths N** (default 1000; clamp 1…10000) |
+| Path count | **Monte Carlo Paths N** — default 1000; clamp 1…10000; free hosts ceiling ~2000 |
 | Spots | GBM along **path trading days only** (no weekend prices); S₀ = live as-of Nifty; independent seed per `path_id` |
 | Hedge / NAV | Identical engines to Gift AIF Backtester; spots come from path GBM |
 

@@ -39,7 +39,7 @@ No hidden sheets in WF1. Notes workbook has a single sheet **Notes**.
 | Path 1…N | Every path starts on **as-of** = latest Nifty session (dynamic after deploy / `/api/sync`) |
 | Product End | `path_end_calendar(asof, tenure)` — same Backtester anniversary rule; **every** path ends here |
 | Horizon | Single tenure window — **no** staggered start grid; legacy Simulation End Days / frequency are ignored |
-| Monte Carlo Paths | Default **1000**; presets 100 / 500 / 1000 / 5000 / 10000; clamp 1…10000 |
+| Monte Carlo Paths | Default **1000**; presets 100 / 500 / 1000 / 5000 / 10000 or Custom 1…10000; free hosts ~2000 |
 | Trading days | Mon–Fri only on the forward pad; Sat/Sun never priced |
 | Spots | Per-path GBM from live S₀ along path trading days; μ/σ from **2001-01-01 → as-of** each Run |
 | Matrix Excel | Home **Download Simulated Nifty Paths** / Intel Monte Carlo Matrix → columns = trading **dates** (full grid) |

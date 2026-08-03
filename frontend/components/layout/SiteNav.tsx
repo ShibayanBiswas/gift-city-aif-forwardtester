@@ -44,58 +44,101 @@ function MonteCarloDialog({
 }) {
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
-  if (!mounted || !dialog) return null;
+  if (!mounted) return null;
 
-  const isLimits = dialog.kind === "limits";
-  const title = isLimits ? "Monte Carlo Path Count" : dialog.title;
-  const body = isLimits ? (
-    <>
-      You selected <strong className="text-[var(--ar-ink)]">{dialog.n.toLocaleString("en-IN")}</strong> Monte
-      Carlo paths (maximum {MAX_N_PATHS.toLocaleString("en-IN")}). Larger counts take longer and use more memory.
-      Prefer 100–1,000 for interactive work. On free cloud hosts the server may cap the run near 2,000 paths.
-    </>
-  ) : (
-    dialog.body
-  );
+  const isLimits = dialog?.kind === "limits";
+  const title = !dialog
+    ? ""
+    : isLimits
+      ? "Larger Path Count"
+      : dialog.title;
+  const body = !dialog
+    ? null
+    : isLimits
+      ? (
+          <>
+            You selected{" "}
+            <strong className="text-[var(--ar-ink)]">{dialog.n.toLocaleString("en-IN")}</strong> Monte
+            Carlo paths. Larger counts take longer and use more memory. Prefer 100 to 1,000 for interactive
+            work. Free cloud hosts may cap near 2,000 paths.
+          </>
+        )
+      : (
+          dialog.body
+        );
 
   return createPortal(
-    <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/45 p-4 font-ui" role="dialog" aria-modal>
-      <div className="max-w-md rounded-2xl border border-[var(--ar-border)] bg-[var(--ar-surface)] p-5 shadow-xl">
-        <p className="text-[10px] uppercase tracking-[0.2em] text-[var(--ar-subtle)]">
-          {isLimits ? "Computation Limits" : "Monte Carlo Paths"}
-        </p>
-        <h3 className="mt-1 font-display text-xl text-[var(--ar-maroon)]">{title}</h3>
-        <p className="mt-3 text-sm leading-relaxed text-[var(--ar-muted)]">{body}</p>
-        <div className="mt-5 flex flex-wrap justify-end gap-2">
-          {isLimits ? (
-            <>
-              <button
-                type="button"
-                className="rounded-full border border-[var(--ar-border)] px-4 py-2 text-xs"
-                onClick={onCancel}
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                className="rounded-full bg-[var(--ar-maroon)] px-4 py-2 text-xs text-white"
-                onClick={onConfirm}
-              >
-                Continue
-              </button>
-            </>
-          ) : (
-            <button
-              type="button"
-              className="rounded-full bg-[var(--ar-maroon)] px-4 py-2 text-xs text-white"
-              onClick={onConfirm}
-            >
-              OK
-            </button>
-          )}
-        </div>
-      </div>
-    </div>,
+    <AnimatePresence>
+      {dialog ? (
+        <motion.div
+          key="mc-dialog-overlay"
+          role="dialog"
+          aria-modal
+          aria-labelledby="mc-dialog-title"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/55 p-4 backdrop-blur-md font-ui"
+          onClick={onCancel}
+        >
+          <motion.div
+            initial={{ opacity: 0, scale: 0.94, y: 16 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.98, y: 8 }}
+            transition={deskSpring}
+            className="relative mx-auto w-full max-w-md overflow-hidden rounded-2xl border border-[rgba(212,178,76,0.35)] bg-[var(--ar-surface)] shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="desk-gold-rule !h-1.5 !w-full !rounded-none" />
+            <div className="pointer-events-none absolute -right-8 -top-10 h-32 w-32 rounded-full bg-[rgba(212,178,76,0.18)] blur-2xl" />
+            <div className="pointer-events-none absolute -bottom-10 -left-6 h-28 w-28 rounded-full bg-[rgba(122,30,44,0.14)] blur-2xl" />
+            <div className="relative px-6 py-5">
+              <p className="text-[10px] uppercase tracking-[0.22em] text-[var(--ar-subtle)]">
+                {isLimits ? "Computation Limits" : "Monte Carlo Paths"}
+              </p>
+              <h2 id="mc-dialog-title" className="mt-1 font-serif text-2xl text-[var(--ar-maroon)]">
+                {title}
+              </h2>
+              <p className="mt-3 text-sm leading-relaxed text-[var(--ar-muted)]">{body}</p>
+              <div className="mt-5 flex flex-wrap justify-end gap-2">
+                {isLimits ? (
+                  <>
+                    <motion.button
+                      type="button"
+                      className="rounded-full border border-[var(--ar-border)] px-4 py-2 text-xs font-semibold"
+                      onClick={onCancel}
+                      whileHover={{ scale: 1.03 }}
+                      whileTap={{ scale: 0.97 }}
+                    >
+                      Cancel
+                    </motion.button>
+                    <motion.button
+                      type="button"
+                      className="rounded-full bg-[var(--ar-maroon)] px-4 py-2 text-xs font-semibold text-white"
+                      onClick={onConfirm}
+                      whileHover={{ scale: 1.03 }}
+                      whileTap={{ scale: 0.97 }}
+                    >
+                      Continue
+                    </motion.button>
+                  </>
+                ) : (
+                  <motion.button
+                    type="button"
+                    className="rounded-full bg-[var(--ar-maroon)] px-4 py-2 text-xs font-semibold text-white"
+                    onClick={onConfirm}
+                    whileHover={{ scale: 1.03 }}
+                    whileTap={{ scale: 0.97 }}
+                  >
+                    OK
+                  </motion.button>
+                )}
+              </div>
+            </div>
+          </motion.div>
+        </motion.div>
+      ) : null}
+    </AnimatePresence>,
     document.body,
   );
 }
@@ -256,7 +299,7 @@ export function SiteNav() {
         <div className="flex flex-wrap items-center gap-2 font-ui">
           <div
             className="inline-flex flex-wrap items-center gap-1.5 text-xs text-[var(--ar-muted)]"
-            title={`Monte Carlo paths over the tenure window (${MIN_N_PATHS}–${MAX_N_PATHS})`}
+            title={`Monte Carlo paths over the tenure window · ${MIN_N_PATHS} to ${MAX_N_PATHS}`}
           >
             <label htmlFor={pathInputId} className="hidden sm:inline">
               Monte Carlo Paths

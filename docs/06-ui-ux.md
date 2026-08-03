@@ -21,12 +21,12 @@ The Gift City AIF Forward Tester desk UI follows **Anand Rathi Wealth Primary SP
 
 | Control | Behaviour |
 |---------|-----------|
-| **Monte Carlo Paths** | Default **1000**; presets **100 / 500 / 1000 / 5000 / 10000**; custom clamp **1…10000** |
+| **Monte Carlo Paths** | Default **1000**; single control: presets **100 / 500 / 1000 / 5000 / 10000** or **Custom…** for any whole number **1…10000**. Confirm dialog at **≥ 5000**, centered like the progress modal. Free hosts may clamp near **2000**. |
 | **Sample Input** | `GET /api/product/sample` — branded `Product_Input_File.xlsx` |
 | **Upload** | `POST /api/product/upload` — becomes current product for next Run |
 | **Run** | Starts forward test; cancels prior job if running |
 | Theme toggle | Light / dark desk palette |
-| Market strip | **As Of Today** · **Product End** · **Tenure Days** · **Monte Carlo Paths** · **Trading Days** · **Monthly Expiries** — **horizontal scroll**. Trading Days / Monthly Expiries count **as-of → Product End** only. |
+| Market strip | **As Of Today** · **Product End** · **Tenure Days** · **Monte Carlo Paths** · **Trading Days** · **Monthly Expiries** — full-width equal cards; wraps on tablet/phone. Trading Days / Monthly Expiries count **as-of → Product End** only. |
 
 **Naming:** Excel “As per HS” → UI **Hedging Sheet** (URL `/hedging` unchanged). Headings, tabs, and short button labels use **Title Case**. Always say **Monte Carlo** (never “MC”) in desk copy.
 
@@ -38,7 +38,11 @@ There is **no Path Frequency** control and **no Since Calendar Year** filter —
 
 ## Desk card rails
 
-Metric chips (product meta, KPI band, GBM params, path meta, header market meta) use a **horizontal scroll rail** when needed for overflow.
+Metric chips (product meta, KPI band, GBM params, path meta, header market meta) use a **full-width rail** with horizontal scroll when the viewport is narrower than the cards.
+
+**Product meta order:** Principal Amount · Product Start · Product End · Product Tenure · Observation Count · Active Option Legs · Monte Carlo Paths.
+
+**Tables:** cell text is never ellipsized — wide sheets scroll horizontally.
 
 **Sizing (desk lock):** cards are **compact** — ~10–10.5 rem min-width, moderate padding, value text ~1.05–1.28 rem (KPI means use `text-lg` / `text-xl`, not oversized `text-2xl`).
 
@@ -68,7 +72,7 @@ Every path starts on **as-of** (latest Nifty session) and ends on **Product End*
 
 | Section | Content |
 |---------|---------|
-| Product strip | Principal · Tenure · Obs · Legs · Product End · Monte Carlo Paths — horizontal card rail |
+| Product strip | Principal · Product Start · Product End · Tenure · Obs · Legs · Monte Carlo Paths — horizontal card rail |
 | KPI band | After Run: **Monte Carlo Paths** first, then mean/median terminal & IRR, above/below mean & median terminal & IRR counts, hit rate — **no “Paths Since YEAR”** |
 | Nifty Path Parameters | Date range + cards for spot · daily return · stdev · drift; desk **Download Excel** (Parameters + Simulated Nifty sheets) |
 

@@ -298,12 +298,12 @@ export const logicModules: LogicModule[] = [
   {
     id: "macro-paths",
     title: "Forward Path Atlas",
-    subtitle: "As-Of Through Product End · N Monte Carlo Seeds",
+    subtitle: "As Of Through Product End · N Monte Carlo Seeds",
     excelSheet: "Macro Paths",
     engineFile: "engine/paths.py · engine/gbm.py · engine/forward_calendar.py",
     accent: "maroon",
     purpose:
-      "build_paths clones one tenure window (Start = as-of, End = path_end_calendar) for path_id 1…N. Each path is an independent GBM seed over the same dates. Spots are Mon–Fri only — weekends never receive a Nifty close.",
+      "build_paths clones one tenure window — Start = as-of, End = path_end_calendar — for path_id 1…N. Each path is an independent GBM seed over the same shared dates. Spots are Mon–Fri only.",
     stageCount: 5,
     metrics: [
       { label: "All Paths Start", value: "As-Of Close" },
@@ -320,7 +320,7 @@ export const logicModules: LogicModule[] = [
           "No staggered frequency starts. Path 1…N are identical calendar windows; only the GBM seed (path_id) differs. As-of = market.last_date after Yahoo sync.",
         bullets: [
           "As-of updates after deploy via /api/sync",
-          "N paths · same Start / End (default N = 1000)",
+          "N paths · same Start / End · default N = 1000",
           "Product End = path_end_calendar(asof, tenure)",
         ],
         steps: [
@@ -391,7 +391,7 @@ export const logicModules: LogicModule[] = [
         detail:
           "Each PathSpec carries path_id, start, end, dates[], and optional spots[]. All windows are identical; only seeds differ.",
         bullets: [
-          "Path count = N (Monte Carlo Paths, default 1000)",
+          "Path count = N Monte Carlo Paths, default 1000",
           "path_from_window rebuilds one path for detail views",
           "black_scholes identical to Backtester; nav/hedge add path-local roll points and spots",
         ],
@@ -404,8 +404,9 @@ export const logicModules: LogicModule[] = [
     ],
     defaults: [
       { label: "Monte Carlo Paths", value: "1000" },
-      { label: "Window", value: "As-Of → Product End" },
+      { label: "Window", value: "As Of → Product End" },
       { label: "Sessions", value: "Mon–Fri · No Weekends" },
+      { label: "Free Host Cap", value: "~2000 Paths" },
     ],
     insights: [
       "build_paths is the single forward path factory — no CSV Macro Path pins.",
@@ -418,9 +419,9 @@ export const logicModules: LogicModule[] = [
     noteCards: [
       {
         title: "build_paths orchestration",
-        body: "engine/paths.py::build_paths builds the forward market pad through Product End, then clones one tenure window for path_id 1…N (frequency ignored).",
+        body: "engine/paths.py::build_paths builds the forward market pad through Product End, then clones one tenure window for path_id 1…N. Date lists are shared across PathSpecs. Frequency is ignored.",
         bullets: [
-          "N = Monte Carlo Paths (default 1000, clamp 1…10000)",
+          "N = Monte Carlo Paths, default 1000, clamp 1…10000, free hosts near 2000",
           "tenure_days from ProductSpec → Product End",
           "observation_months still gate hedge feasibility",
         ],

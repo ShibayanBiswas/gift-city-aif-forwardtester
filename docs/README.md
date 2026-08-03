@@ -21,8 +21,8 @@ Gift City AIF Forwardtester projects structured-unit outcomes from **As Of Today
 | Area | Current rule |
 |------|----------------|
 | Product End | `path_end_calendar(asof, tenure)` — Start = as-of; every path shares one tenure window |
-| Monte Carlo Paths | default **1000**; presets **100 / 500 / 1000 / 5000 / 10000**; clamp **1…10000** |
-| Header chips | As Of Today · Product End · Tenure Days · Monte Carlo Paths · Trading Days · Monthly Expiries (**horizontal scroll**) |
+| Monte Carlo Paths | default **1000**; presets **100 / 500 / 1000 / 5000 / 10000** or Custom 1…10000; confirm at **≥ 5000**; free hosts clamp near **2000** |
+| Header chips | As Of Today · Product End · Tenure Days · Monte Carlo Paths · Trading Days · Monthly Expiries — full-width equal cards |
 | Horizon (legacy) | **Simulation End Days** / frequency start grids are **ignored** — not the horizon |
 | Forward calendar | Mon–Fri; last-Tuesday monthly expiry; month-end futures shift |
 | Roll cost | First = trading-day count (19 → ≈4.7713); later = calendar Δt; weekends never in avg |

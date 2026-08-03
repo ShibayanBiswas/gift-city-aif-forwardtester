@@ -97,12 +97,14 @@ Intel `/api/market/{nifty,expiries,rolls}` returns **calendar / estimation** sur
 
 ## Monte Carlo Path Count (Forwardtester)
 
-All paths share **Start = As Of Today**, **End = Product End** (tenure calendar). Default **N = 1000** (clamp 1…10000). There is no historical Macro Paths pin file and no frequency start grid.
+All paths share **Start = As Of Today**, **End = Product End**. Default **N = 1000**. Clamp 1…10000 on fat hosts; free hosts ceiling near **2000**. There is no historical Macro Paths pin file and no frequency start grid.
 
 | Setting | Value |
 |---------|-------|
 | Default N | **1000** |
-| Presets | 100 · 500 · 1000 · 5000 · 10000 |
+| Presets | 100 · 500 · 1000 · 5000 · 10000 · Custom 1…10000 |
+| Confirm | Centered limits dialog at **≥ 5000** |
+| Free host | Ceiling near **2000**; no auto Excel after Run |
 | Override | Product Input `Monte Carlo Paths` / env `FORWARDTEST_N_PATHS` / Run body `n_paths` |
 | Window | Identical Path/Start/End across all rows |
 | On-screen matrix | Samples early + late dates (Product End visible); Excel has full horizon |
