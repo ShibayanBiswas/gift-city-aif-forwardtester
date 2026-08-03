@@ -1,9 +1,7 @@
-"""Forward path windows — staggered tenure starts ending at Simulation End.
+"""Forward Monte Carlo path windows — as-of → product tenure end.
 
-Path 1: as-of → path_end(tenure)
-…
-Final path: S_last → Simulation End, where Simulation End = as-of + Simulation End Days
-and path_end_calendar(S_last, tenure) = Simulation End.
+Every path shares the same calendar window (Path 1 start = live as-of,
+end = tenure calendar end). Path identity is the GBM seed (path_id 1…N).
 """
 from __future__ import annotations
 
@@ -22,9 +20,23 @@ from .gbm import (
 )
 from .market import MarketDB
 from .mc_matrix import spots_aligned_to_horizon
-from .product import ProductSpec, resolved_simulation_end
+from .product import (
+    ProductSpec,
+    path_end_calendar,
+    resolved_n_paths,
+    resolved_simulation_end,
+)
 
+# Kept for API / script compatibility — frequency no longer selects starts.
 Frequency = Literal["monthly", "weekly", "daily", "quarterly", "semi_annual"]
+
+ALL_FREQUENCIES: tuple[Frequency, ...] = (
+    "daily",
+    "weekly",
+    "monthly",
+    "quarterly",
+    "semi_annual",
+)
 
 
 @dataclass
@@ -36,30 +48,16 @@ class PathSpec:
     spots: np.ndarray | None = field(default=None, repr=False)
 
 
-def _add_years(d: date, years: int) -> date:
-    try:
-        return d.replace(year=d.year + years)
-    except ValueError:
-        return d.replace(year=d.year + years, month=2, day=28)
-
-
-def path_end_calendar(start: date, tenure_days: int | None = None) -> date:
-    """Excel / backtester tenure end rule (verbatim)."""
-    if tenure_days is not None and not (1700 <= tenure_days <= 2000):
-        return start + timedelta(days=tenure_days)
-    anniversary = _add_years(start, 5)
-    return anniversary.replace(day=1) - timedelta(days=1)
-
-
 def path_start_for_end(target_end: date, tenure_days: int) -> date:
     """Invert path_end_calendar so the tenure window ends on target_end."""
     if tenure_days is not None and not (1700 <= tenure_days <= 2000):
         return target_end - timedelta(days=tenure_days)
-    # Anniversary rule: end = (start + 5Y).replace(day=1) - 1 day
-    # ⇒ first of month after end = start + 5Y ⇒ start ≈ first_of_next_month(end) - 5Y
     first_next = date(target_end.year, target_end.month, 1) + timedelta(days=32)
     first_next = first_next.replace(day=1)
-    return _add_years(first_next, -5)
+    try:
+        return first_next.replace(year=first_next.year - 5)
+    except ValueError:
+        return first_next.replace(year=first_next.year - 5, month=2, day=28)
 
 
 def last_observation_target(start: date, observation_month: float) -> date:
@@ -77,243 +75,18 @@ def observation_fits_market(
     return last_observation_target(start, last_observation_month) <= last_expiry
 
 
-def _month_starts(dates: list[date]) -> list[date]:
-    out: list[date] = []
-    prev = None
-    for d in dates:
-        key = (d.year, d.month)
-        if key != prev:
-            out.append(d)
-            prev = key
-    return out
-
-
-def _week_starts(dates: list[date]) -> list[date]:
-    out: list[date] = []
-    prev = None
-    for d in dates:
-        iso = d.isocalendar()[:2]
-        if iso != prev:
-            out.append(d)
-            prev = iso
-    return out
-
-
-def _quarter_starts(dates: list[date]) -> list[date]:
-    out: list[date] = []
-    prev = None
-    for d in dates:
-        q = (d.year, (d.month - 1) // 3)
-        if q != prev:
-            out.append(d)
-            prev = q
-    return out
-
-
-def _semi_annual_starts(dates: list[date]) -> list[date]:
-    out: list[date] = []
-    prev = None
-    for d in dates:
-        half = (d.year, 0 if d.month <= 6 else 1)
-        if half != prev:
-            out.append(d)
-            prev = half
-    return out
-
-
-def generate_path_starts(dates: list[date], frequency: Frequency) -> list[date]:
-    """Start grid by frequency — same helpers as Gift AIF Backtester.
-
-    - **daily**: every trading day in the pool
-    - **weekly**: first trading day of each ISO week
-    - **monthly**: first trading day of each calendar month
-    - **quarterly**: first trading day of each calendar quarter
-    - **semi_annual**: first trading day of each H1 / H2
-    """
-    if frequency == "monthly":
-        return _month_starts(dates)
-    if frequency == "weekly":
-        return _week_starts(dates)
-    if frequency == "daily":
-        return list(dates)
-    if frequency == "quarterly":
-        return _quarter_starts(dates)
-    if frequency == "semi_annual":
-        return _semi_annual_starts(dates)
-    raise ValueError(f"Unknown frequency {frequency}")
-
-
-ALL_FREQUENCIES: tuple[Frequency, ...] = (
-    "daily",
-    "weekly",
-    "monthly",
-    "quarterly",
-    "semi_annual",
-)
-
-
-def resolve_last_start(
-    market: MarketDB,
-    asof: date,
-    horizon: date,
-    tenure_days: int,
-) -> date:
-    """Latest trading-day start whose tenure calendar end is on/before ``horizon``."""
-    s_last_raw = path_start_for_end(horizon, tenure_days)
-    if s_last_raw < asof:
-        raise RuntimeError(
-            f"Simulation End Days too short for tenure_days={tenure_days}: "
-            f"implied last start {s_last_raw.isoformat()} is before as-of {asof.isoformat()}"
-        )
-    s_last = _snap_start(market, s_last_raw, asof, s_last_raw if s_last_raw >= asof else asof)
-    candidates = [
-        d for d in market.trading_days_between(asof, horizon) if path_end_calendar(d, tenure_days) <= horizon
-    ]
-    if candidates:
-        return candidates[-1]
-    if path_end_calendar(s_last, tenure_days) > horizon:
-        back = [
-            d
-            for d in market.trading_days_between(asof, s_last)
-            if path_end_calendar(d, tenure_days) <= horizon
-        ]
-        if back:
-            return back[-1]
-    return s_last
-
-
-def enumerate_path_starts(
-    market: MarketDB,
-    asof: date,
-    horizon: date,
-    tenure_days: int,
-    frequency: Frequency,
-    *,
-    observation_months: list[float] | None = None,
-) -> list[date]:
-    """Ordered path start dates for ``frequency`` (Path 1 = as-of, last = s_last when eligible).
-
-    Count rule:
-      pool = trading days [asof, s_last]
-      starts = frequency grid(pool) ∪ {asof} ∪ {s_last}
-      drop trailing starts whose last observation target is past the expiry calendar
-    """
-    s_last = resolve_last_start(market, asof, horizon, tenure_days)
-    pool = market.trading_days_between(asof, s_last)
-    if not pool:
-        pool = [asof]
-
-    starts = generate_path_starts(pool, frequency)
-    if asof in market.date_to_idx:
-        starts = [asof] + [s for s in starts if asof < s <= s_last]
-    starts = [s for s in dict.fromkeys(starts) if asof <= s <= s_last]
-    if not starts:
-        starts = [asof]
-    if s_last not in starts and s_last >= asof:
-        starts.append(s_last)
-        starts = sorted(set(starts))
-
-    last_expiry = market.expiries[-1] if market.expiries else market.last_date
-    last_obs_m = max(observation_months) if observation_months else None
-    gated: list[date] = []
-    for start in starts:
-        if not observation_fits_market(start, last_obs_m, last_expiry):
-            break
-        gated.append(start)
-    return gated
-
-
-def count_paths_by_frequency(
-    market: MarketDB,
-    tenure_days: int,
-    *,
-    observation_months: list[float] | None = None,
-    product: ProductSpec | None = None,
-    simulation_end: date | None = None,
-    frequencies: tuple[Frequency, ...] = ALL_FREQUENCIES,
-) -> dict[str, int]:
-    """Path counts for each frequency without attaching GBM spots."""
-    asof = forward_asof(market)
-    horizon = simulation_end or resolved_simulation_end(asof, product)
-    obs = observation_months
-    if obs is None and product is not None:
-        obs = product.observation_months
-    # Need a forward calendar through horizon (+ pad) for s_last / expiry gate.
-    fwd, _ = build_forward_market(
-        market,
-        horizon,
-        tenure_days,
-        observation_months=obs,
-        fill_gbm=False,
-    )
-    return {
-        freq: len(
-            enumerate_path_starts(
-                fwd,
-                asof,
-                horizon,
-                tenure_days,
-                freq,
-                observation_months=obs,
-            )
-        )
-        for freq in frequencies
-    }
-
-
 def forward_asof(market: MarketDB) -> date:
-    """Path-1 start = latest Nifty session (dynamic present date)."""
+    """Path start = latest Nifty session (dynamic present date)."""
     return market.last_date
 
 
-def _snap_start(market: MarketDB, target: date, asof: date, last_start_cap: date) -> date:
-    """Nearest trading day on/after target within [asof, last_start_cap]."""
-    if target < asof:
-        target = asof
-    if target > last_start_cap:
-        target = last_start_cap
-    days = market.trading_days_between(target, last_start_cap)
-    if days:
-        return days[0]
-    before = market.trading_days_between(asof, target)
-    if before:
-        return before[-1]
-    return asof
-
-
-def _calendar_need(
-    starts: list[date],
-    tenure_days: int,
-    observation_months: list[float] | None,
-    simulation_end: date,
-) -> date:
-    """Furthest date the market calendar must cover."""
-    need = simulation_end + timedelta(days=60)
-    if starts:
-        last_start = starts[-1]
-        need = max(need, path_end_calendar(last_start, tenure_days) + timedelta(days=60))
-        if observation_months:
-            obs_m = max(float(m) for m in observation_months)
-            need = max(need, last_observation_target(last_start, obs_m) + timedelta(days=60))
-    return need
-
-
-def _build_one(
+def _build_tenure_window(
     market: MarketDB,
     pid: int,
     start: date,
-    tenure_days: int,
-    *,
-    max_end: date | None = None,
+    end_cal: date,
 ) -> PathSpec | None:
-    """Mirror backtester ``_build_one`` for a complete tenure window.
-
-    ``max_end`` (Simulation End) caps the calendar end so the final path never
-    overshoots the product horizon.
-    """
-    end_cal = path_end_calendar(start, tenure_days)
-    if max_end is not None and end_cal > max_end:
-        end_cal = max_end
+    """Single as-of → product-end trading-day window for ``pid``."""
     if end_cal > market.last_date:
         return None
     days = market.trading_days_between(start, end_cal)
@@ -335,11 +108,11 @@ def simulate_path_spots(
 ) -> np.ndarray:
     """GBM spots for ``dates``.
 
-    When ``horizon_dates`` is provided (as-of → Simulation End), generate the full
+    When ``horizon_dates`` is provided (as-of → product end), generate the full
     Monte Carlo row for ``path_id`` then slice — same calendar date shares one price
     with the MC matrix (Excel Nifty Simulations layout).
     """
-    del frequency  # frequency selects starts only; sessions stay daily GBM steps
+    del frequency  # sessions stay daily GBM steps
     if not dates:
         return np.zeros(0, dtype=float)
     if horizon_dates:
@@ -365,23 +138,17 @@ def build_forward_market(
     fill_gbm: bool = True,
     base_seed: int = GBM_BASE_SEED,
 ) -> tuple[MarketDB, GbmParams]:
-    """Extend market through Simulation End with forward calendars.
+    """Extend market through product tenure end with forward calendars.
 
     When ``fill_gbm`` is True, Path-1 GBM closes fill the pad (legacy / debug).
     Production desk meta and path evaluation use ``fill_gbm=False``: calendars
     only. Each path carries its own GBM spots and path-local roll points.
     """
-    pad_end = horizon_end + timedelta(days=60)
-    # Also cover a start placed on as-of whose tenure may extend past horizon only
-    # for intermediate paths; final path ends on horizon_end.
     asof = market.last_date
-    pad_end = max(pad_end, path_end_calendar(asof, tenure_days) + timedelta(days=60))
+    pad_end = max(horizon_end, path_end_calendar(asof, tenure_days)) + timedelta(days=60)
     if observation_months:
         obs_m = max(float(m) for m in observation_months)
         pad_end = max(pad_end, last_observation_target(asof, obs_m) + timedelta(days=60))
-        # Last start near horizon also needs obs coverage.
-        s_guess = path_start_for_end(horizon_end, tenure_days)
-        pad_end = max(pad_end, last_observation_target(s_guess, obs_m) + timedelta(days=60))
     params = estimate_gbm_params(market)
     fwd = extend_market_forward(
         market,
@@ -401,21 +168,26 @@ def build_paths(
     observation_months: list[float] | None = None,
     product: ProductSpec | None = None,
     simulation_end: date | None = None,
+    n_paths: int | None = None,
     base_seed: int = GBM_BASE_SEED,
     attach_spots: bool = True,
 ) -> tuple[list[PathSpec], MarketDB, GbmParams, date]:
     """
-    Build staggered forward tenure windows.
+    Build N Monte Carlo paths over one window: as-of → product tenure end.
 
-    Simulation End is the final path's calendar end.
-    Returns (paths, forward_market, gbm_params, simulation_end).
+    ``frequency`` is accepted for API compatibility but ignored — every path
+    starts on as-of and ends on the product tenure calendar end.
+    Returns (paths, forward_market, gbm_params, product_end).
     """
+    del frequency
     asof = forward_asof(market)
     horizon = simulation_end or resolved_simulation_end(asof, product)
     if horizon <= asof:
         raise RuntimeError(
-            f"Simulation end {horizon.isoformat()} must be after as-of {asof.isoformat()}"
+            f"Product end {horizon.isoformat()} must be after as-of {asof.isoformat()}"
         )
+
+    count = resolved_n_paths(product, explicit=n_paths)
 
     fwd_market, params = build_forward_market(
         market,
@@ -425,16 +197,11 @@ def build_paths(
         fill_gbm=False,
         base_seed=base_seed,
     )
-    starts = enumerate_path_starts(
-        fwd_market,
-        asof,
-        horizon,
-        tenure_days,
-        frequency,
-        observation_months=observation_months,
-    )
 
-    need = _calendar_need(starts, tenure_days, observation_months, horizon)
+    need = horizon + timedelta(days=60)
+    if observation_months:
+        obs_m = max(float(m) for m in observation_months)
+        need = max(need, last_observation_target(asof, obs_m) + timedelta(days=60))
     if need > fwd_market.last_date:
         fwd_market = extend_market_forward(
             fwd_market,
@@ -443,75 +210,75 @@ def build_paths(
             base_seed=base_seed,
             path_id=1,
         )
-        # Re-enumerate after calendar extend (expiry gate may admit more starts).
-        starts = enumerate_path_starts(
-            fwd_market,
-            asof,
-            horizon,
-            tenure_days,
-            frequency,
-            observation_months=observation_months,
-        )
 
-    # Full MC axis: as-of → Simulation End (Excel columns = these dates).
+    # Full MC axis: as-of → product tenure end (Excel columns = these dates).
     horizon_dates = fwd_market.trading_days_between(asof, horizon)
     if not horizon_dates and asof in fwd_market.date_to_idx:
         horizon_dates = [asof]
 
+    template = _build_tenure_window(fwd_market, 1, asof, horizon)
+    if template is None:
+        if horizon > fwd_market.last_date:
+            fwd_market = extend_market_forward(
+                fwd_market,
+                horizon + timedelta(days=60),
+                gbm_params=None,
+                base_seed=base_seed,
+                path_id=1,
+            )
+            horizon_dates = fwd_market.trading_days_between(asof, horizon)
+            template = _build_tenure_window(fwd_market, 1, asof, horizon)
+    if template is None:
+        raise RuntimeError(
+            "No complete forward tenure window for "
+            f"as-of={asof.isoformat()}, product_end={horizon.isoformat()}, "
+            f"tenure_days={tenure_days}"
+        )
+
     paths: list[PathSpec] = []
-    pid = 1
-    for start in starts:
-        spec = _build_one(fwd_market, pid, start, tenure_days, max_end=horizon)
-        if spec is None:
-            end_cal = min(path_end_calendar(start, tenure_days), horizon)
-            if end_cal > fwd_market.last_date:
-                fwd_market = extend_market_forward(
-                    fwd_market,
-                    end_cal + timedelta(days=60),
-                    gbm_params=None,
-                    base_seed=base_seed,
-                    path_id=1,
-                )
-                horizon_dates = fwd_market.trading_days_between(asof, horizon)
-                spec = _build_one(fwd_market, pid, start, tenure_days, max_end=horizon)
-            if spec is None:
-                continue
+    for pid in range(1, count + 1):
+        spec = PathSpec(
+            path_id=pid,
+            start=template.start,
+            end=template.end,
+            dates=list(template.dates),
+        )
         if attach_spots:
             spec.spots = simulate_path_spots(
                 spec.dates,
                 params,
                 pid,
                 base_seed=base_seed,
-                frequency=frequency,
                 horizon_dates=horizon_dates,
             )
         paths.append(spec)
-        pid += 1
-
-    if not paths:
-        raise RuntimeError(
-            "No complete forward tenure windows for "
-            f"as-of={asof.isoformat()}, simulation_end={horizon.isoformat()}, "
-            f"tenure_days={tenure_days}, frequency={frequency}"
-        )
-
-    # Desk rule: Simulation End = final path's calendar end (last TD on/before horizon).
-    last = paths[-1]
-    horizon_days = fwd_market.trading_days_between(last.start, horizon)
-    if horizon_days and horizon_days[-1] != last.end:
-        last.end = horizon_days[-1]
-        last.dates = horizon_days
-        if attach_spots:
-            last.spots = simulate_path_spots(
-                last.dates,
-                params,
-                last.path_id,
-                base_seed=base_seed,
-                frequency=frequency,
-                horizon_dates=horizon_dates,
-            )
 
     return paths, fwd_market, params, horizon
+
+
+def count_monte_carlo_paths(
+    product: ProductSpec | None = None,
+    *,
+    n_paths: int | None = None,
+) -> int:
+    """Resolved Monte Carlo path count for the single tenure window."""
+    return resolved_n_paths(product, explicit=n_paths)
+
+
+def count_paths_by_frequency(
+    market: MarketDB,
+    tenure_days: int,
+    *,
+    observation_months: list[float] | None = None,
+    product: ProductSpec | None = None,
+    simulation_end: date | None = None,
+    frequencies: tuple[Frequency, ...] = ALL_FREQUENCIES,
+    n_paths: int | None = None,
+) -> dict[str, int]:
+    """Compat shim — every frequency reports the same MC path count."""
+    del market, tenure_days, observation_months, simulation_end
+    n = resolved_n_paths(product, explicit=n_paths)
+    return {freq: n for freq in frequencies}
 
 
 def path_from_window(

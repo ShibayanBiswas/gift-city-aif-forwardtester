@@ -5,7 +5,7 @@ import { usePathname } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
 import { LayoutDashboard, BarChart3, Calculator, Sparkles, Moon, Sun, Upload, Play, Download } from "lucide-react";
 import { mainSections, resolveNav } from "@/lib/navigation";
-import { cn, client, FREQUENCY_ORDER, FREQUENCY_LABELS } from "@/lib/api";
+import { cn, client, clampNPaths, DEFAULT_N_PATHS, MAX_N_PATHS, MIN_N_PATHS } from "@/lib/api";
 import { useForwardTest } from "@/lib/store";
 import { deskSpring } from "@/lib/motion";
 
@@ -22,8 +22,8 @@ export function SiteNav() {
   const {
     dark,
     setDark,
-    frequency,
-    setFrequency,
+    nPaths,
+    setNPaths,
     sinceYear,
     setSinceYear,
     years,
@@ -31,10 +31,8 @@ export function SiteNav() {
     run,
     upload,
     product,
-    market,
     setError,
   } = useForwardTest();
-  const pathCounts = market?.path_counts;
 
   return (
     <div className="border-t border-[var(--ar-border)]">
@@ -81,25 +79,26 @@ export function SiteNav() {
               </option>
             ))}
           </select>
-          <select
-            value={frequency}
-            disabled={running}
-            onChange={(e) => setFrequency(e.target.value as typeof frequency)}
-            className="desk-select disabled:opacity-50"
-            title={
-              running
-                ? "Wait for the current simulation to finish"
-                : pathCounts
-                  ? `Path Frequency · Daily ${pathCounts.daily?.toLocaleString("en-IN") ?? "—"} · Weekly ${pathCounts.weekly?.toLocaleString("en-IN") ?? "—"} · Monthly ${pathCounts.monthly?.toLocaleString("en-IN") ?? "—"}`
-                  : "Path Frequency · Daily grids take longer on free hosts"
-            }
+          <label
+            className="inline-flex items-center gap-1.5 text-xs text-[var(--ar-muted)]"
+            title={`Monte Carlo paths over the tenure window (${MIN_N_PATHS}–${MAX_N_PATHS})`}
           >
-            {FREQUENCY_ORDER.map((f) => (
-              <option key={f} value={f}>
-                {FREQUENCY_LABELS[f]}
-              </option>
-            ))}
-          </select>
+            <span className="hidden sm:inline">MC Paths</span>
+            <input
+              type="number"
+              min={MIN_N_PATHS}
+              max={MAX_N_PATHS}
+              step={1}
+              value={nPaths}
+              disabled={running}
+              onChange={(e) => {
+                const raw = Number(e.target.value);
+                if (!Number.isFinite(raw)) return;
+                setNPaths(clampNPaths(raw || DEFAULT_N_PATHS));
+              }}
+              className="desk-select w-[4.5rem] disabled:opacity-50"
+            />
+          </label>
           <button
             type="button"
             className="inline-flex items-center gap-1.5 rounded-full border border-[var(--ar-border)] px-3 py-1.5 text-xs hover:border-[var(--ar-gold)]"

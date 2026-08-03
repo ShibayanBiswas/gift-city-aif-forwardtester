@@ -2,7 +2,7 @@
 
 import { motion } from "framer-motion";
 import type { ProductSpec } from "@/lib/api";
-import { formatDeskDate, formatNum, tradeSideLabel, addCalendarDaysIso } from "@/lib/api";
+import { formatDeskDate, formatNum, tradeSideLabel } from "@/lib/api";
 import { useForwardTest } from "@/lib/store";
 import { DownloadButton } from "@/components/DownloadButton";
 import { downloadBrandedExcel, type CellValue, type ColumnType } from "@/lib/download";
@@ -106,8 +106,8 @@ function fundEconomicsRows(product: ProductSpec): Array<[string, string]> {
     ["Futures Roll Rate", pctLabel(product.roll_rate ?? 0.07)],
     ["Tax Benefit On Roll", pctLabel(product.tax_benefit_rate ?? 0.42744)],
   ];
-  if (product.simulation_end_days != null) {
-    rows.push(["Simulation End Days", String(product.simulation_end_days)]);
+  if (product.n_paths != null) {
+    rows.push(["Monte Carlo Paths", String(product.n_paths)]);
   }
   return rows;
 }
@@ -318,23 +318,18 @@ export function ProductSpecTables({ product }: { product: ProductSpec }) {
 export function ProductMetaStrip({ product }: { product: ProductSpec }) {
   const { market } = useForwardTest();
   const activeCount = product.legs.filter(isActiveLeg).length;
-  // Always live product + market horizon (never last-run summary).
-  const simDays = product.simulation_end_days ?? market?.simulation_end_days ?? null;
-  const simEnd =
-    market?.simulation_end ??
-    (market?.last_date && simDays != null
-      ? addCalendarDaysIso(market.last_date, Number(simDays))
-      : null);
+  // Always live product + market Product End (never client-side asof + days).
+  const productEnd = market?.product_end ?? market?.simulation_end ?? null;
   const items = [
     { label: "Principal Amount", value: `${formatNum(product.principal_cr, 2)} Crores` },
     { label: "Product Tenure", value: `${product.tenure_days} Calendar Days` },
     { label: "Observation Count", value: String(product.n_obs) },
     { label: "Active Option Legs", value: String(activeCount) },
-    ...(simDays != null
-      ? [{ label: "Simulation End Days", value: String(simDays) }]
+    ...(product.n_paths != null
+      ? [{ label: "Monte Carlo Paths", value: String(product.n_paths) }]
       : []),
-    ...(simEnd
-      ? [{ label: "Simulation End", value: formatDeskDate(simEnd) }]
+    ...(productEnd
+      ? [{ label: "Product End", value: formatDeskDate(productEnd) }]
       : []),
   ];
   return (

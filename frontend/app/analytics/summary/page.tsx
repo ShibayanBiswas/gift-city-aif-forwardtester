@@ -3,12 +3,12 @@
 import { useMemo } from "react";
 import { motion } from "framer-motion";
 import { useForwardTest } from "@/lib/store";
-import { formatDeskDate, formatNum, formatPct, FREQUENCY_LABELS, isPlausibleTradingDate } from "@/lib/api";
+import { formatDeskDate, formatNum, formatPct, isPlausibleTradingDate } from "@/lib/api";
 import { EmptyRunHint, KpiBand } from "@/components/ui/Shared";
 import { SheetTable } from "@/components/SheetTable";
 
 export default function SummaryTablePage() {
-  const { filteredSummary, sinceYear, setSinceYear, years, setPathId, frequency } = useForwardTest();
+  const { filteredSummary, sinceYear, setSinceYear, years, setPathId, nPaths } = useForwardTest();
   const rows = useMemo(
     () =>
       filteredSummary.map((r) => [
@@ -76,7 +76,7 @@ export default function SummaryTablePage() {
               </h2>
               <p className="mt-2 text-sm leading-relaxed text-[var(--ar-muted)] font-ui">
                 Every completed path from the Summary sheet. Filter from 2001 onward, then click a row to select that
-                path across Desk pages. Frequency · {FREQUENCY_LABELS[frequency] ?? frequency}.
+                path across Desk pages. Monte Carlo paths · {nPaths}.
               </p>
             </div>
             <label className="block font-ui">

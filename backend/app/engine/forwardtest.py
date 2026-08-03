@@ -501,8 +501,9 @@ def run_forwardtest(
     detail_path_ids: set[int] | None = None,
     should_cancel: CancelCb | None = None,
     base_seed: int = GBM_BASE_SEED,
+    n_paths: int | None = None,
 ) -> dict:
-    """Run Monte Carlo forward test over as-of → simulation_end path atlas."""
+    """Run Monte Carlo forward test over as-of → product tenure end (N seed paths)."""
     market = market or load_market()
     if should_cancel and should_cancel():
         raise ForwardTestCancelled("Forward test cancelled — a newer run was started.")
@@ -513,8 +514,9 @@ def run_forwardtest(
     _emit(on_progress, 2.0, "Estimating parameters and building calendar…")
 
     sim_end = resolved_simulation_end(market.last_date, product)
-    # Don't attach spots during build_paths — slice from the full MC matrix below
-    # so every path_id shares one as-of → Simulation End Z-stream (Excel layout).
+    # Don't attach spots during build_paths — regenerate per path from seed below
+    # so every path_id shares one as-of → Product End calendar (Excel layout).
+    # frequency is ignored (compat for older clients).
     paths, fwd_market, params, horizon = build_paths(
         market,
         product.tenure_days,
@@ -524,6 +526,7 @@ def run_forwardtest(
         simulation_end=sim_end,
         base_seed=base_seed,
         attach_spots=False,
+        n_paths=n_paths,
     )
 
     if not paths:
@@ -534,12 +537,12 @@ def run_forwardtest(
     asof = date.fromisoformat(params.asof)
     horizon_dates = horizon_trading_dates(fwd_market.dates, asof, horizon)
     if not horizon_dates:
-        raise RuntimeError("No trading dates on MC horizon (as-of → Simulation End)")
+        raise RuntimeError("No trading dates on MC horizon (as-of → Product End)")
 
     # Memory-safe: never materialise the full path×date float matrix in RAM.
     # Each path regenerates its GBM row on demand via simulate_path_spots /
     # spots_aligned_to_horizon (same seed rule as Nifty Simulations.xlsx).
-    n_paths = max(p.path_id for p in paths)
+    mc_n = max(p.path_id for p in paths)
     n = len(paths)
     store_ids = detail_path_ids or set()
     details: dict[int, dict] = {}
@@ -548,14 +551,14 @@ def run_forwardtest(
     if store_ids and mode == "processes":
         mode = "threads"
         workers = min(workers, 4)
-    # Large Daily runs on free hosts must stay serial — threads multiply peak RAM.
+    # Large runs on free hosts must stay serial — threads multiply peak RAM.
     if n >= 400 and mode != "serial" and is_constrained_host():
         mode, workers = "serial", 1
 
     _emit(
         on_progress,
         4.0,
-        f"Queued {n} {frequency} paths · {n_paths} simulated Nifty rows",
+        f"Queued {n} Monte Carlo paths · {mc_n} simulated Nifty rows",
     )
 
     if mode == "serial" or workers == 1:
@@ -634,15 +637,18 @@ def run_forwardtest(
 
     return {
         "product": product.to_dict(),
-        "frequency": frequency,
+        # Compat: older clients expect frequency; engine always runs Monte Carlo.
+        "frequency": "monte_carlo",
         "path_count": len(summaries),
+        "n_paths": len(summaries),
         "simulation_start": params.asof,
         "simulation_end": horizon.isoformat(),
+        "product_end": horizon.isoformat(),
         "simulation_end_days": resolved_simulation_end_days(product),
         "gbm": params.to_dict(),
         "asof": params.asof,
         "mc_matrix": {
-            "n_paths": int(n_paths),
+            "n_paths": int(mc_n),
             "n_dates": int(len(horizon_dates)),
             "dates": [d.isoformat() for d in horizon_dates],
             "base_seed": int(base_seed),
@@ -658,7 +664,7 @@ def run_forwardtest(
             ],
             "layout": {
                 "rows": "path_id · start · end · then trading-date columns",
-                "columns": "trading dates as-of → Simulation End horizontal",
+                "columns": "trading dates as-of → Product End horizontal",
                 "formula": "S_t = S_t-1 · exp(drift + σ · Z)",
             },
         },

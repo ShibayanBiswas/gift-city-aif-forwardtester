@@ -93,8 +93,8 @@ export default function HomePage() {
                 {displayName}
               </motion.h2>
               <p className="mt-2 max-w-2xl text-sm leading-relaxed text-[var(--ar-muted)] font-ui">
-                Structured units forward-tested from today&apos;s Nifty close through Simulation End. Upload a product
-                sheet, pick a path frequency, and run the desk engine.
+                Structured units forward-tested from today&apos;s Nifty close through Product End (tenure). Upload a
+                product sheet, set Monte Carlo paths, and run the desk engine.
               </p>
             </div>
             <motion.div

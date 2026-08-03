@@ -33,6 +33,7 @@ def _clone(
     obs: list[float],
     tenure: int | None = None,
     name: str = "Alt",
+    n_paths: int = 3,
 ) -> ProductSpec:
     return ProductSpec(
         name=name,
@@ -41,7 +42,7 @@ def _clone(
         observation_months=obs,
         legs=list(base.legs),
         source_file="verify_dynamic_products",
-        simulation_end_days=base.simulation_end_days,
+        n_paths=n_paths,
         roll_rate=base.roll_rate,
         cash_pct=base.cash_pct,
         gsec_pct=base.gsec_pct,
@@ -64,6 +65,7 @@ def _assert_every_path(label: str, product: ProductSpec, market, *, freq: str = 
         freq,  # type: ignore[arg-type]
         observation_months=product.observation_months,
         product=product,
+        n_paths=product.n_paths,
         attach_spots=False,
     )
     assert paths, f"{label}: expected ≥1 path"
@@ -89,7 +91,7 @@ def _assert_every_path(label: str, product: ProductSpec, market, *, freq: str = 
         assert len(detail["observations"]) == product.n_obs
         assert all(b["expiry"] for b in detail["obs_builds"])
 
-    out = run_forwardtest(product, freq, market)  # type: ignore[arg-type]
+    out = run_forwardtest(product, freq, market, n_paths=product.n_paths)  # type: ignore[arg-type]
     assert out["path_count"] == len(paths) == len(out["summary"])
     assert abs(float(out["summary"][0]["total"])) < 1e6
 
@@ -156,8 +158,8 @@ def main() -> None:
 
     early = _assert_every_path("early3", _clone(base, obs=[12, 24, 36], name="early3"), market)
     late = _assert_every_path("late3", _clone(base, obs=[38, 47, 56], name="late3"), market)
-    assert early["paths"] >= late["paths"], (early["paths"], late["paths"])
-    ok("early_vs_late_3obs", f"early_paths={early['paths']} late_paths={late['paths']}")
+    assert early["paths"] == late["paths"], (early["paths"], late["paths"])
+    ok("early_vs_late_same_n", f"early_paths={early['paths']} late_paths={late['paths']}")
 
     deduped = _clone(base, obs=[56, 38, 38, 44, 50], name="dedupe")
     assert deduped.n_obs == 4
@@ -207,7 +209,7 @@ def main() -> None:
             observation_months=obs,
             legs=[one_leg],
             source_file="verify_dynamic_products",
-            simulation_end_days=base.simulation_end_days,
+            n_paths=3,
         )
         assert len(p.active_legs) == 1
         info = _assert_every_path(f"1leg_{n}", p, market)
@@ -217,6 +219,7 @@ def main() -> None:
             "semi_annual",
             observation_months=p.observation_months,
             product=p,
+            n_paths=3,
             attach_spots=False,
         )
         detail = compute_single_path_detail(
@@ -225,14 +228,14 @@ def main() -> None:
         assert len(detail["legs"]) == n
         ok(f"one_leg_n_obs={n}", str(info))
 
-    # Baseline 7-obs book: Path 1 stable across two monthly runs
-    r1 = run_forwardtest(base, "monthly", market)
-    r2 = run_forwardtest(base, "monthly", market)
-    assert r1["path_count"] == r2["path_count"] >= 50
+    # Baseline book: Path 1 stable across two MC runs (small N)
+    r1 = run_forwardtest(base, "monthly", market, n_paths=5)
+    r2 = run_forwardtest(base, "monthly", market, n_paths=5)
+    assert r1["path_count"] == r2["path_count"] == 5
     t1 = float(r1["summary"][0]["total"])
     t2 = float(r2["summary"][0]["total"])
     assert abs(t1 - t2) < 1e-9
-    ok("monthly_path1_stable", f"paths={r1['path_count']} path1={t1:.6f}")
+    ok("mc_path1_stable", f"paths={r1['path_count']} path1={t1:.6f}")
 
     custom = _clone(base, obs=[18.0, 30.0, 42.0, 54.0], tenure=1461, name="custom4y")
     assert custom.n_obs == 4 and custom.tenure_days == 1461

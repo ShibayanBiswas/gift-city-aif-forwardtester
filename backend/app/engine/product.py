@@ -1,6 +1,7 @@
 """Parse Product Input Excel into a structured product definition."""
 from __future__ import annotations
 
+import os
 from dataclasses import asdict, dataclass
 from datetime import date, datetime, timedelta
 from pathlib import Path
@@ -32,24 +33,52 @@ DEFAULT_RATE_SWITCH_DATE = date(2024, 10, 31)
 # roll_costs.csv is generated at this assumed futures carry rate.
 ROLL_COST_BASE_RATE = 0.07
 
-# Forward-tester simulation horizon: calendar days from as-of to final path end.
-DEFAULT_SIMULATION_END_DAYS = 7300
+# Forward-tester product window ends at tenure from as-of (no separate Simulation End Days).
+# Monte Carlo path count over that single window (path_id 1…N, independent GBM seeds).
+DEFAULT_N_PATHS = 100
+MIN_N_PATHS = 1
+MAX_N_PATHS = 5000
+
+
+def _add_years(d: date, years: int) -> date:
+    try:
+        return d.replace(year=d.year + years)
+    except ValueError:
+        # 29-Feb → 28-Feb on non-leap target years
+        return d.replace(month=2, day=28, year=d.year + years)
+
+
+def path_end_calendar(start: date, tenure_days: int | None = None) -> date:
+    """Excel / backtester tenure end rule (verbatim) — product forward window end."""
+    if tenure_days is not None and not (1700 <= int(tenure_days) <= 2000):
+        return start + timedelta(days=int(tenure_days))
+    anniversary = _add_years(start, 5)
+    return anniversary.replace(day=1) - timedelta(days=1)
+
+
+def resolved_n_paths(product: "ProductSpec | None" = None, explicit: int | None = None) -> int:
+    """Monte Carlo path count for the single as-of → tenure window."""
+    if explicit is not None:
+        n = int(explicit)
+    elif product is not None and getattr(product, "n_paths", None) is not None:
+        n = int(product.n_paths)  # type: ignore[arg-type]
+    else:
+        raw = os.environ.get("FORWARDTEST_N_PATHS") or os.environ.get("N_PATHS")
+        n = int(raw) if raw and str(raw).strip().isdigit() else DEFAULT_N_PATHS
+    return max(MIN_N_PATHS, min(MAX_N_PATHS, n))
 
 
 def resolved_simulation_end_days(product: "ProductSpec | None" = None) -> int:
-    """Resolve Simulation End Days; default 7300; must exceed product tenure."""
-    raw = product.simulation_end_days if product is not None else None
-    days = int(raw) if raw is not None else DEFAULT_SIMULATION_END_DAYS
-    if days <= 0:
-        days = DEFAULT_SIMULATION_END_DAYS
-    if product is not None and product.tenure_days > 0 and days <= product.tenure_days:
-        days = int(product.tenure_days) + 1
-    return days
+    """Calendar span of the product forward window (tenure days). Kept for API compat."""
+    if product is not None and product.tenure_days > 0:
+        return int(product.tenure_days)
+    return 1930
 
 
 def resolved_simulation_end(asof: date, product: "ProductSpec | None" = None) -> date:
-    """Calendar end of the final path = as-of + Simulation End Days."""
-    return asof + timedelta(days=resolved_simulation_end_days(product))
+    """Product End = as-of + tenure (Backtester anniversary rule when tenure ∈ [1700,2000])."""
+    tenure = int(product.tenure_days) if product is not None and product.tenure_days > 0 else 1930
+    return path_end_calendar(asof, tenure)
 
 
 # Desk product catalogue: observation *count* is 1…7 (month offsets still float).
@@ -136,8 +165,10 @@ class ProductSpec:
     cash_gst_rate: float = DEFAULT_CASH_GST_RATE
     # Legacy — unused by nav (brokerage card throughout).
     rate_switch_date: date = DEFAULT_RATE_SWITCH_DATE
-    # Forward-tester: calendar days from as-of to final path end (None → 7300).
+    # Legacy Product Input field — ignored for horizon (window = as-of → tenure end).
     simulation_end_days: int | None = None
+    # Optional Monte Carlo path count override (else FORWARDTEST_N_PATHS / default 100).
+    n_paths: int | None = None
 
     def __post_init__(self) -> None:
         self.observation_months = normalize_observation_months(self.observation_months)
@@ -179,14 +210,13 @@ class ProductSpec:
             self.rate_switch_date = date.fromisoformat(self.rate_switch_date[:10])
         elif not isinstance(self.rate_switch_date, date):
             raise ValueError(f"rate_switch_date must be a date, got {self.rate_switch_date!r}")
+        if self.n_paths is not None:
+            self.n_paths = resolved_n_paths(explicit=int(self.n_paths))
+        # Keep parsed Simulation End Days if present, but never let it drive the horizon.
         if self.simulation_end_days is not None:
             self.simulation_end_days = int(self.simulation_end_days)
             if self.simulation_end_days <= 0:
-                raise ValueError(
-                    f"simulation_end_days must be positive, got {self.simulation_end_days}"
-                )
-            if self.simulation_end_days <= self.tenure_days:
-                self.simulation_end_days = int(self.tenure_days) + 1
+                self.simulation_end_days = None
 
     @property
     def principal_cr(self) -> float:
@@ -225,11 +255,10 @@ class ProductSpec:
     def to_dict(self) -> dict[str, Any]:
         d = asdict(self)
         d["rate_switch_date"] = self.rate_switch_date.isoformat()
-        # Always expose the resolved horizon so UI never hardcodes a default.
+        # Product window = tenure days from as-of (Simulation End Days no longer drives horizon).
         d["simulation_end_days"] = resolved_simulation_end_days(self)
-        d["simulation_end_days_source"] = (
-            "excel" if self.simulation_end_days is not None else "default"
-        )
+        d["simulation_end_days_source"] = "tenure"
+        d["n_paths"] = resolved_n_paths(self)
         d["principal_cr"] = self.principal_cr
         d["cash_buffer_cr"] = self.cash_buffer_cr
         d["gsec_opening_cr"] = self.gsec_opening_cr
@@ -404,6 +433,15 @@ def _match_fund_label(label: str) -> str | None:
         or s.strip() in {"ak2"}
     ):
         return "rate_switch_date"
+    # Monte Carlo path count (preferred over legacy Simulation End Days).
+    if (
+        "monte carlo" in s
+        or "mc paths" in s
+        or s.strip() in {"n paths", "n_paths", "paths", "path count", "number of paths"}
+        or ("path" in s and ("count" in s or "number" in s or "n " in s or s.strip().startswith("n ")))
+    ):
+        return "n_paths"
+    # Legacy label — parsed for workbook compat but ignored as horizon (tenure end wins).
     if (
         "simulation end days" in s
         or "horizon days" in s
@@ -504,8 +542,15 @@ def parse_product_workbook(path: str | Path, name: str | None = None) -> Product
             if parsed_date is not None:
                 economics[key] = parsed_date
             continue
+        if key == "n_paths":
+            if isinstance(b, (datetime, date)) and not isinstance(b, bool):
+                continue
+            parsed_n = _to_float(b)
+            if parsed_n is not None and parsed_n > 0:
+                economics["n_paths"] = resolved_n_paths(explicit=int(round(parsed_n)))
+            continue
         if key == "simulation_end_days":
-            # Excel sometimes coerces bare integers into dates — ignore those cells.
+            # Legacy only — horizon is tenure via path_end_calendar; keep value for display.
             if isinstance(b, (datetime, date)) and not isinstance(b, bool):
                 continue
             parsed_days = _to_float(b)

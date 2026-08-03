@@ -10,14 +10,13 @@ Same hedging sheet, computation NAV, roll cost, delta, and product desk as the [
 
 1. Load Nifty closes from **2001-01-01 → latest session** (Yahoo sync keeps this current).
 2. Compute daily returns → **μ** (mean), **σ** (stdev), **drift = μ − ½σ²**.
-3. Resolve **Simulation End** = as-of + **Simulation End Days** (default **7300**, must exceed product tenure). That date is the **final path’s end**.
-4. Build staggered tenure windows by path frequency:
-   - Path 1: as-of → tenure end
-   - Intermediate starts by frequency through the last start
-   - Final path: ends on Simulation End
-5. Simulate each window with GBM: `S_t = S_{t-1} · exp(drift + σ · Z)`.
+3. Resolve **Product End** = `path_end_calendar(as-of, tenure)` (same Backtester anniversary rule).
+4. Build **N Monte Carlo paths** over one window (default **N = 100**):
+   - Every path: Start = as-of, End = Product End
+   - Independent GBM seed per `path_id`
+5. Simulate each path: `S_t = S_{t-1} · exp(drift + σ · Z)`.
 6. Run the **same** hedge → NAV engine as the Backtester (`nav.py` / `black_scholes.py` byte-identical; roll calendar uses `pin_current_month_roll_to_latest`).
-7. Intel sheets show rolls, expiries, and closes from **as-of through Simulation End** (no Source column).
+7. Intel sheets show rolls, expiries, and closes from **as-of through Product End** (no Source column).
 
 ## Run locally (Windows)
 
@@ -34,10 +33,9 @@ cd "C:\Users\shiba\OneDrive\Desktop\Gift AIF Forwardtester"
 
 ## Desk controls
 
-- **Header strip**: As Of Today · Simulation End · Simulation End Days · Trading Days · Monthly Expiries (as-of → Simulation End)
-- **Path frequency**: Daily / Weekly / Monthly / Quarterly / Semi-annually
-- **Path count**: computed from frequency, Simulation End Days, tenure, and observations — no fixed dropdown
-- **Simulation End Days**: Product Input field (default **7300**)
+- **Header strip**: As Of Today · Product End · Tenure Days · MC Paths · Trading Days · Monthly Expiries
+- **Monte Carlo Paths**: default **100** (nav input or Product Input `Monte Carlo Paths` / env `FORWARDTEST_N_PATHS`)
+- **Product End**: tenure calendar end from as-of (not a separate Simulation End Days control)
 - Product upload (same `Product_Input_File.xlsx` format as the product desk)
 - **Nifty Path Parameters** (after Run): S₀ / daily return / standard deviation / drift from **2001-01-01 → as-of**, plus desk **Download Excel**
 - **Intel**: Path Market · Simulated Nifty Paths · Logic Atlas
@@ -47,7 +45,7 @@ cd "C:\Users\shiba\OneDrive\Desktop\Gift AIF Forwardtester"
 | Sheet | Content |
 |-------|---------|
 | Parameters | S₀, μ, σ, drift, estimation window, path/date counts |
-| Simulated Nifty | Rows = path numbers; columns = trading dates (as-of → Simulation End) |
+| Simulated Nifty | Rows = path numbers; columns = trading dates (as-of → Product End); Path/Start/End identical across rows |
 
 Home and Intel both use `GET /api/forwardtest/{job_id}/mc-matrix.xlsx`.
 

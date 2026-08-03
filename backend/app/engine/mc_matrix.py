@@ -1,10 +1,11 @@
 """Monte Carlo Nifty matrix — Excel ``Nifty Simulations.xlsx`` layout.
 
 Rows = path numbers 1…N (vertical).
-Columns = trading **dates** from as-of through Simulation End (horizontal).
+Columns = trading **dates** from as-of through Product End (tenure calendar end).
 
-Same calendar date ⇒ different prices across paths (independent Z per path_id).
-Each cell follows::
+All Path / Start / End parameter rows share the same window (Start = as-of,
+End = path_end_calendar). Same calendar date ⇒ different prices across paths
+(independent Z per path_id). Each cell follows::
 
     S_t = S_{t-1} · exp(drift + σ · Z),  Z ~ N(0,1)
 

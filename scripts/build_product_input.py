@@ -43,7 +43,7 @@ FUND_ROWS = [
     ("GST Rate", 0.18, "0.00%", "pct"),
     ("Futures Roll Rate", 0.07, "0.00%", "pct"),
     ("Tax Benefit On Roll", 0.42744, "0.00%", "pct"),
-    ("Simulation End Days", 7300, "#,##0", "int"),
+    ("Monte Carlo Paths", 100, "#,##0", "int"),
 ]
 
 

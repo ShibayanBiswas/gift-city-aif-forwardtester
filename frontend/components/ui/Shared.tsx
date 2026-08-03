@@ -6,7 +6,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import { CalendarDays, ChevronDown, Clock3, Hash, Loader2, RefreshCw, Search, TrendingUp, X } from "lucide-react";
 import { useForwardTest } from "@/lib/store";
 import type { PathSummary } from "@/lib/api";
-import { FREQUENCY_LABELS, formatDeskDate, formatNum, formatPct } from "@/lib/api";
+import { formatDeskDate, formatNum, formatPct } from "@/lib/api";
 
 function calendarDays(start: string, end: string): number {
   const a = new Date(`${start}T00:00:00`);
@@ -524,8 +524,8 @@ export function EmptyRunHint() {
           Run A Forward Test To Illuminate The Desk
         </h2>
         <p className="mx-auto mt-3 max-w-xl text-sm leading-relaxed text-[var(--ar-muted)] font-ui">
-          Choose path frequency, upload a product sheet if needed, then press Run. Paths start from today through
-          Simulation End and will populate every desk surface.
+          Set Monte Carlo paths, upload a product sheet if needed, then press Run. All paths share Start = as-of and
+          End = Product End (tenure) and will populate every desk surface.
         </p>
         <motion.p
           className="mt-5 text-[11px] uppercase tracking-[0.2em] text-[var(--ar-gold-dark)] font-ui"
@@ -540,7 +540,7 @@ export function EmptyRunHint() {
 }
 
 export function KpiBand() {
-  const { filteredKpis, filteredSummary, sinceYear, frequency, product } = useForwardTest();
+  const { filteredKpis, filteredSummary, sinceYear, nPaths, product } = useForwardTest();
   if (!filteredKpis) return null;
   const principalCr = product?.principal_cr ?? 100;
   const principalLabel =
@@ -569,8 +569,8 @@ export function KpiBand() {
       median: null,
     },
     {
-      label: "Path Frequency",
-      mean: FREQUENCY_LABELS[frequency] ?? frequency,
+      label: "Monte Carlo Paths",
+      mean: String(nPaths),
       median: null,
     },
   ];

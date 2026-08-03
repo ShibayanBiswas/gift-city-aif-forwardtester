@@ -122,7 +122,7 @@ export default function IntelPage() {
                 Forward Calendar Dates
               </h2>
               <p className="mt-1 max-w-3xl text-sm leading-relaxed text-[var(--ar-muted)] font-ui">
-                Futures shift dates and monthly Nifty option expiry dates from As Of Today through Simulation End.
+                Futures shift dates and monthly Nifty option expiry dates from As Of Today through Product End.
                 Path prices and roll costs differ by path — see Simulated Nifty Paths, Hedging Sheet, and Computation.
               </p>
             </div>
@@ -146,7 +146,7 @@ export default function IntelPage() {
           <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
             {[
               { label: "As Of Today", value: asOfLabel },
-              { label: "Simulation End", value: simEndLabel },
+              { label: "Product End", value: simEndLabel },
               {
                 label: "Futures Shift Dates",
                 value: String(rollDisplayRows.length),

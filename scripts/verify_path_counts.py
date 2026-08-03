@@ -1,4 +1,4 @@
-"""Verify forward path counts for every desk frequency.
+"""Verify Monte Carlo path atlas: N identical tenure windows (Start=asof, End=Product End).
 
 Run:
   PYTHONPATH=backend .venv/Scripts/python scripts/verify_path_counts.py
@@ -15,11 +15,17 @@ from app.engine.market import clear_market_cache, load_market
 from app.engine.paths import (
     ALL_FREQUENCIES,
     build_paths,
+    count_monte_carlo_paths,
     count_paths_by_frequency,
-    enumerate_path_starts,
     forward_asof,
 )
-from app.engine.product import parse_product_workbook, resolved_simulation_end
+from app.engine.product import (
+    DEFAULT_N_PATHS,
+    parse_product_workbook,
+    path_end_calendar,
+    resolved_n_paths,
+    resolved_simulation_end,
+)
 
 
 def main() -> int:
@@ -28,6 +34,13 @@ def main() -> int:
     product = parse_product_workbook(ROOT / "Product_Input_File.xlsx")
     asof = forward_asof(market)
     horizon = resolved_simulation_end(asof, product)
+    expect_end = path_end_calendar(asof, product.tenure_days)
+    n = resolved_n_paths(product)
+
+    assert DEFAULT_N_PATHS == 100
+    assert n == count_monte_carlo_paths(product)
+    assert n == resolved_n_paths(product)
+    assert horizon == expect_end
 
     counts = count_paths_by_frequency(
         market,
@@ -36,10 +49,11 @@ def main() -> int:
         product=product,
     )
     print(
-        f"asof={asof} horizon={horizon} tenure={product.tenure_days} "
-        f"sim_days={(horizon - asof).days}"
+        f"asof={asof} product_end={horizon} tenure={product.tenure_days} "
+        f"n_paths={n} calendar_span={(horizon - asof).days}"
     )
 
+    # Frequency is ignored — every label reports the same N, identical windows.
     for freq in ALL_FREQUENCIES:
         paths, fwd, _, h = build_paths(
             market,
@@ -49,25 +63,29 @@ def main() -> int:
             product=product,
             attach_spots=False,
         )
-        starts = enumerate_path_starts(
-            fwd,
-            asof,
-            h,
-            product.tenure_days,
-            freq,
-            observation_months=product.observation_months,
-        )
-        n = len(paths)
-        assert n == counts[freq] == len(starts), (freq, n, counts[freq], len(starts))
-        assert paths[0].start == asof and paths[0].path_id == 1
-        assert [p.start for p in paths] == starts
-        assert (h - paths[-1].end).days <= 7
+        assert len(paths) == counts[freq] == n, (freq, len(paths), counts[freq], n)
+        assert h == horizon
+        assert all(p.start == asof for p in paths)
+        assert all(p.end == paths[0].end for p in paths)
         assert all(p.path_id == i for i, p in enumerate(paths, start=1))
-        print(f"  {freq:12} paths={n:5} first={paths[0].start} last_start={paths[-1].start}")
+        assert paths[0].end == horizon or (horizon - paths[0].end).days <= 7
+        print(
+            f"  {freq:12} paths={len(paths):5} start={paths[0].start} end={paths[0].end}"
+        )
 
-    assert counts["daily"] > counts["weekly"] > counts["monthly"]
-    assert counts["monthly"] > counts["quarterly"] > counts["semi_annual"]
-    print("PATH COUNTS OK", counts)
+    assert all(counts[f] == n for f in ALL_FREQUENCIES)
+    # Explicit override
+    paths5, _, _, _ = build_paths(
+        market,
+        product.tenure_days,
+        "daily",
+        observation_months=product.observation_months,
+        product=product,
+        n_paths=5,
+        attach_spots=False,
+    )
+    assert len(paths5) == 5 and all(p.start == asof for p in paths5)
+    print("PATH COUNTS OK", {"n_paths": n, "override_5": 5})
     return 0
 
 

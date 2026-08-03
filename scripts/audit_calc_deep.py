@@ -102,9 +102,15 @@ def main() -> int:
         "monthly",
         observation_months=product.observation_months,
         product=product,
+        n_paths=5,
         attach_spots=True,
     )
-    check("monthly_paths_gt_50", len(paths) >= 50, str(len(paths)))
+    check("mc_paths_eq_n", len(paths) == 5, str(len(paths)))
+    check(
+        "all_paths_same_start",
+        all(p.start == market.last_date for p in paths),
+        str(paths[0].start),
+    )
     path = paths[0]
     check("path1_start_asof", path.start == market.last_date, f"{path.start} vs {market.last_date}")
     spots = np.asarray(path.spots, dtype=float)
@@ -314,8 +320,8 @@ def main() -> int:
     else:
         check("ft_bt_ledger_import", False, "Backtester engine path missing")
 
-    # --- Full monthly run health ---
-    result = run_forwardtest(product, "monthly", market, detail_path_ids={1})
+    # --- Full MC run health (small N for speed) ---
+    result = run_forwardtest(product, "monthly", market, detail_path_ids={1}, n_paths=5)
     summaries = result["summary"]
     check("run_path_count", len(summaries) == result["path_count"], str(result["path_count"]))
     check("run_path1_id", summaries[0]["path_id"] == 1, str(summaries[0]["path_id"]))

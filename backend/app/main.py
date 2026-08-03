@@ -33,15 +33,15 @@ from app.engine.mc_matrix import (
     write_mc_matrix_xlsx,
 )
 from app.engine.paths import (
-    ALL_FREQUENCIES,
     build_forward_market,
-    enumerate_path_starts,
+    count_paths_by_frequency,
     path_from_window,
 )
 from app.engine.runtime import is_constrained_host
 from app.engine.product import (
     ProductSpec,
     parse_product_workbook,
+    resolved_n_paths,
     resolved_simulation_end,
     resolved_simulation_end_days,
 )
@@ -121,21 +121,21 @@ def _ensure_product() -> ProductSpec:
 
 
 def _desk_market():
-    """Historical market + forward calendar through Simulation End.
+    """Historical market + forward calendar through product tenure end.
 
     Calendar only for desk meta (Trading Days / Monthly Expiries). Simulated
     Nifty prices and roll *points* live on each GBM path — there is no shared
     Path-1 price workbook for the forward horizon.
 
-    Cached by (as-of, simulation_end_days, tenure, obs months) so header / Intel
-    meta stay snappy on Render free tier.
+    Cached by (as-of, tenure, obs months) so header / Intel meta stay snappy
+    on Render free tier.
     """
     global _desk_cache_key, _desk_cache
     base = load_market()
     product = _ensure_product()
     days = resolved_simulation_end_days(product)
     obs_key = tuple(float(m) for m in (product.observation_months or []))
-    key = (base.last_date.isoformat(), days, int(product.tenure_days), obs_key)
+    key = (base.last_date.isoformat(), days, int(product.tenure_days), obs_key, resolved_n_paths(product))
     if _desk_cache is not None and _desk_cache_key == key:
         return _desk_cache
     sim_end = resolved_simulation_end(base.last_date, product)
@@ -154,6 +154,7 @@ def _desk_market():
         "asof": asof,
         "simulation_end": sim_end,
         "simulation_end_days": days,
+        "n_paths": resolved_n_paths(product),
         "product": product,
     }
     _desk_cache_key = key
@@ -169,24 +170,21 @@ def _horizon_meta(desk: dict[str, Any]) -> dict[str, Any]:
     product = desk["product"]
     horizon_days = fwd.trading_days_between(asof, sim_end)
     horizon_expiries = [e for e in fwd.expiries if asof <= e <= sim_end]
-    path_counts = {
-        freq: len(
-            enumerate_path_starts(
-                fwd,
-                asof,
-                sim_end,
-                int(product.tenure_days),
-                freq,
-                observation_months=product.observation_months,
-            )
-        )
-        for freq in ALL_FREQUENCIES
-    }
+    n_paths = int(desk.get("n_paths") or resolved_n_paths(product))
+    path_counts = count_paths_by_frequency(
+        fwd,
+        int(product.tenure_days),
+        observation_months=product.observation_months,
+        product=product,
+        simulation_end=sim_end,
+        n_paths=n_paths,
+    )
     return {
         "first_date": base.first_date.isoformat(),
         "last_date": asof.isoformat(),
         "asof": asof.isoformat(),
         "simulation_end": sim_end.isoformat(),
+        "product_end": sim_end.isoformat(),
         "simulation_end_days": desk["simulation_end_days"],
         "product_name": product.name,
         "trading_days": len(horizon_days),
@@ -204,6 +202,7 @@ def _horizon_meta(desk: dict[str, Any]) -> dict[str, Any]:
             (d.isoformat() for d in reversed(fwd.roll_shifts) if asof <= d <= sim_end),
             None,
         ),
+        "n_paths": n_paths,
         "path_counts": path_counts,
         "tenure_days": int(product.tenure_days),
     }
@@ -246,7 +245,7 @@ def _prune_old_jobs() -> None:
 
 
 def _load_default_product():
-    """Load current upload, or seed from Product_Input_File.xlsx (default Simulation End Days = 7300)."""
+    """Load current upload, or seed from Product_Input_File.xlsx."""
     global _current_product
     dest = UPLOADS / "current_product.xlsx"
     UPLOADS.mkdir(parents=True, exist_ok=True)
@@ -475,7 +474,10 @@ def _startup() -> None:
 
 
 class RunRequest(BaseModel):
+    """Optional frequency kept for older clients — ignored by the engine."""
     frequency: Literal["monthly", "weekly", "daily", "quarterly", "semi_annual"] = "monthly"
+    """Optional path-count override (else FORWARDTEST_N_PATHS / product / default 100)."""
+    n_paths: int | None = None
     """Browser-generated id for this Run click — duplicate POSTs return the same job."""
     client_run_id: str | None = None
 
@@ -750,11 +752,12 @@ async def start_forwardtest(body: RunRequest) -> dict:
 
     # Idempotent: cold-start proxies / double-clicks must not spawn a second job.
     token = (body.client_run_id or "").strip()[:64] or None
+    n_paths = resolved_n_paths(_current_product, explicit=body.n_paths)
     if token:
         existing_id = _client_run_jobs.get(token)
         existing = _jobs.get(existing_id) if existing_id else None
         if existing and existing.get("status") in {"queued", "running", "done"}:
-            if existing.get("frequency") == body.frequency:
+            if int(existing.get("n_paths") or 0) == n_paths:
                 return {"job_id": existing["id"], "reused": True}
 
     job_id = uuid.uuid4().hex[:12]
@@ -762,6 +765,8 @@ async def start_forwardtest(body: RunRequest) -> dict:
     _active_job_id = job_id
     if token:
         _client_run_jobs[token] = job_id
+    # frequency kept on the job for older UI / Excel labels only.
+    frequency = body.frequency
     _jobs[job_id] = {
         "id": job_id,
         "status": "queued",
@@ -769,12 +774,12 @@ async def start_forwardtest(body: RunRequest) -> dict:
         "message": "Queued",
         "result": None,
         "error": None,
-        "frequency": body.frequency,
+        "frequency": frequency,
+        "n_paths": n_paths,
         "product": _current_product.to_dict(),
         "client_run_id": token,
     }
     product = _current_product
-    frequency = body.frequency
 
     async def _runner() -> None:
         def on_progress(pct: float, msg: str) -> None:
@@ -804,6 +809,7 @@ async def start_forwardtest(body: RunRequest) -> dict:
                     None,
                     should_cancel,
                     GBM_BASE_SEED,
+                    n_paths,
                 )
                 if should_cancel():
                     raise ForwardTestCancelled("Forward test cancelled — a newer run was started.")
@@ -912,8 +918,10 @@ def job_summary(job_id: str) -> dict:
         "product": r["product"],
         "frequency": r["frequency"],
         "path_count": r["path_count"],
+        "n_paths": r.get("n_paths") or r.get("path_count"),
         "simulation_start": r.get("simulation_start") or r.get("asof"),
         "simulation_end": r.get("simulation_end"),
+        "product_end": r.get("product_end") or r.get("simulation_end"),
         "simulation_end_days": r.get("simulation_end_days"),
         "gbm": r.get("gbm"),
         "asof": r.get("asof"),

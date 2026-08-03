@@ -18,15 +18,15 @@ $h = Invoke-RestMethod "$base/api/health"
 Check 'health' ($h.ok -eq $true) $h.service
 
 $prod = Invoke-RestMethod "$base/api/product/current"
-Check 'product' (($prod.tenure_days -eq 1930) -and ($prod.simulation_end_days -eq 7300)) "tenure=$($prod.tenure_days) sim=$($prod.simulation_end_days)"
+Check 'product' (($prod.tenure_days -eq 1930) -and ($prod.n_paths -eq 100)) "tenure=$($prod.tenure_days) n=$($prod.n_paths)"
 
 $meta = Invoke-RestMethod "$base/api/market/meta"
-Check 'market_meta' (($meta.simulation_end_days -eq 7300) -and ($meta.trading_days -gt 1000)) ("td=$($meta.trading_days) sim=$($meta.simulation_end_days)")
+Check 'market_meta' (($meta.tenure_days -eq 1930) -and ($meta.n_paths -eq 100) -and ($meta.trading_days -gt 800)) ("td=$($meta.trading_days) n=$($meta.n_paths) end=$($meta.product_end)")
 
 $gbm = Invoke-RestMethod "$base/api/gbm/params"
 Check 'gbm' ($gbm.gbm.spot0 -gt 10000) ("S0=$([math]::Round($gbm.gbm.spot0, 2))")
 
-$job = (Invoke-RestMethod -Method Post -Uri "$base/api/forwardtest/run" -ContentType 'application/json' -Body (@{ frequency = 'semi_annual' } | ConvertTo-Json)).job_id
+$job = (Invoke-RestMethod -Method Post -Uri "$base/api/forwardtest/run" -ContentType 'application/json' -Body (@{ n_paths = 5 } | ConvertTo-Json)).job_id
 Check 'run' ($null -ne $job) $job
 $deadline = (Get-Date).AddMinutes(8)
 do {
@@ -37,7 +37,8 @@ do {
 Check 'done' ($st.status -eq 'done') "$($st.status) $($st.progress)"
 
 $sum = Invoke-RestMethod "$base/api/forwardtest/$job/summary"
-Check 'mc' (($sum.mc_matrix.n_paths -eq $sum.path_count) -and ($sum.mc_matrix.n_dates -gt 1000)) "$($sum.mc_matrix.n_paths)x$($sum.mc_matrix.n_dates)"
+Check 'mc' (($sum.mc_matrix.n_paths -eq $sum.path_count) -and ($sum.path_count -eq 5) -and ($sum.mc_matrix.n_dates -gt 800)) "$($sum.mc_matrix.n_paths)x$($sum.mc_matrix.n_dates)"
+Check 'same_window' (($sum.summary[0].start -eq $sum.summary[1].start) -and ($sum.summary[0].end -eq $sum.summary[1].end)) "start=$($sum.summary[0].start) end=$($sum.summary[0].end)"
 
 $prev = Invoke-RestMethod "$base/api/forwardtest/$job/mc-matrix/preview?max_paths=5&max_dates=10"
 # Rows are Path · Start Date · End Date · trading dates… — S0 (col index 3) is shared; path divergence starts at index 4+.
@@ -63,7 +64,7 @@ Check 'path_market' (($d1.nifty.Count -gt 100) -and ($d1.rolls.Count -gt 0) -and
 
 $h1 = Invoke-RestMethod "$base/api/forwardtest/$job/paths/$($paths.paths[0].path_id)/horizon-market"
 $h2 = Invoke-RestMethod "$base/api/forwardtest/$job/paths/$($paths.paths[1].path_id)/horizon-market"
-Check 'horizon_full' (($h1.n_trading_days -eq $sum.mc_matrix.n_dates) -and ($h1.n_trading_days -gt 1500)) "days=$($h1.n_trading_days) matrix=$($sum.mc_matrix.n_dates)"
+Check 'horizon_full' (($h1.n_trading_days -eq $sum.mc_matrix.n_dates) -and ($h1.n_trading_days -gt 800)) "days=$($h1.n_trading_days) matrix=$($sum.mc_matrix.n_dates)"
 Check 'horizon_nifty_diff' ([math]::Abs([double]$h1.nifty[50] - [double]$h2.nifty[50]) -gt 1e-6) ''
 $hr1 = @{}
 foreach ($r in $h1.rolls) { $hr1[$r.shift_date] = $r.roll_cost }
@@ -105,7 +106,7 @@ Check 'css_ar_maroon' ($css -match '--ar-maroon:\s*#7a1e2c') ''
 Check 'css_meta_chip' ($css -match '\.meta-chip') ''
 Check 'css_font_display' ($css -match '\.font-display') ''
 Check 'css_path_pill' ($css -match '\.path-pill') ''
-Check 'css_market_meta_5' ($css -match 'repeat\(5') ''
+Check 'css_market_meta' ($css -match 'market-meta') ''
 
 $fail = @($out | Where-Object { -not $_.OK })
 Write-Host "==== pass=$((@($out | Where-Object OK)).Count) fail=$($fail.Count) ===="

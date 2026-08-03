@@ -12,11 +12,12 @@ import {
 } from "react";
 import {
   ForwardTestSummary,
-  Frequency,
   PathDetail,
   PathSummary,
   ProductSpec,
   client,
+  clampNPaths,
+  DEFAULT_N_PATHS,
   isDeskHorizonMeta,
   isTransientPathDetailError,
   keepApiAwake,
@@ -27,8 +28,8 @@ type Store = {
   setDark: (v: boolean) => void;
   market: Awaited<ReturnType<typeof client.marketMeta>> | null;
   product: ProductSpec | null;
-  frequency: Frequency;
-  setFrequency: (f: Frequency) => void;
+  nPaths: number;
+  setNPaths: (n: number) => void;
   sinceYear: number;
   setSinceYear: (y: number) => void;
   jobId: string | null;
@@ -71,7 +72,7 @@ function newClientRunId(): string {
 function productFingerprint(p: {
   principal_cr?: number;
   tenure_days?: number;
-  simulation_end_days?: number | null;
+  n_paths?: number | null;
   n_obs?: number;
   observation_months?: number[];
   legs?: unknown[];
@@ -84,7 +85,7 @@ function productFingerprint(p: {
   return [
     p.principal_cr,
     p.tenure_days,
-    p.simulation_end_days,
+    p.n_paths,
     p.n_obs,
     (p.observation_months ?? []).join(","),
     Array.isArray(p.legs) ? p.legs.length : 0,
@@ -122,7 +123,7 @@ export function ForwardTestProvider({ children }: { children: ReactNode }) {
   const [dark, setDark] = useState(false);
   const [market, setMarket] = useState<Store["market"]>(null);
   const [product, setProduct] = useState<ProductSpec | null>(null);
-  const [frequency, setFrequencyState] = useState<Frequency>("monthly");
+  const [nPaths, setNPathsState] = useState(DEFAULT_N_PATHS);
   const [sinceYear, setSinceYear] = useState(2001);
   const [jobId, setJobId] = useState<string | null>(null);
   const [summary, setSummary] = useState<ForwardTestSummary | null>(null);
@@ -162,11 +163,14 @@ export function ForwardTestProvider({ children }: { children: ReactNode }) {
           })
           .catch(() => keepApiAwake());
         const [m, p] = await Promise.all([client.marketMeta(), client.currentProduct()]);
-        // If product horizon moved (e.g. legacy 7300 → 3650), force a fresh meta read.
+        // If product tenure / MC path count moved, force a fresh meta read.
         if (
-          p?.simulation_end_days != null &&
-          m?.simulation_end_days != null &&
-          Number(p.simulation_end_days) !== Number(m.simulation_end_days)
+          (p?.tenure_days != null &&
+            m?.tenure_days != null &&
+            Number(p.tenure_days) !== Number(m.tenure_days)) ||
+          (p?.n_paths != null &&
+            m?.n_paths != null &&
+            Number(p.n_paths) !== Number(m.n_paths))
         ) {
           const m2 = await client.marketMeta();
           setMarket(m2);
@@ -174,6 +178,8 @@ export function ForwardTestProvider({ children }: { children: ReactNode }) {
           setMarket(m);
         }
         setProduct(p);
+        if (p?.n_paths != null) setNPathsState(clampNPaths(Number(p.n_paths)));
+        else if (m?.n_paths != null) setNPathsState(clampNPaths(Number(m.n_paths)));
         // Dynamic as-of year from latest Nifty session (not a hardcoded 2001 default).
         if (m?.last_date) {
           const y = Number(String(m.last_date).slice(0, 4));
@@ -270,13 +276,13 @@ export function ForwardTestProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
-  const setFrequency = useCallback((f: Frequency) => {
+  const setNPaths = useCallback((n: number) => {
     if (runningLockRef.current) {
-      // One simulation at a time — ignore frequency changes mid-run.
+      // One simulation at a time — ignore N changes mid-run.
       return;
     }
-    setFrequencyState(f);
-    // Changing frequency invalidates the on-screen book until the next Run.
+    setNPathsState(clampNPaths(n));
+    // Changing path count invalidates the on-screen book until the next Run.
     setSummary(null);
     setJobId(null);
     setPathDetail(null);
@@ -411,6 +417,7 @@ export function ForwardTestProvider({ children }: { children: ReactNode }) {
     try {
       const res = await client.uploadProduct(file);
       setProduct(res.product);
+      if (res.product?.n_paths != null) setNPathsState(clampNPaths(Number(res.product.n_paths)));
       clearDeskResults(setSummary, setJobId, setPathDetail, setPathDetailError, setPathId);
       if (res.market && isDeskHorizonMeta(res.market)) {
         setMarket(res.market);
@@ -442,6 +449,7 @@ export function ForwardTestProvider({ children }: { children: ReactNode }) {
     try {
       const [p, m] = await Promise.all([client.currentProduct(), client.marketMeta()]);
       setProduct(p);
+      if (p?.n_paths != null) setNPathsState(clampNPaths(Number(p.n_paths)));
       if (isDeskHorizonMeta(m)) setMarket(m);
     } catch {
       // Keep last known product if API is waking / offline.
@@ -471,12 +479,12 @@ export function ForwardTestProvider({ children }: { children: ReactNode }) {
       await keepApiAwake();
       if (gen !== runGenRef.current) return;
       setMessage("Starting simulation…");
-      const { job_id } = await client.runForwardTest(frequency, clientRunId);
+      const { job_id } = await client.runForwardTest(nPaths, clientRunId);
       if (gen !== runGenRef.current) return;
       setJobId(job_id);
       jobIdRef.current = job_id;
-      localStorage.setItem(LS_KEY, JSON.stringify({ jobId: job_id, frequency }));
-      setMessage("Queued — starting paths…");
+      localStorage.setItem(LS_KEY, JSON.stringify({ jobId: job_id, nPaths }));
+      setMessage("Queued — starting Monte Carlo paths…");
       for (;;) {
         if (gen !== runGenRef.current) return;
         if (Date.now() - startedAt > maxWallMs) {
@@ -506,8 +514,9 @@ export function ForwardTestProvider({ children }: { children: ReactNode }) {
         if (st.status === "done") {
           const s = await client.summary(job_id);
           if (gen !== runGenRef.current) return;
-          if (s.frequency !== frequency) {
-            setError("Received results for a different path frequency. Please run again.");
+          const resultN = s.n_paths ?? s.path_count;
+          if (resultN != null && Number(resultN) !== clampNPaths(nPaths)) {
+            setError("Received results for a different Monte Carlo path count. Please run again.");
             setJobId(null);
             localStorage.removeItem(LS_KEY);
             break;
@@ -551,7 +560,7 @@ export function ForwardTestProvider({ children }: { children: ReactNode }) {
         intentionalCancelRef.current = false;
       }
     }
-  }, [frequency]);
+  }, [nPaths]);
 
   const clearResults = useCallback(() => {
     clearDeskResults(setSummary, setJobId, setPathDetail, setPathDetailError, setPathId);
@@ -565,8 +574,8 @@ export function ForwardTestProvider({ children }: { children: ReactNode }) {
     setDark,
     market,
     product,
-    frequency,
-    setFrequency,
+    nPaths,
+    setNPaths,
     sinceYear,
     setSinceYear,
     jobId,

@@ -6,27 +6,36 @@ import { BrandLogo } from "@/components/layout/BrandLogo";
 import { SiteNav } from "@/components/layout/SiteNav";
 import { ProgressModal } from "@/components/ProgressModal";
 import { useForwardTest } from "@/lib/store";
-import { addCalendarDaysIso, formatDeskDate, isDeskHorizonMeta } from "@/lib/api";
+import { formatDeskDate, isDeskHorizonMeta } from "@/lib/api";
 import { deskSpring, easeOut, fadeUpItem, staggerContainer } from "@/lib/motion";
 
 const META_ICONS = [CalendarRange, Flag, Hourglass, ChartCandlestick, Layers] as const;
 
 export function AppShell({ children }: { children: React.ReactNode }) {
-  const { market, product, running, progress, message, error, setError } = useForwardTest();
+  const { market, product, nPaths, running, progress, message, error, setError } = useForwardTest();
 
   const asof = market?.asof ?? market?.last_date ?? null;
-  // Prefer live Product Input days; never leave a stale market horizon (e.g. legacy 7300).
-  const simDaysRaw = product?.simulation_end_days ?? market?.simulation_end_days ?? null;
-  const simDays = simDaysRaw != null && Number(simDaysRaw) > 0 ? Number(simDaysRaw) : null;
-  const simEnd =
-    asof && simDays != null
-      ? addCalendarDaysIso(asof, simDays)
-      : market?.simulation_end ?? null;
-  const horizonAligned =
-    product?.simulation_end_days == null ||
-    market?.simulation_end_days == null ||
-    Number(product.simulation_end_days) === Number(market.simulation_end_days);
-  const horizonReady = isDeskHorizonMeta(market) && horizonAligned;
+  // Always use API Product End (tenure anniversary rule) — never asof + days client-side.
+  const productEnd = market?.product_end ?? market?.simulation_end ?? null;
+  const tenureDays =
+    product?.tenure_days != null && Number(product.tenure_days) > 0
+      ? Number(product.tenure_days)
+      : market?.tenure_days != null && Number(market.tenure_days) > 0
+        ? Number(market.tenure_days)
+        : null;
+  const mcPaths =
+    nPaths > 0
+      ? nPaths
+      : product?.n_paths != null
+        ? Number(product.n_paths)
+        : market?.n_paths != null
+          ? Number(market.n_paths)
+          : null;
+  const tenureAligned =
+    product?.tenure_days == null ||
+    market?.tenure_days == null ||
+    Number(product.tenure_days) === Number(market.tenure_days);
+  const horizonReady = isDeskHorizonMeta(market) && tenureAligned;
   const tradingDays = horizonReady ? market!.trading_days : null;
   const monthlyExpiries = horizonReady ? market!.expiries : null;
 
@@ -34,12 +43,16 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     ? [
         { label: "As Of Today", value: formatDeskDate(asof) },
         {
-          label: "Simulation End",
-          value: simEnd ? formatDeskDate(simEnd) : "—",
+          label: "Product End",
+          value: productEnd ? formatDeskDate(productEnd) : "—",
         },
         {
-          label: "Simulation End Days",
-          value: simDays != null ? String(simDays) : "—",
+          label: "Tenure Days",
+          value: tenureDays != null ? String(tenureDays) : "—",
+        },
+        {
+          label: "MC Paths",
+          value: mcPaths != null ? String(mcPaths) : "—",
         },
         {
           label: "Trading Days",
@@ -87,7 +100,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               animate="show"
             >
               {meta.map((m, i) => {
-                const Icon = META_ICONS[i] ?? CalendarRange;
+                const Icon = META_ICONS[i % META_ICONS.length] ?? CalendarRange;
                 return (
                   <motion.div
                     key={m.label}

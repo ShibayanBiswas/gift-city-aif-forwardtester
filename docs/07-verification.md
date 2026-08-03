@@ -57,19 +57,19 @@ $env:PYTHONPATH = "backend"
 
 ## Forward Calendar (desk rules — must pass)
 
-Horizon = **As Of Today** + **Simulation End Days** from Product Input (default **7300**). Final path ends on that date’s last Mon–Fri session.
+Horizon = **As Of Today** → **Product End** (`path_end_calendar(as-of, tenure)`). All Monte Carlo paths share that window (default **N = 100**).
 
 | Rule | Expected |
 |------|----------|
 | Sessions | Mon–Fri only — **zero** Sat/Sun closes after as-of |
 | Month lengths | Real calendar (28/29/30/31; leap Feb e.g. 2028-02-29) |
-| Monthly option expiry | **Last Tuesday** of each complete month ≤ Simulation End |
+| Monthly option expiry | **Last Tuesday** of each complete month ≤ Product End |
 | Futures shift | **Last trading day** (last Mon–Fri) of each complete month |
 | Roll cost (first) | `avg(TD closes ≤ first shift) × 7% × N_td/365` — **19** TDs → ≈ **4.7713** |
 | Roll cost (later) | `avg(TD closes in (prev, shift]) × 7% × calendar_Δt/365` — Sat/Sun in Δt, not in avg |
 | Open-month hist roll | Pinned to latest Nifty session (Backtester `pin_current_month_roll_to_latest`) |
 | Path spots | GBM on path trading days only; hedge/NAV = Backtester engines |
-| Dynamic as-of | After deploy / `/api/sync`, as-of and horizon advance with latest Nifty |
+| Dynamic as-of | After deploy / `/api/sync`, as-of and Product End advance with latest Nifty |
 | Intel UI | Market Calendar = shared dates; path Nifty / rolls on Hedging / MC Matrix |
 
 ```powershell
@@ -91,27 +91,25 @@ Intel `/api/market/{nifty,expiries,rolls}` returns **calendar / estimation** sur
 | Window | First Nifty date ≈ **2001-01-01** through **As Of Today** |
 | Recompute | Every Run / after `/api/sync` advances as-of — μ, σ, drift are not hard-coded constants |
 | Excel params | Download lists Estimation Start / Estimation End / As Of matching that window |
-| Columns | Header row `Path \\ Date` then ISO trading dates as-of → Simulation End |
+| Columns | Header row `Path \\ Date` then ISO trading dates as-of → Product End |
 
 ---
 
-## Monthly Path Count (Forwardtester)
+## Monte Carlo Path Count (Forwardtester)
 
-Path starts are **forward** from As Of Today through Simulation End (default **7300** calendar days). There is no historical Macro Paths pin file.
+All paths share **Start = As Of Today**, **End = Product End** (tenure calendar). Default **N = 100** (clamp 1…5000). There is no historical Macro Paths pin file and no frequency start grid.
 
-| Frequency (7300d sample, as-of 2026-07-31) | Paths | Start rule |
-|-------------------------------------------|-----:|------------|
-| Daily | **3233** | Every trading day in [as-of, last start] |
-| Weekly | **785** | First trading day of each ISO week |
-| Monthly | **182** | First trading day of each calendar month |
-| Quarterly | **62** | First trading day of each quarter |
-| Semi-annual | **32** | First trading day of each H1 / H2 |
+| Setting | Value |
+|---------|-------|
+| Default N | **100** |
+| Override | Product Input `Monte Carlo Paths` / env `FORWARDTEST_N_PATHS` / Run body `n_paths` |
+| Window | Identical Path/Start/End across all rows |
 
-Path 1 is always **As Of Today**. Last start is the latest date whose tenure still ends on Simulation End. Verify: `scripts/verify_path_counts.py`. Desk frequency dropdown shows live counts from `market.path_counts`.
+Verify: `scripts/verify_path_counts.py`. Nav **MC Paths** control sets N for the next Run.
 
-**Deploy memory:** default frequency **Monthly**. All frequencies including **Daily** run path-by-path without a full float matrix in RAM. Excel export is queued + streamed; completed jobs are saved to Mongo so Download can recover after a restart.
+**Deploy memory:** path-by-path GBM without a full float matrix in RAM. Excel export is queued + streamed; completed jobs are saved to Mongo so Download can recover after a restart.
 
-Path count is **product-dependent**: `max(observation_months)` gates which starts still have a resolvable last observation on the live expiry calendar (float `m × 30.5`, same as hedge). Desk catalogue supports **1…7 observation months**. Regression: `scripts/verify_dynamic_products.py`, `scripts/windup_suite.py`.
+Observation count still gates hedge feasibility (`max(observation_months)`). Desk catalogue supports **1…7 observation months**. Regression: `scripts/verify_dynamic_products.py`, `scripts/windup_suite.py`.
 
 **Stability pins (Forwardtester, not WF1 historical):**
 

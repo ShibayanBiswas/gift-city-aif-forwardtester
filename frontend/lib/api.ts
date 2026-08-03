@@ -92,12 +92,29 @@ export function addCalendarDaysIso(raw: unknown, days: number): string | null {
   return `${yy}-${mm}-${dd}`;
 }
 
-/** True when /api/market/meta carries as-of → Simulation End horizon counts. */
+/** True when /api/market/meta carries as-of → Product End horizon counts. */
 export function isDeskHorizonMeta(m: {
   simulation_end?: string | null;
+  product_end?: string | null;
   simulation_end_days?: number | null;
+  tenure_days?: number | null;
+  n_paths?: number | null;
 } | null | undefined): boolean {
-  return m != null && m.simulation_end_days != null && Boolean(m.simulation_end);
+  return (
+    m != null &&
+    (m.simulation_end_days != null || m.tenure_days != null) &&
+    Boolean(m.simulation_end || m.product_end)
+  );
+}
+
+/** Default / clamp for Monte Carlo path count (matches backend DEFAULT_N_PATHS). */
+export const DEFAULT_N_PATHS = 100;
+export const MIN_N_PATHS = 1;
+export const MAX_N_PATHS = 5000;
+
+export function clampNPaths(n: number): number {
+  if (!Number.isFinite(n)) return DEFAULT_N_PATHS;
+  return Math.max(MIN_N_PATHS, Math.min(MAX_N_PATHS, Math.trunc(n)));
 }
 
 /** Map option codes to long-form labels. Default book is puts. */
@@ -177,10 +194,12 @@ export type ProductSpec = {
   cash_gst_rate?: number;
   /** Legacy field — unused; Tx always uses brokerage. */
   rate_switch_date?: string;
-  /** Calendar days from as-of to final path end (always resolved on API). */
+  /** Calendar span of the product forward window (tenure days; API compat alias). */
   simulation_end_days?: number | null;
-  /** `excel` when Product Input set the field; `default` when engine default applied. */
-  simulation_end_days_source?: "excel" | "default" | string;
+  /** Source of horizon — always tenure for the single-window MC model. */
+  simulation_end_days_source?: "excel" | "default" | "tenure" | string;
+  /** Monte Carlo path count over the single as-of → Product End window. */
+  n_paths?: number | null;
 };
 
 export type PathSummary = {
@@ -223,10 +242,13 @@ export type YearlyRow = {
 
 export type ForwardTestSummary = {
   product: ProductSpec;
-  frequency: Frequency;
+  /** Compat — engine returns "monte_carlo"; older jobs may still use Frequency. */
+  frequency: Frequency | "monte_carlo" | string;
   path_count: number;
+  n_paths?: number;
   simulation_start?: string;
   simulation_end?: string;
+  product_end?: string;
   simulation_end_days?: number;
   gbm?: {
     spot0: number;
@@ -468,6 +490,7 @@ export const client = {
       last_date: string;
       asof?: string;
       simulation_end?: string;
+      product_end?: string;
       simulation_end_days?: number;
       trading_days: number;
       trading_days_history?: number;
@@ -477,7 +500,8 @@ export const client = {
       last_expiry: string | null;
       product_name?: string;
       tenure_days?: number;
-      path_counts?: Partial<Record<Frequency, number>>;
+      n_paths?: number;
+      path_counts?: Partial<Record<Frequency | string, number>>;
     }>("/api/market/meta", { timeoutMs: API_TIMEOUTS.bootstrap }, 2),
   nifty: () =>
     api<{
@@ -570,14 +594,14 @@ export const client = {
       timeoutMs: API_TIMEOUTS.upload,
     });
   },
-  runForwardTest: (frequency: Frequency, clientRunId?: string) =>
+  runForwardTest: (nPaths: number, clientRunId?: string) =>
     apiRetry<{ job_id: string; reused?: boolean }>(
       "/api/forwardtest/run",
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          frequency,
+          n_paths: clampNPaths(nPaths),
           client_run_id: clientRunId ?? null,
         }),
         timeoutMs: API_TIMEOUTS.runStart,

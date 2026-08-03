@@ -74,8 +74,8 @@ def main() -> int:
     prod = parse_product_workbook(ROOT / "Product_Input_File.xlsx", name="Sample")
     check("product_tenure_1930", prod.tenure_days == 1930, str(prod.tenure_days))
     check(
-        "product_sim_days_7300",
-        resolved_simulation_end_days(prod) == 7300,
+        "product_sim_days_tenure",
+        resolved_simulation_end_days(prod) == prod.tenure_days == 1930,
         str(resolved_simulation_end_days(prod)),
     )
     check("product_legs_6", len(prod.active_legs) == 6, str(len(prod.active_legs)))
@@ -86,6 +86,7 @@ def main() -> int:
         "semi_annual",
         observation_months=prod.observation_months,
         product=prod,
+        n_paths=5,
         attach_spots=False,
     )
     n_paths = len(paths)
@@ -113,7 +114,7 @@ def main() -> int:
     check("slice_parity_horizon_row", True, "4 paths")
 
     ml = [e for e in sorted(fwd.monthly_last_expiries) if asof <= e <= horizon]
-    check("monthly_last_tuesday_count", len(ml) >= 100, f"n={len(ml)}")
+    check("monthly_last_tuesday_count", len(ml) >= 40, f"n={len(ml)}")
     trading = set(fwd.dates)
     snap_ok = True
     for y in range(asof.year, min(asof.year + 2, horizon.year + 1)):
@@ -166,13 +167,24 @@ def main() -> int:
     dlt = float(central_delta(25000.0, 25000.0 * 0.95, 0.06, 0.05, 1.0, 0.15, "P"))
     check("bs_put_positive", px > 0 and dlt < 0, f"px={px:.4f} delta={dlt:.4f}")
 
-    r = run_forwardtest(prod, "semi_annual")
+    check("final_path_near_horizon", all((horizon - p.end).days <= 7 for p in paths), str(paths[0].end))
+    check(
+        "all_paths_same_window",
+        all(p.start == paths[0].start and p.end == paths[0].end for p in paths),
+        f"start={paths[0].start} end={paths[0].end}",
+    )
+
+    r = run_forwardtest(prod, "semi_annual", n_paths=5)
     check(
         "run_mc_meta",
         r["path_count"] == n_paths and r["mc_matrix"]["n_paths"] == n_paths,
         f"paths={r['path_count']} mean_total={r['kpis']['mean_total']:.4f} dates={r['mc_matrix']['n_dates']}",
     )
-    check("final_path_near_horizon", (horizon - paths[-1].end).days <= 7, str(paths[-1].end))
+    check(
+        "run_product_end",
+        r.get("product_end") == r.get("simulation_end") == horizon.isoformat(),
+        str(r.get("product_end")),
+    )
 
     detail = compute_single_path_detail(
         prod,

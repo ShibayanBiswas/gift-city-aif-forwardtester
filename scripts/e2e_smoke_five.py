@@ -1,4 +1,4 @@
-"""Five-pass forwardtest smoke: default 7300, GBM, MC Excel, stable Path 1."""
+"""Five-pass forwardtest smoke: tenure Product End, GBM, MC Excel, stable Path 1."""
 from __future__ import annotations
 
 import sys
@@ -13,17 +13,20 @@ from app.engine.gbm import estimate_gbm_params
 from app.engine.market import clear_market_cache, load_market
 from app.engine.mc_matrix import build_mc_matrix, load_mc_matrix, save_mc_matrix, write_mc_matrix_xlsx
 from app.engine.product import (
-    DEFAULT_SIMULATION_END_DAYS,
+    DEFAULT_N_PATHS,
     parse_product_workbook,
+    path_end_calendar,
+    resolved_n_paths,
+    resolved_simulation_end,
     resolved_simulation_end_days,
 )
 
 
 def main() -> None:
-    assert DEFAULT_SIMULATION_END_DAYS == 7300
+    assert DEFAULT_N_PATHS == 100
     p = parse_product_workbook(ROOT / "Product_Input_File.xlsx")
-    assert resolved_simulation_end_days(p) == 7300, resolved_simulation_end_days(p)
-    assert p.simulation_end_days == 7300
+    assert resolved_n_paths(p) == DEFAULT_N_PATHS
+    assert resolved_simulation_end_days(p) == p.tenure_days == 1930
 
     clear_market_cache()
     m = load_market()
@@ -31,6 +34,8 @@ def main() -> None:
     assert str(gbm.first_date).startswith("2001"), gbm.first_date
     assert gbm.asof == m.last_date.isoformat()
     assert gbm.spot0 > 0 and gbm.std_dev > 0
+    product_end = resolved_simulation_end(m.last_date, p)
+    assert product_end == path_end_calendar(m.last_date, p.tenure_days)
     print(
         "GBM",
         gbm.first_date,
@@ -42,6 +47,8 @@ def main() -> None:
         round(gbm.mean_return * 100, 4),
         "sig%",
         round(gbm.std_dev * 100, 2),
+        "product_end",
+        product_end,
     )
 
     dates = [m.last_date]
@@ -62,12 +69,14 @@ def main() -> None:
     print("xlsx ok", xlsx.stat().st_size, "bytes")
 
     totals: list[float] = []
+    smoke_n = 5
     for i in range(5):
-        result = run_forwardtest(p, frequency="monthly")
+        result = run_forwardtest(p, frequency="monthly", n_paths=smoke_n)
         rows = result["summary"]
-        assert len(rows) >= 1
-        sim_days = result.get("simulation_end_days")
-        assert int(sim_days) == 7300, sim_days
+        assert len(rows) == smoke_n
+        assert all(row["start"] == rows[0]["start"] and row["end"] == rows[0]["end"] for row in rows)
+        assert result.get("product_end") == result.get("simulation_end") == product_end.isoformat()
+        assert int(result.get("simulation_end_days")) == 1930
         g = result.get("gbm") or {}
         assert abs(float(g["spot0"]) - gbm.spot0) < 1e-6
         t1 = float(rows[0]["total"])
@@ -83,12 +92,12 @@ def main() -> None:
             mc.get("n_dates"),
             "path1_total",
             round(t1, 4),
-            "sim_end",
-            result.get("simulation_end"),
+            "product_end",
+            result.get("product_end"),
         )
 
     assert max(totals) - min(totals) < 1e-6, totals
-    print("PASS 5× monthly e2e; path1 stable", round(totals[0], 6))
+    print("PASS 5× MC e2e; path1 stable", round(totals[0], 6), f"default_N={DEFAULT_N_PATHS}")
 
 
 if __name__ == "__main__":

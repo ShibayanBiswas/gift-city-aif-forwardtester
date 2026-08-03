@@ -4,7 +4,7 @@
  * Equation reference for developers: docs/09, docs/11. Verification tallies stay in docs only.
  */
 
-import { addCalendarDaysIso, formatDeskDate } from "@/lib/api";
+import { formatDeskDate } from "@/lib/api";
 export type LogicNodeKind = "input" | "process" | "engine" | "lookup" | "output";
 
 export type LogicNoteCard = {
@@ -298,35 +298,35 @@ export const logicModules: LogicModule[] = [
   {
     id: "macro-paths",
     title: "Forward Path Atlas",
-    subtitle: "As-Of Through Simulation End · Trading Days Only",
+    subtitle: "As-Of Through Product End · N Monte Carlo Seeds",
     excelSheet: "Macro Paths",
     engineFile: "engine/paths.py · engine/gbm.py · engine/forward_calendar.py",
     accent: "maroon",
     purpose:
-      "build_paths staggers tenure windows from live as-of so Path 1 starts today and the final path ends on Simulation End (as-of + Simulation End Days). Spots are GBM on Mon–Fri sessions only — weekends never receive a Nifty close.",
+      "build_paths clones one tenure window (Start = as-of, End = path_end_calendar) for path_id 1…N. Each path is an independent GBM seed over the same dates. Spots are Mon–Fri only — weekends never receive a Nifty close.",
     stageCount: 5,
     metrics: [
-      { label: "Path 1 Start", value: "As-Of Close" },
-      { label: "Final Path End", value: "Simulation End" },
+      { label: "All Paths Start", value: "As-Of Close" },
+      { label: "All Paths End", value: "Product End" },
       { label: "Sessions", value: "Mon–Fri Only" },
     ],
     nodes: [
       {
         id: "starts",
-        label: "Frequency Starts",
+        label: "Single Window",
         kind: "input",
-        description: "Start grid from as-of through last start, by desk frequency.",
+        description: "Every Monte Carlo path shares Start = as-of and End = Product End.",
         detail:
-          "generate_path_starts builds the grid on the forward trading calendar: every Mon–Fri (daily), first TD of ISO week / month / quarter / half-year. Path 1 is forced to as-of = market.last_date after Yahoo sync.",
+          "No staggered frequency starts. Path 1…N are identical calendar windows; only the GBM seed (path_id) differs. As-of = market.last_date after Yahoo sync.",
         bullets: [
           "As-of updates after deploy via /api/sync",
-          "Staggered GBM starts from today through Simulation End",
-          "Last start chosen so tenure can reach Simulation End",
+          "N paths · same Start / End (default N = 100)",
+          "Product End = path_end_calendar(asof, tenure)",
         ],
         steps: [
           "forward_asof(market) → latest Nifty session.",
-          "Simulation End = asof + Simulation End Days (product, default 7300).",
-          "Pool trading days [asof, s_last]; emit starts by frequency.",
+          "Product End = path_end_calendar(asof, tenure_days).",
+          "Clone the tenure template for path_id 1…N.",
         ],
       },
       {
@@ -342,7 +342,7 @@ export const logicModules: LogicModule[] = [
           "7% roll points recomputed per path from that path's GBM spots",
         ],
         steps: [
-          "_weekday_sessions(asof+1, horizon_end).",
+          "_weekday_sessions(asof+1, product_end).",
           "_forward_month_rolls_and_expiries for complete months after as-of.",
           "path_roll_vector(path.dates, path.spots, roll_shifts) for NAV.",
         ],
@@ -351,17 +351,17 @@ export const logicModules: LogicModule[] = [
         id: "end-rule",
         label: "Tenure End",
         kind: "process",
-        description: "Same Backtester path_end_calendar; final path snaps to Simulation End.",
+        description: "Same Backtester path_end_calendar for every path (Product End).",
         detail:
-          "Intermediate paths use path_end_calendar (≈5Y anniversary → prior month-end when tenure ∈ [1700,2000]). The final path's trading-day list is extended so end = last Mon–Fri on/before Simulation End.",
+          "All paths use path_end_calendar (≈5Y anniversary → prior month-end when tenure ∈ [1700,2000]). There is no separate Simulation End Days horizon.",
         bullets: [
           "Tenure rule matches Gift AIF Backtester",
-          "Final path end = Simulation End TD",
-          "max_end clamp prevents overshoot past horizon",
+          "Every path end = Product End TD",
+          "Rolls / expiries clipped to Product End",
         ],
         steps: [
-          "_build_one(start, tenure, max_end=horizon).",
-          "After atlas build, snap paths[-1] dates through horizon.",
+          "_build_one(asof, tenure) → shared template.",
+          "Clone template for each path_id with independent seed.",
           "Attach GBM spots along path.dates only.",
         ],
       },
@@ -389,28 +389,28 @@ export const logicModules: LogicModule[] = [
         kind: "output",
         description: "List of PathSpec objects for hedge and NAV workers.",
         detail:
-          "Each PathSpec carries path_id, start, end, dates[], and optional spots[]. Observation feasibility (last obs month × 30.5 ≤ last known expiry) still gates the frontier.",
+          "Each PathSpec carries path_id, start, end, dates[], and optional spots[]. All windows are identical; only seeds differ.",
         bullets: [
-          "Path count = f(frequency, horizon, tenure, obs months)",
+          "Path count = N (Monte Carlo Paths, default 100)",
           "path_from_window rebuilds one path for detail views",
           "black_scholes identical to Backtester; nav/hedge add path-local roll points and spots",
         ],
         steps: [
-          "Return (paths, forward_market, gbm_params, simulation_end).",
+          "Return (paths, forward_market, gbm_params, product_end).",
           "forwardtest.run_forwardtest evaluates each path.",
           "Intel · Market Calendar shows shared shift / expiry dates; path Nifty and roll points are on Hedging, Computation, and Simulated Nifty Paths.",
         ],
       },
     ],
     defaults: [
-      { label: "Simulation End Days", value: "7300" },
-      { label: "Path 1", value: "As-Of → Tenure End" },
+      { label: "Monte Carlo Paths", value: "100" },
+      { label: "Window", value: "As-Of → Product End" },
       { label: "Sessions", value: "Mon–Fri · No Weekends" },
     ],
     insights: [
       "build_paths is the single forward path factory — no CSV Macro Path pins.",
       "As-of is always market.last_date (dynamic present after sync).",
-      "Simulation End Days from Product Input drives the horizon and final path end.",
+      "Product End = path_end_calendar(asof, tenure) — Simulation End Days is unused.",
       "Forward calendars: monthly expiry, month-end futures shift, leap/30/31 aware.",
       "GBM spots attach on trading days only; hedge.py and nav.py stay Backtester-parity.",
       "path_from_window rebuilds one path from cached summary start/end for path-detail views.",
@@ -418,24 +418,24 @@ export const logicModules: LogicModule[] = [
     noteCards: [
       {
         title: "build_paths orchestration",
-        body: "engine/paths.py::build_paths builds the forward market pad, chooses starts by frequency between as-of and s_last, evaluates tenure windows, then snaps the final path onto Simulation End.",
+        body: "engine/paths.py::build_paths builds the forward market pad through Product End, then clones one tenure window for path_id 1…N (frequency ignored).",
         bullets: [
-          "Frequency: monthly | weekly | daily | quarterly | semi_annual",
-          "tenure_days + simulation_end_days from ProductSpec",
-          "observation_months gates the dynamic frontier",
+          "N = Monte Carlo Paths (default 100, clamp 1…5000)",
+          "tenure_days from ProductSpec → Product End",
+          "observation_months still gate hedge feasibility",
         ],
       },
       {
         title: "Forward calendar module",
         body: "engine/forward_calendar.py owns Mon–Fri sessions, monthly expiries, and month-end rolls after as-of. Historical CSV calendars are unchanged through as-of.",
-        code: "extend_market_forward(market, horizon_end, gbm_params=...)",
+        code: "extend_market_forward(market, product_end, gbm_params=...)",
       },
       {
-        title: "Tenure vs Simulation End",
-        body: "Intermediate paths use the Backtester anniversary tenure end. The final path is forced to the last trading day on/before asof + Simulation End Days.",
+        title: "Single tenure window",
+        body: "Every path uses the Backtester anniversary tenure end. There is no staggered start grid and no 7300-day Simulation End Days control.",
         bullets: [
-          "Default Simulation End Days = 7300",
-          "Must be greater than tenure_days",
+          "Default N = 100 Monte Carlo paths",
+          "Start = as-of for all paths",
         ],
       },
       {
@@ -448,7 +448,7 @@ export const logicModules: LogicModule[] = [
         code: "PathSpec(path_id, start, end, dates, spots)",
       },
     ],
-    outputs: ["Forward Path Atlas", "GBM Spot Paths", "Simulation End Horizon"],
+    outputs: ["Forward Path Atlas", "GBM Spot Paths", "Product End Horizon"],
   },
   {
     id: "roll-market",
@@ -1350,6 +1350,7 @@ type LiveProduct = {
   tenure_days: number;
   n_obs: number;
   observation_months: number[];
+  n_paths?: number | null;
   simulation_end_days?: number | null;
   cash_pct?: number;
   gsec_pct?: number;
@@ -1440,12 +1441,8 @@ export function withLiveAtlasData(
         "Sample Observations",
         product.observation_months.map((m) => String(m)).join(", "),
       );
-      if (product.simulation_end_days != null) {
-        defaults = replaceDefault(
-          defaults,
-          "Simulation End Days",
-          String(product.simulation_end_days),
-        );
+      if (product.n_paths != null) {
+        defaults = replaceDefault(defaults, "Monte Carlo Paths", String(product.n_paths));
       }
       defaults = [
         ...defaults.filter(
@@ -1505,18 +1502,14 @@ export function withLiveAtlasData(
 
     if (market && mod.id === "macro-paths") {
       if (market.last_date) {
-        metrics = replaceMetric(metrics, "Path 1 Start", formatDeskDate(market.last_date));
+        metrics = replaceMetric(metrics, "All Paths Start", formatDeskDate(market.last_date));
       }
       if (market.simulation_end) {
-        metrics = replaceMetric(metrics, "Final Path End", formatDeskDate(market.simulation_end));
-      } else if (market.simulation_end_days != null && market.last_date) {
-        const end = addCalendarDaysIso(market.last_date, market.simulation_end_days);
-        if (end) metrics = replaceMetric(metrics, "Final Path End", formatDeskDate(end));
+        metrics = replaceMetric(metrics, "All Paths End", formatDeskDate(market.simulation_end));
       }
-      const simDays = product?.simulation_end_days ?? market.simulation_end_days;
-      if (simDays != null) {
-        metrics = replaceMetric(metrics, "Simulation End Days", String(simDays));
-        defaults = replaceDefault(defaults, "Simulation End Days", String(simDays));
+      const nPaths = product?.n_paths ?? market.n_paths_monthly;
+      if (nPaths != null) {
+        defaults = replaceDefault(defaults, "Monte Carlo Paths", String(nPaths));
       }
       if (market.trading_days != null) {
         defaults = replaceDefault(defaults, "Horizon Trading Days", String(market.trading_days));
