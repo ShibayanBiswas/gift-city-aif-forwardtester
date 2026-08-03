@@ -143,7 +143,8 @@ export default function IntelPage() {
               </button>
             </div>
           </div>
-          <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="mt-4 desk-card-rail">
+            <div className="desk-card-rail__inner">
             {[
               { label: "As Of Today", value: asOfLabel },
               { label: "Product End", value: simEndLabel },
@@ -156,11 +157,14 @@ export default function IntelPage() {
                 value: String(expiryDisplayRows.length),
               },
             ].map((m) => (
-              <div key={m.label} className="glass rounded-2xl p-3">
-                <p className="text-[10px] uppercase tracking-[0.16em] text-[var(--ar-subtle)] font-ui">{m.label}</p>
-                <p className="font-display text-lg tabular-nums text-[var(--ar-maroon)]">{m.value}</p>
+              <div key={m.label} className="desk-stat-card glass">
+                <p className="desk-stat-card__label">{m.label}</p>
+                <p className="desk-stat-card__value" title={m.value}>
+                  {m.value}
+                </p>
               </div>
             ))}
+            </div>
           </div>
         </div>
         <div className="px-6 py-4">

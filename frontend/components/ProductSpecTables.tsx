@@ -192,7 +192,7 @@ export function ProductSpecTables({ product }: { product: ProductSpec }) {
           </p>
         </div>
         <div className="overflow-x-auto">
-          <table className="data-table-premium sheet-table-fill w-full min-w-[480px] text-left">
+          <table className="data-table-premium w-full min-w-[480px] text-left">
             <thead>
               <tr>
                 {FUND_HEADERS.map((h) => (
@@ -227,7 +227,7 @@ export function ProductSpecTables({ product }: { product: ProductSpec }) {
           </p>
         </div>
         <div className="overflow-x-auto">
-          <table className="data-table-premium sheet-table-fill w-full min-w-[480px] text-left">
+          <table className="data-table-premium w-full min-w-[480px] text-left">
             <thead>
               <tr>
                 {OBS_HEADERS.map((h) => (
@@ -264,7 +264,7 @@ export function ProductSpecTables({ product }: { product: ProductSpec }) {
           </p>
         </div>
         <div className="overflow-x-auto">
-          <table className="data-table-premium sheet-table-fill w-full min-w-[960px] text-left">
+          <table className="data-table-premium w-full min-w-[960px] text-left">
             <thead>
               <tr>
                 {LEG_HEADERS.map((h) => (
@@ -316,29 +316,39 @@ export function ProductSpecTables({ product }: { product: ProductSpec }) {
 }
 
 export function ProductMetaStrip({ product }: { product: ProductSpec }) {
-  const { market } = useForwardTest();
+  const { market, nPaths } = useForwardTest();
   const activeCount = product.legs.filter(isActiveLeg).length;
-  // Always live product + market Product End (never client-side asof + days).
+  const productStart = market?.asof ?? market?.last_date ?? null;
   const productEnd = market?.product_end ?? market?.simulation_end ?? null;
+  const mcPaths =
+    nPaths > 0
+      ? nPaths
+      : product.n_paths != null
+        ? Number(product.n_paths)
+        : null;
+
+  // Chronological product story: size → window → structure → simulation size.
   const items = [
     { label: "Principal Amount", value: `${formatNum(product.principal_cr, 2)} Crores` },
+    { label: "Product Start", value: formatDeskDate(productStart) },
+    { label: "Product End", value: formatDeskDate(productEnd) },
     { label: "Product Tenure", value: `${product.tenure_days} Calendar Days` },
     { label: "Observation Count", value: String(product.n_obs) },
     { label: "Active Option Legs", value: String(activeCount) },
-    ...(product.n_paths != null
-      ? [{ label: "Monte Carlo Paths", value: String(product.n_paths) }]
-      : []),
-    ...(productEnd
-      ? [{ label: "Product End", value: formatDeskDate(productEnd) }]
-      : []),
+    {
+      label: "Monte Carlo Paths",
+      value: mcPaths != null ? mcPaths.toLocaleString("en-IN") : "—",
+    },
   ];
   return (
-    <div className="w-full overflow-x-auto pb-1">
-      <div className="flex min-w-full gap-3">
+    <div className="desk-card-rail">
+      <div className="desk-card-rail__inner">
         {items.map((it) => (
-          <div key={it.label} className="glass min-w-[11.5rem] flex-1 rounded-2xl px-4 py-3">
-            <p className="text-[10px] tracking-[0.16em] text-[var(--ar-subtle)] font-ui">{it.label}</p>
-            <p className="mt-1 font-display text-lg text-[var(--ar-maroon)]">{it.value}</p>
+          <div key={it.label} className="desk-stat-card glass">
+            <p className="desk-stat-card__label">{it.label}</p>
+            <p className="desk-stat-card__value" title={it.value}>
+              {it.value}
+            </p>
           </div>
         ))}
       </div>

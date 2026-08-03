@@ -236,12 +236,15 @@ def build_paths(
         )
 
     paths: list[PathSpec] = []
+    # Share one date list across all PathSpecs — dates are never mutated (only spots
+    # are attached/cleared). Copying N times wasted ~11–110 MB on free hosts.
+    shared_dates = template.dates
     for pid in range(1, count + 1):
         spec = PathSpec(
             path_id=pid,
             start=template.start,
             end=template.end,
-            dates=list(template.dates),
+            dates=shared_dates,
         )
         if attach_spots:
             spec.spots = simulate_path_spots(

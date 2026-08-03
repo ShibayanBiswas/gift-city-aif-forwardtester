@@ -3,18 +3,18 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
-import { useState } from "react";
+import { useEffect, useId, useState } from "react";
+import { createPortal } from "react-dom";
 import { LayoutDashboard, BarChart3, Calculator, Sparkles, Moon, Sun, Upload, Play, Download } from "lucide-react";
 import { mainSections, resolveNav } from "@/lib/navigation";
 import {
   cn,
   client,
-  clampNPaths,
-  DEFAULT_N_PATHS,
   MAX_N_PATHS,
   MIN_N_PATHS,
   MONTE_CARLO_LIMITS_WARN_AT,
   MONTE_CARLO_PATH_PRESETS,
+  parseMonteCarloPathInput,
 } from "@/lib/api";
 import { useForwardTest } from "@/lib/store";
 import { deskSpring } from "@/lib/motion";
@@ -26,53 +26,84 @@ const icons = {
   intel: Sparkles,
 } as const;
 
-function ComputationLimitsDialog({
-  open,
-  pathCount,
+const PRESET_SET = new Set<number>(MONTE_CARLO_PATH_PRESETS);
+
+type PathDialog =
+  | { kind: "limits"; n: number; next: "apply" | "run"; asCustom: boolean }
+  | { kind: "alert"; title: string; body: string }
+  | null;
+
+function MonteCarloDialog({
+  dialog,
   onCancel,
   onConfirm,
 }: {
-  open: boolean;
-  pathCount: number;
+  dialog: PathDialog;
   onCancel: () => void;
   onConfirm: () => void;
 }) {
-  if (!open) return null;
-  return (
-    <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/45 p-4 font-ui">
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+  if (!mounted || !dialog) return null;
+
+  const isLimits = dialog.kind === "limits";
+  const title = isLimits ? "Monte Carlo Path Count" : dialog.title;
+  const body = isLimits ? (
+    <>
+      You selected <strong className="text-[var(--ar-ink)]">{dialog.n.toLocaleString("en-IN")}</strong> Monte
+      Carlo paths (maximum {MAX_N_PATHS.toLocaleString("en-IN")}). Larger counts take longer and use more memory.
+      Prefer 100–1,000 for interactive work. On free cloud hosts the server may cap the run near 2,000 paths.
+    </>
+  ) : (
+    dialog.body
+  );
+
+  return createPortal(
+    <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/45 p-4 font-ui" role="dialog" aria-modal>
       <div className="max-w-md rounded-2xl border border-[var(--ar-border)] bg-[var(--ar-surface)] p-5 shadow-xl">
-        <p className="text-[10px] uppercase tracking-[0.2em] text-[var(--ar-subtle)]">Computation Limits</p>
-        <h3 className="mt-1 font-display text-xl text-[var(--ar-maroon)]">Monte Carlo Path Count</h3>
-        <p className="mt-3 text-sm leading-relaxed text-[var(--ar-muted)]">
-          You selected <strong className="text-[var(--ar-ink)]">{pathCount.toLocaleString("en-IN")}</strong> Monte
-          Carlo paths (maximum {MAX_N_PATHS.toLocaleString("en-IN")}). Larger counts take longer on free hosts and use
-          more memory. Prefer 100–1,000 for interactive desk work; use 5,000–10,000 only when you need denser
-          distributions and can wait for the run to finish.
+        <p className="text-[10px] uppercase tracking-[0.2em] text-[var(--ar-subtle)]">
+          {isLimits ? "Computation Limits" : "Monte Carlo Paths"}
         </p>
+        <h3 className="mt-1 font-display text-xl text-[var(--ar-maroon)]">{title}</h3>
+        <p className="mt-3 text-sm leading-relaxed text-[var(--ar-muted)]">{body}</p>
         <div className="mt-5 flex flex-wrap justify-end gap-2">
-          <button
-            type="button"
-            className="rounded-full border border-[var(--ar-border)] px-4 py-2 text-xs"
-            onClick={onCancel}
-          >
-            Cancel
-          </button>
-          <button
-            type="button"
-            className="rounded-full bg-[var(--ar-maroon)] px-4 py-2 text-xs text-white"
-            onClick={onConfirm}
-          >
-            Continue
-          </button>
+          {isLimits ? (
+            <>
+              <button
+                type="button"
+                className="rounded-full border border-[var(--ar-border)] px-4 py-2 text-xs"
+                onClick={onCancel}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="rounded-full bg-[var(--ar-maroon)] px-4 py-2 text-xs text-white"
+                onClick={onConfirm}
+              >
+                Continue
+              </button>
+            </>
+          ) : (
+            <button
+              type="button"
+              className="rounded-full bg-[var(--ar-maroon)] px-4 py-2 text-xs text-white"
+              onClick={onConfirm}
+            >
+              OK
+            </button>
+          )}
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
 
 export function SiteNav() {
   const pathname = usePathname();
   const section = resolveNav(pathname);
+  const pathInputId = useId();
   const {
     dark,
     setDark,
@@ -85,59 +116,112 @@ export function SiteNav() {
     setError,
   } = useForwardTest();
 
-  const presetMatch = (MONTE_CARLO_PATH_PRESETS as readonly number[]).includes(nPaths);
-  const [customDraft, setCustomDraft] = useState(presetMatch ? "" : String(nPaths));
-  const [pendingN, setPendingN] = useState<number | null>(null);
-  const [runConfirmN, setRunConfirmN] = useState<number | null>(null);
+  const [mode, setMode] = useState<"preset" | "custom">(() =>
+    PRESET_SET.has(nPaths) ? "preset" : "custom",
+  );
+  const [customDraft, setCustomDraft] = useState(() =>
+    PRESET_SET.has(nPaths) ? "" : String(nPaths),
+  );
+  const [dialog, setDialog] = useState<PathDialog>(null);
 
-  const requestNPaths = (raw: number) => {
-    const n = clampNPaths(raw);
-    if (raw > MAX_N_PATHS) {
-      setError(`Monte Carlo path count must be at most ${MAX_N_PATHS.toLocaleString("en-IN")}.`);
-      return;
+  // Keep mode in sync when product upload / API changes nPaths.
+  useEffect(() => {
+    if (PRESET_SET.has(nPaths)) {
+      setMode("preset");
+      setCustomDraft("");
+    } else {
+      setMode("custom");
+      setCustomDraft(String(nPaths));
     }
-    if (n < MIN_N_PATHS) return;
-    if (n >= MONTE_CARLO_LIMITS_WARN_AT) {
-      setPendingN(n);
-      return;
-    }
+  }, [nPaths]);
+
+  const applyN = (n: number, asCustom: boolean) => {
     setNPaths(n);
-    setCustomDraft((MONTE_CARLO_PATH_PRESETS as readonly number[]).includes(n) ? "" : String(n));
+    if (asCustom || !PRESET_SET.has(n)) {
+      setMode("custom");
+      setCustomDraft(String(n));
+    } else {
+      setMode("preset");
+      setCustomDraft("");
+    }
   };
 
-  const applyPending = () => {
-    if (pendingN == null) return;
-    setNPaths(pendingN);
-    setCustomDraft(
-      (MONTE_CARLO_PATH_PRESETS as readonly number[]).includes(pendingN) ? "" : String(pendingN),
-    );
-    setPendingN(null);
+  const requestNPaths = (n: number, asCustom: boolean) => {
+    if (n >= MONTE_CARLO_LIMITS_WARN_AT) {
+      setDialog({ kind: "limits", n, next: "apply", asCustom });
+      return;
+    }
+    applyN(n, asCustom);
+  };
+
+  const commitCustomDraft = () => {
+    const parsed = parseMonteCarloPathInput(customDraft);
+    if (!parsed.ok) {
+      setDialog({ kind: "alert", title: parsed.title, body: parsed.body });
+      setCustomDraft(String(nPaths));
+      return;
+    }
+    if (parsed.n === nPaths && mode === "custom") {
+      setCustomDraft(String(parsed.n));
+      return;
+    }
+    requestNPaths(parsed.n, true);
+  };
+
+  const onSelectChange = (value: string) => {
+    if (value === "custom") {
+      setMode("custom");
+      setCustomDraft(String(nPaths));
+      return;
+    }
+    const n = Number(value);
+    if (!Number.isFinite(n)) return;
+    requestNPaths(n, false);
   };
 
   const requestRun = () => {
-    if (nPaths >= MONTE_CARLO_LIMITS_WARN_AT) {
-      setRunConfirmN(nPaths);
+    let runN = nPaths;
+    if (mode === "custom") {
+      const parsed = parseMonteCarloPathInput(customDraft || String(nPaths));
+      if (!parsed.ok) {
+        setDialog({ kind: "alert", title: parsed.title, body: parsed.body });
+        return;
+      }
+      runN = parsed.n;
+    }
+    if (runN >= MONTE_CARLO_LIMITS_WARN_AT) {
+      setDialog({
+        kind: "limits",
+        n: runN,
+        next: "run",
+        asCustom: mode === "custom" || !PRESET_SET.has(runN),
+      });
       return;
     }
-    void run();
+    if (runN !== nPaths) applyN(runN, mode === "custom");
+    void run(runN);
   };
+
+  const onDialogConfirm = () => {
+    if (!dialog) return;
+    if (dialog.kind === "alert") {
+      setDialog(null);
+      return;
+    }
+    const { n, next, asCustom } = dialog;
+    applyN(n, asCustom);
+    setDialog(null);
+    if (next === "run") void run(n);
+  };
+
+  const selectValue = mode === "custom" ? "custom" : String(nPaths);
 
   return (
     <div className="border-t border-[var(--ar-border)]">
-      <ComputationLimitsDialog
-        open={pendingN != null}
-        pathCount={pendingN ?? nPaths}
-        onCancel={() => setPendingN(null)}
-        onConfirm={applyPending}
-      />
-      <ComputationLimitsDialog
-        open={runConfirmN != null}
-        pathCount={runConfirmN ?? nPaths}
-        onCancel={() => setRunConfirmN(null)}
-        onConfirm={() => {
-          setRunConfirmN(null);
-          void run();
-        }}
+      <MonteCarloDialog
+        dialog={dialog}
+        onCancel={() => setDialog(null)}
+        onConfirm={onDialogConfirm}
       />
       <div className="mx-auto flex max-w-full flex-wrap items-center justify-between gap-3 px-4 py-2 lg:px-6">
         <div className="nav-pill-shell flex items-center gap-1 rounded-2xl border p-1.5 shadow-md">
@@ -170,23 +254,20 @@ export function SiteNav() {
         </div>
 
         <div className="flex flex-wrap items-center gap-2 font-ui">
-          <label
+          <div
             className="inline-flex flex-wrap items-center gap-1.5 text-xs text-[var(--ar-muted)]"
             title={`Monte Carlo paths over the tenure window (${MIN_N_PATHS}–${MAX_N_PATHS})`}
           >
-            <span className="hidden sm:inline">Monte Carlo Paths</span>
+            <label htmlFor={pathInputId} className="hidden sm:inline">
+              Monte Carlo Paths
+            </label>
             <select
+              id={pathInputId}
               className="desk-select disabled:opacity-50"
               disabled={running}
-              value={presetMatch ? String(nPaths) : "custom"}
-              onChange={(e) => {
-                const v = e.target.value;
-                if (v === "custom") {
-                  setCustomDraft(String(nPaths));
-                  return;
-                }
-                requestNPaths(Number(v));
-              }}
+              value={selectValue}
+              onChange={(e) => onSelectChange(e.target.value)}
+              aria-label="Monte Carlo Paths"
             >
               {MONTE_CARLO_PATH_PRESETS.map((n) => (
                 <option key={n} value={n}>
@@ -195,31 +276,31 @@ export function SiteNav() {
               ))}
               <option value="custom">Custom…</option>
             </select>
-            <input
-              type="number"
-              min={MIN_N_PATHS}
-              max={MAX_N_PATHS}
-              step={1}
-              placeholder="Custom"
-              disabled={running}
-              value={customDraft}
-              onChange={(e) => setCustomDraft(e.target.value)}
-              onBlur={() => {
-                const raw = Number(customDraft);
-                if (!customDraft.trim() || !Number.isFinite(raw)) {
-                  setCustomDraft(presetMatch ? "" : String(nPaths));
-                  return;
-                }
-                requestNPaths(raw);
-              }}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") {
-                  (e.target as HTMLInputElement).blur();
-                }
-              }}
-              className="desk-select w-[5.5rem] disabled:opacity-50"
-            />
-          </label>
+            {mode === "custom" ? (
+              <input
+                type="text"
+                inputMode="numeric"
+                pattern="[0-9]*"
+                disabled={running}
+                value={customDraft}
+                placeholder={`1–${MAX_N_PATHS}`}
+                aria-label="Custom Monte Carlo path count"
+                onChange={(e) => setCustomDraft(e.target.value.replace(/[^\d]/g, ""))}
+                onBlur={commitCustomDraft}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    (e.target as HTMLInputElement).blur();
+                  }
+                  if (e.key === "Escape") {
+                    setCustomDraft(String(nPaths));
+                    if (PRESET_SET.has(nPaths)) setMode("preset");
+                  }
+                }}
+                className="desk-select w-[5.75rem] disabled:opacity-50"
+              />
+            ) : null}
+          </div>
           <button
             type="button"
             className="inline-flex items-center gap-1.5 rounded-full border border-[var(--ar-border)] px-3 py-1.5 text-xs hover:border-[var(--ar-gold)]"

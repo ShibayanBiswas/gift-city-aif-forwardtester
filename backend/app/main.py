@@ -25,19 +25,20 @@ from app.engine.forwardtest import ForwardTestCancelled, compute_single_path_det
 from app.engine.gbm import GBM_BASE_SEED, GbmParams, estimate_gbm_params, gbm_spots
 from app.engine.market import clear_market_cache, load_market, path_nifty_on, path_roll_vector
 from app.engine.market_sync import sync_market_to_present
+from app.engine.runtime import is_constrained_host
 from app.engine.mc_matrix import (
     load_mc_matrix,
     matrix_meta,
     matrix_preview,
     save_mc_matrix,
     write_mc_matrix_xlsx,
+    excel_export_path_cap,
 )
 from app.engine.paths import (
     build_forward_market,
     count_paths_by_frequency,
     path_from_window,
 )
-from app.engine.runtime import is_constrained_host
 from app.engine.product import (
     ProductSpec,
     parse_product_workbook,
@@ -95,6 +96,7 @@ _desk_cache: dict[str, Any] | None = None
 _market_synced_at: str | None = None
 # Excel export queue — one heavy write_only build at a time on free hosts.
 _export_lock = threading.Lock()
+_xlsx_build_lock = threading.Lock()
 _exports: dict[str, dict[str, Any]] = {}
 
 
@@ -833,8 +835,9 @@ async def start_forwardtest(body: RunRequest) -> dict:
                 except Exception:
                     pass
 
-                # Queue Excel in the background — stream path-by-path, never full matrix.
-                _queue_xlsx_export(job_id)
+                # Auto Excel only on fat hosts — free-tier RAM cannot share a run + full grid.
+                if not is_constrained_host():
+                    _queue_xlsx_export(job_id)
             except ForwardTestCancelled as e:
                 job = _jobs.get(job_id)
                 if job and job.get("status") != "cancelled":
@@ -1228,52 +1231,58 @@ def _queue_xlsx_export(job_id: str) -> dict[str, Any]:
         _exports[job_id] = state
 
     def _build() -> None:
-        with _export_lock:
-            st = _exports.get(job_id) or {}
-            st.update(
-                {
-                    "status": "building",
-                    "progress": 1.0,
-                    "message": "Building Simulated Nifty Excel…",
-                    "error": None,
-                }
-            )
-            _exports[job_id] = st
+        # Serialize the actual openpyxl write across jobs (lock above only guards state).
+        with _xlsx_build_lock:
+            with _export_lock:
+                st = _exports.get(job_id) or {}
+                st.update(
+                    {
+                        "status": "building",
+                        "progress": 1.0,
+                        "message": "Building Simulated Nifty Excel…",
+                        "error": None,
+                    }
+                )
+                _exports[job_id] = st
 
-        def on_prog(frac: float, msg: str) -> None:
-            with _export_lock:
-                cur = _exports.get(job_id)
-                if not cur or cur.get("status") != "building":
-                    return
-                cur["progress"] = max(1.0, min(99.0, float(frac) * 100.0))
-                cur["message"] = msg
-                _exports[job_id] = cur
+            def on_prog(frac: float, msg: str) -> None:
+                with _export_lock:
+                    cur = _exports.get(job_id)
+                    if not cur or cur.get("status") != "building":
+                        return
+                    cur["progress"] = max(1.0, min(99.0, float(frac) * 100.0))
+                    cur["message"] = msg
+                    _exports[job_id] = cur
 
-        try:
-            payload = _mc_matrix_payload(job_id, allow_mmap=True)
-            # On constrained hosts always stream from GBM params — never force a full matrix load.
-            if is_constrained_host():
-                payload = {**payload, "matrix": None}
-            payload = {**payload, "_progress_cb": on_prog}
-            write_mc_matrix_xlsx(payload, dest)
-            gc.collect()
-            with _export_lock:
-                _exports[job_id] = {
-                    "status": "ready",
-                    "progress": 100.0,
-                    "message": "Excel ready",
-                    "path": str(dest),
-                    "error": None,
-                }
-        except Exception as e:
-            with _export_lock:
-                _exports[job_id] = {
-                    "status": "error",
-                    "progress": 0.0,
-                    "message": str(e),
-                    "path": None,
-                    "error": str(e),
-                }
+            try:
+                payload = _mc_matrix_payload(job_id, allow_mmap=True)
+                # On constrained hosts always stream from GBM params — never force a full matrix load.
+                if is_constrained_host():
+                    payload = {**payload, "matrix": None}
+                path_cap = excel_export_path_cap(
+                    n_dates=len(payload.get("dates") or []),
+                    n_paths=int(payload.get("n_paths") or 0),
+                )
+                payload = {**payload, "_progress_cb": on_prog}
+                write_mc_matrix_xlsx(payload, dest, max_paths=path_cap)
+                gc.collect()
+                with _export_lock:
+                    _exports[job_id] = {
+                        "status": "ready",
+                        "progress": 100.0,
+                        "message": "Excel ready",
+                        "path": str(dest),
+                        "error": None,
+                    }
+            except Exception as e:
+                with _export_lock:
+                    _exports[job_id] = {
+                        "status": "error",
+                        "progress": 0.0,
+                        "message": str(e),
+                        "path": None,
+                        "error": str(e),
+                    }
 
     threading.Thread(target=_build, daemon=True, name=f"xlsx-{job_id}").start()
     return _export_state(job_id)

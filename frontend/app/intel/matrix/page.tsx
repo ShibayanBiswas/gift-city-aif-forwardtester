@@ -108,9 +108,8 @@ export default function MonteCarloMatrixPage() {
               <p className="text-xs uppercase tracking-[0.22em] text-[var(--ar-subtle)] font-ui">Intel</p>
               <h2 className="font-display text-3xl text-[var(--ar-maroon)] md:text-4xl">Simulated Nifty Paths</h2>
               <p className="mt-1 max-w-3xl text-sm leading-relaxed text-[var(--ar-muted)] font-ui">
-                Path rows and trading-date columns from As Of Today through Product End (tenure). The on-screen
-                preview samples early and late dates so Product End stays visible; Download Excel for the full
-                trading-day grid.
+                Path rows and trading-date columns from As Of Today through Product End. The on-screen preview samples
+                early and late dates so Product End stays visible. Download Excel for the full trading-day grid.
               </p>
             </div>
             <div className="flex flex-wrap gap-2 items-center">
@@ -146,7 +145,8 @@ export default function MonteCarloMatrixPage() {
             </div>
           </div>
 
-          <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+          <div className="mt-4 desk-card-rail">
+            <div className="desk-card-rail__inner">
             {[
               { label: "Paths", value: String(nPaths) },
               { label: "Trading Dates", value: String(nDates) },
@@ -172,13 +172,14 @@ export default function MonteCarloMatrixPage() {
                       : "—",
               },
             ].map((m) => (
-              <div key={m.label} className="glass rounded-2xl p-3">
-                <p className="text-[10px] uppercase tracking-[0.16em] text-[var(--ar-subtle)] font-ui">
-                  {m.label}
+              <div key={m.label} className="desk-stat-card glass">
+                <p className="desk-stat-card__label">{m.label}</p>
+                <p className="desk-stat-card__value" title={m.value}>
+                  {m.value}
                 </p>
-                <p className="font-display text-lg tabular-nums text-[var(--ar-maroon)]">{m.value}</p>
               </div>
             ))}
+            </div>
           </div>
           {error ? (
             <p className="mt-3 text-sm text-[var(--ar-maroon)] font-ui">{error}</p>

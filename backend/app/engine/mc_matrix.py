@@ -37,8 +37,30 @@ _MONTHS = (
     "Dec",
 )
 
-# Soft cap note only — export always streams path-by-path with branded chrome.
+# Soft note + hard path cap on constrained hosts (see excel_export_path_cap).
 _EXCEL_CELL_SOFT_CAP = 800_000
+
+
+def excel_export_path_cap(*, n_dates: int, n_paths: int) -> int | None:
+    """Cap Excel path rows on free hosts so cells stay near the soft budget.
+
+    Returns None when no extra cap is needed (fat local hosts).
+    """
+    from .runtime import is_constrained_host
+
+    n_paths = max(0, int(n_paths))
+    n_dates = max(0, int(n_dates))
+    if n_paths <= 0:
+        return None
+    if not is_constrained_host():
+        return None
+    if n_dates <= 0:
+        return min(n_paths, 500)
+    capped = max(1, _EXCEL_CELL_SOFT_CAP // n_dates)
+    if capped >= n_paths:
+        return None
+    return capped
+
 
 # Desk brand tokens — Primary SP Dashboard `export-theme.ts` (openpyxl RGB, no FF prefix).
 _BRAND_MAROON = "7A1E2C"

@@ -1,7 +1,15 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { CalendarRange, ChartCandlestick, Layers, Hourglass, Flag } from "lucide-react";
+import {
+  CalendarRange,
+  ChartCandlestick,
+  Dices,
+  Flag,
+  Hourglass,
+  Layers,
+  type LucideIcon,
+} from "lucide-react";
 import { BrandLogo } from "@/components/layout/BrandLogo";
 import { SiteNav } from "@/components/layout/SiteNav";
 import { ProgressModal } from "@/components/ProgressModal";
@@ -9,13 +17,13 @@ import { useForwardTest } from "@/lib/store";
 import { formatDeskDate, isDeskHorizonMeta } from "@/lib/api";
 import { deskSpring, easeOut, fadeUpItem, staggerContainer } from "@/lib/motion";
 
-const META_ICONS = [CalendarRange, Flag, Hourglass, ChartCandlestick, Layers] as const;
+type MetaItem = { label: string; value: string; icon: LucideIcon };
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const { market, product, nPaths, running, progress, message, error, setError } = useForwardTest();
 
   const asof = market?.asof ?? market?.last_date ?? null;
-  // Always use API Product End (tenure anniversary rule) — never asof + days client-side.
+  // Always use API Product End — never asof + days client-side.
   const productEnd = market?.product_end ?? market?.simulation_end ?? null;
   const tenureDays =
     product?.tenure_days != null && Number(product.tenure_days) > 0
@@ -39,28 +47,33 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const tradingDays = horizonReady ? market!.trading_days : null;
   const monthlyExpiries = horizonReady ? market!.expiries : null;
 
-  const meta = market
+  const meta: MetaItem[] = market
     ? [
-        { label: "As Of Today", value: formatDeskDate(asof) },
+        { label: "As Of Today", value: formatDeskDate(asof), icon: CalendarRange },
         {
           label: "Product End",
           value: productEnd ? formatDeskDate(productEnd) : "—",
+          icon: Flag,
         },
         {
           label: "Tenure Days",
-          value: tenureDays != null ? String(tenureDays) : "—",
+          value: tenureDays != null ? tenureDays.toLocaleString("en-IN") : "—",
+          icon: Hourglass,
         },
         {
           label: "Monte Carlo Paths",
-          value: mcPaths != null ? String(mcPaths) : "—",
+          value: mcPaths != null ? mcPaths.toLocaleString("en-IN") : "—",
+          icon: Dices,
         },
         {
           label: "Trading Days",
-          value: tradingDays != null ? String(tradingDays) : "—",
+          value: tradingDays != null ? Number(tradingDays).toLocaleString("en-IN") : "—",
+          icon: ChartCandlestick,
         },
         {
           label: "Monthly Expiries",
-          value: monthlyExpiries != null ? String(monthlyExpiries) : "—",
+          value: monthlyExpiries != null ? Number(monthlyExpiries).toLocaleString("en-IN") : "—",
+          icon: Layers,
         },
       ]
     : [];
@@ -99,18 +112,18 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               initial="hidden"
               animate="show"
             >
-              {meta.map((m, i) => {
-                const Icon = META_ICONS[i % META_ICONS.length] ?? CalendarRange;
+              {meta.map((m) => {
+                const Icon = m.icon;
                 return (
                   <motion.div
                     key={m.label}
                     className="market-meta-card"
                     variants={fadeUpItem}
-                    whileHover={{ y: -3, transition: deskSpring }}
+                    whileHover={{ y: -2, transition: deskSpring }}
                   >
                     <span className="market-meta-card__label">
                       <Icon className="h-3.5 w-3.5 shrink-0 text-[var(--ar-gold-dark)]" aria-hidden />
-                      {m.label}
+                      <span className="market-meta-card__label-text">{m.label}</span>
                     </span>
                     <strong className="market-meta-card__value" title={m.value}>
                       {m.value}

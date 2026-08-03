@@ -96,26 +96,30 @@ function PathMeta({ path }: { path: PathSummary }) {
     { icon: TrendingUp, label: "End Nifty", value: formatNum(path.end_nifty, 2) },
   ];
   return (
-    <div className="mt-3 grid w-full gap-2 grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-7">
-      {items.map((it) => {
-        const Icon = it.icon;
-        return (
-          <motion.div
-            key={it.label}
-            layout
-            initial={{ opacity: 0, y: 6 }}
-            animate={{ opacity: 1, y: 0 }}
-            whileHover={{ y: -2, scale: 1.01 }}
-            className="meta-chip"
-          >
-            <div className="flex items-center gap-1.5 text-[10px] tracking-[0.16em] text-[var(--ar-subtle)] font-ui">
-              <Icon className="h-3 w-3 text-[var(--ar-gold-dark)]" />
-              {it.label}
-            </div>
-            <p className="mt-1 font-display text-base tabular-nums text-[var(--ar-maroon)] leading-tight">{it.value}</p>
-          </motion.div>
-        );
-      })}
+    <div className="desk-card-rail mt-3">
+      <div className="desk-card-rail__inner">
+        {items.map((it) => {
+          const Icon = it.icon;
+          return (
+            <motion.div
+              key={it.label}
+              layout
+              initial={{ opacity: 0, y: 6 }}
+              animate={{ opacity: 1, y: 0 }}
+              whileHover={{ y: -2, scale: 1.01 }}
+              className="meta-chip desk-stat-card min-w-[10.5rem]"
+            >
+              <div className="flex items-center gap-1.5 text-[10px] tracking-[0.16em] text-[var(--ar-subtle)] font-ui whitespace-nowrap">
+                <Icon className="h-3 w-3 shrink-0 text-[var(--ar-gold-dark)]" />
+                {it.label}
+              </div>
+              <p className="mt-1 font-display text-base tabular-nums text-[var(--ar-maroon)] leading-tight whitespace-nowrap">
+                {it.value}
+              </p>
+            </motion.div>
+          );
+        })}
+      </div>
     </div>
   );
 }
@@ -519,21 +523,14 @@ export function EmptyRunHint() {
       <div className="hero-ambient opacity-70" aria-hidden />
       <div className="relative">
         <div className="desk-gold-rule desk-gold-rule--wide empty-desk-pulse mb-4" />
-        <p className="text-xs tracking-[0.28em] text-[var(--ar-subtle)] font-ui">Desk Ready</p>
+        <p className="text-xs tracking-[0.28em] text-[var(--ar-subtle)] font-ui">Get Started</p>
         <h2 className="mt-2 font-display text-3xl text-[var(--ar-maroon)] md:text-4xl">
-          Run A Forward Test To Illuminate The Desk
+          Run a Forward Test
         </h2>
         <p className="mx-auto mt-3 max-w-xl text-sm leading-relaxed text-[var(--ar-muted)] font-ui">
-          Set Monte Carlo paths, upload a product sheet if needed, then press Run. All paths share Start = as-of and
-          End = Product End (tenure) and will populate every desk surface.
+          Choose Monte Carlo paths, upload a product sheet if needed, then press Run. Every path uses the same start
+          date and product end date. Results will appear across charts, tables, and analytics.
         </p>
-        <motion.p
-          className="mt-5 text-[11px] uppercase tracking-[0.2em] text-[var(--ar-gold-dark)] font-ui"
-          animate={{ opacity: [0.45, 1, 0.45] }}
-          transition={{ duration: 2.4, repeat: Infinity, ease: "easeInOut" }}
-        >
-          Ready When You Are
-        </motion.p>
       </div>
     </motion.div>
   );
@@ -613,7 +610,7 @@ export function KpiBand() {
   ];
   return (
     <motion.div
-      className="w-full overflow-x-auto pb-1"
+      className="desk-card-rail"
       initial="hidden"
       animate="show"
       variants={{
@@ -621,7 +618,7 @@ export function KpiBand() {
         show: { opacity: 1, transition: { staggerChildren: 0.06, delayChildren: 0.05 } },
       }}
     >
-      <div className="flex min-w-full gap-3">
+      <div className="desk-card-rail__inner">
         {items.map((k) => (
           <motion.div
             key={k.label}
@@ -631,26 +628,30 @@ export function KpiBand() {
             }}
             whileHover={{ y: -5, scale: 1.025 }}
             transition={{ type: "spring", stiffness: 380, damping: 26 }}
-            className="glass glass-glow-cyan min-w-[12.5rem] flex-1 rounded-2xl p-4"
+            className="desk-stat-card glass glass-glow-cyan min-w-[13.5rem] p-4"
           >
-            <p className="text-[10px] tracking-[0.16em] text-[var(--ar-subtle)] font-ui">{k.label}</p>
+            <p className="desk-stat-card__label">{k.label}</p>
             {k.median != null ? (
               <div className="mt-2 grid grid-cols-2 gap-2">
                 <div>
-                  <p className="text-[9px] tracking-[0.12em] text-[var(--ar-subtle)] font-ui">
+                  <p className="text-[9px] tracking-[0.12em] text-[var(--ar-subtle)] font-ui whitespace-nowrap">
                     {"meanCaption" in k && k.meanCaption ? k.meanCaption : "Mean"}
                   </p>
-                  <p className="font-display text-xl tabular-nums text-[var(--ar-maroon)]">{k.mean}</p>
+                  <p className="font-display text-xl tabular-nums text-[var(--ar-maroon)] whitespace-nowrap">
+                    {k.mean}
+                  </p>
                 </div>
                 <div>
-                  <p className="text-[9px] tracking-[0.12em] text-[var(--ar-subtle)] font-ui">
+                  <p className="text-[9px] tracking-[0.12em] text-[var(--ar-subtle)] font-ui whitespace-nowrap">
                     {"medianCaption" in k && k.medianCaption ? k.medianCaption : "Median"}
                   </p>
-                  <p className="font-display text-xl tabular-nums text-[var(--ar-maroon)]">{k.median}</p>
+                  <p className="font-display text-xl tabular-nums text-[var(--ar-maroon)] whitespace-nowrap">
+                    {k.median}
+                  </p>
                 </div>
               </div>
             ) : (
-              <p className="mt-2 font-display text-2xl tabular-nums text-[var(--ar-maroon)]">{k.mean}</p>
+              <p className="desk-stat-card__value mt-2 text-2xl">{k.mean}</p>
             )}
           </motion.div>
         ))}

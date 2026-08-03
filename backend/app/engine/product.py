@@ -9,6 +9,8 @@ from typing import Any
 
 import openpyxl
 
+from .runtime import max_n_paths_for_host
+
 # Working File 1 As-per-HS defaults (Path-invariant).
 DEFAULT_FORWARD = 0.066
 DEFAULT_DISCOUNT = 0.076
@@ -65,7 +67,9 @@ def resolved_n_paths(product: "ProductSpec | None" = None, explicit: int | None 
     else:
         raw = os.environ.get("FORWARDTEST_N_PATHS") or os.environ.get("N_PATHS")
         n = int(raw) if raw and str(raw).strip().isdigit() else DEFAULT_N_PATHS
-    return max(MIN_N_PATHS, min(MAX_N_PATHS, n))
+    # Host-aware ceiling (free Render ≈ 512 MB cannot safely run 5k–10k).
+    ceiling = min(MAX_N_PATHS, max(MIN_N_PATHS, max_n_paths_for_host()))
+    return max(MIN_N_PATHS, min(ceiling, n))
 
 
 def resolved_simulation_end_days(product: "ProductSpec | None" = None) -> int:

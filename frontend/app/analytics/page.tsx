@@ -48,9 +48,8 @@ export default function AnalyticsPage() {
             </p>
             <h2 className="font-display text-2xl text-[var(--ar-maroon)]">Path Charts</h2>
             <p className="mt-1 text-sm text-[var(--ar-muted)] font-ui">
-              All Monte Carlo paths share one start date (As Of Today), so yearly-by-start-year rollups are not used.
-              Review cohort KPIs here, then inspect net required futures delta for a selected path. NAV lives on
-              Computation.
+              All Monte Carlo paths share the same start date. Review cohort KPIs here, then inspect net required
+              futures delta for a selected path. NAV lives on Computation.
             </p>
           </div>
         </div>

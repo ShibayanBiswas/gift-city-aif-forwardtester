@@ -49,7 +49,8 @@ type Store = {
   error: string | null;
   setError: (e: string | null) => void;
   upload: (file: File) => Promise<void>;
-  run: () => Promise<void>;
+  /** Optional path-count override for Run (avoids stale state after custom commit). */
+  run: (overrideNPaths?: number) => Promise<void>;
   /** Clear stale Run results (e.g. after Render restart / Unknown job). */
   clearResults: () => void;
   /** Force Yahoo + calendar refresh and reload market meta for the desk strip. */
@@ -456,11 +457,16 @@ export function ForwardTestProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
-  const run = useCallback(async () => {
+  const run = useCallback(async (overrideNPaths?: number) => {
     // Hard single-flight: ignore double-clicks / overlapping Run presses.
     if (runningLockRef.current) return;
     runningLockRef.current = true;
     intentionalCancelRef.current = false;
+
+    const runN = clampNPaths(overrideNPaths ?? nPaths);
+    if (overrideNPaths != null && runN !== nPaths) {
+      setNPathsState(runN);
+    }
 
     const gen = ++runGenRef.current;
     const clientRunId = newClientRunId();
@@ -479,11 +485,11 @@ export function ForwardTestProvider({ children }: { children: ReactNode }) {
       await keepApiAwake();
       if (gen !== runGenRef.current) return;
       setMessage("Starting simulation…");
-      const { job_id } = await client.runForwardTest(nPaths, clientRunId);
+      const { job_id } = await client.runForwardTest(runN, clientRunId);
       if (gen !== runGenRef.current) return;
       setJobId(job_id);
       jobIdRef.current = job_id;
-      localStorage.setItem(LS_KEY, JSON.stringify({ jobId: job_id, nPaths }));
+      localStorage.setItem(LS_KEY, JSON.stringify({ jobId: job_id, nPaths: runN }));
       setMessage("Queued — starting Monte Carlo paths…");
       for (;;) {
         if (gen !== runGenRef.current) return;
@@ -515,11 +521,17 @@ export function ForwardTestProvider({ children }: { children: ReactNode }) {
           const s = await client.summary(job_id);
           if (gen !== runGenRef.current) return;
           const resultN = s.n_paths ?? s.path_count;
-          if (resultN != null && Number(resultN) !== clampNPaths(nPaths)) {
-            setError("Received results for a different Monte Carlo path count. Please run again.");
-            setJobId(null);
-            localStorage.removeItem(LS_KEY);
-            break;
+          if (resultN != null && Number(resultN) !== runN) {
+            const serverN = Number(resultN);
+            // Deploy hosts may clamp path count below the desk request — adopt server value.
+            if (Number.isFinite(serverN) && serverN > 0 && serverN <= runN) {
+              setNPathsState(clampNPaths(serverN));
+            } else {
+              setError("Received results for a different Monte Carlo path count. Please run again.");
+              setJobId(null);
+              localStorage.removeItem(LS_KEY);
+              break;
+            }
           }
           setSummary(s);
           setPathId(1);

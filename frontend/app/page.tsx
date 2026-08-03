@@ -75,8 +75,8 @@ export default function HomePage() {
                 {displayName}
               </motion.h2>
               <p className="mt-2 max-w-2xl text-sm leading-relaxed text-[var(--ar-muted)] font-ui">
-                Structured units forward-tested from today&apos;s Nifty close through Product End (tenure). Upload a
-                product sheet, set Monte Carlo paths, and run the desk engine.
+                Structured units forward-tested from today&apos;s Nifty close through Product End. Upload a product
+                sheet, set Monte Carlo paths, and press Run.
               </p>
             </div>
             <motion.div
@@ -135,12 +135,12 @@ export default function HomePage() {
                 <p className="px-5 pt-3 text-sm text-[var(--ar-maroon)] font-ui">{downloadError}</p>
               ) : null}
               <motion.div
-                className="w-full overflow-x-auto px-5 py-4 pb-5"
+                className="desk-card-rail px-5 py-4 pb-5"
                 variants={staggerContainer}
                 initial="hidden"
                 animate="show"
               >
-                <div className="flex min-w-full gap-3">
+                <div className="desk-card-rail__inner">
                   {[
                     {
                       label: "Start",
@@ -171,10 +171,12 @@ export default function HomePage() {
                       key={c.label}
                       variants={fadeUpItem}
                       whileHover={{ y: -3, transition: deskSpring }}
-                      className="glass min-w-[11.5rem] flex-1 rounded-2xl px-4 py-3"
+                      className="desk-stat-card glass"
                     >
-                      <p className="text-[10px] tracking-[0.16em] text-[var(--ar-subtle)] font-ui">{c.label}</p>
-                      <p className="mt-1 font-display text-lg tabular-nums text-[var(--ar-maroon)]">{c.value}</p>
+                      <p className="desk-stat-card__label">{c.label}</p>
+                      <p className="desk-stat-card__value" title={c.value}>
+                        {c.value}
+                      </p>
                     </motion.div>
                   ))}
                 </div>

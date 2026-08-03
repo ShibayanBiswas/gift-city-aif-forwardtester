@@ -53,6 +53,20 @@ def is_constrained_host() -> bool:
     return False
 
 
+def max_n_paths_for_host() -> int:
+    """Hard ceiling for Monte Carlo path count on this host.
+
+    Free / constrained hosts default to 2000 (override with FORWARDTEST_MAX_N_PATHS).
+    Fat local boxes keep the product MAX of 10000.
+    """
+    raw = _env_first("FORWARDTEST_MAX_N_PATHS", "MAX_N_PATHS")
+    if raw.isdigit():
+        return max(1, int(raw))
+    if is_constrained_host():
+        return 2000
+    return 10000
+
+
 def forwardtest_parallelism(n_paths: int) -> tuple[str, int]:
     """
     Return (mode, workers) where mode is 'serial' | 'threads' | 'processes'.

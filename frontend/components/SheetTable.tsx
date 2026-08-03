@@ -70,7 +70,7 @@ export function SheetTable({
     : minWidth;
 
   return (
-    <section className="sheet-card overflow-hidden">
+    <section className="sheet-card">
       <div className="flex flex-wrap items-end justify-between gap-3 border-b border-[var(--ar-border)] bg-gradient-to-r from-[var(--ar-table-head-from)] to-transparent px-5 py-4">
         <div>
           <p className="text-[10px] uppercase tracking-[0.2em] text-[var(--ar-subtle)] font-ui">Data Table</p>
@@ -186,11 +186,11 @@ export function SheetTable({
           </table>
         </div>
       ) : (
-        <div className="w-full overflow-x-auto">
+        <div className="w-full overflow-x-auto" style={{ WebkitOverflowScrolling: "touch" }}>
           <div className="w-full overflow-y-auto" style={{ maxHeight }}>
             <table
-              className="data-table-premium sheet-table-fill w-full text-left text-sm font-ui"
-              style={{ minWidth: tableMinWidth, width: "100%" }}
+              className="data-table-premium sheet-table-fill text-left text-sm font-ui"
+              style={{ minWidth: tableMinWidth }}
             >
               <thead className="sticky top-0 z-[1] bg-gradient-to-r from-[var(--ar-table-head-from)] to-[var(--ar-table-head-to)] text-xs tracking-wide">
                 <tr>

@@ -98,10 +98,10 @@ export function NestedOptionsBook({
     <motion.div
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
-      className="sheet-card overflow-hidden"
+      className="sheet-card"
     >
-      <div className="overflow-x-auto">
-        <table className="data-table-premium sheet-table-fill analytics-stats-table w-full min-w-[1200px] text-left text-sm font-ui">
+      <div className="overflow-x-auto" style={{ WebkitOverflowScrolling: "touch" }}>
+        <table className="data-table-premium analytics-stats-table min-w-[1200px] w-max text-left text-sm font-ui">
           <thead className="sticky top-0 z-10 bg-gradient-to-r from-[var(--ar-table-head-from)] to-[var(--ar-table-head-to)] text-xs tracking-wide">
             <tr>
               <th className="px-3 py-2.5">Trade Side</th>

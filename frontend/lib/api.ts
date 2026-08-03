@@ -113,12 +113,61 @@ export const MIN_N_PATHS = 1;
 export const MAX_N_PATHS = 10000;
 /** Preset choices for the desk dropdown (max = MAX_N_PATHS). */
 export const MONTE_CARLO_PATH_PRESETS = [100, 500, 1000, 5000, 10000] as const;
-/** Warn about run time / host limits at or above this path count. */
-export const MONTE_CARLO_LIMITS_WARN_AT = 1000;
+/** Warn about run time / host limits at or above this path count (above the desk default). */
+export const MONTE_CARLO_LIMITS_WARN_AT = 5000;
 
 export function clampNPaths(n: number): number {
   if (!Number.isFinite(n)) return DEFAULT_N_PATHS;
   return Math.max(MIN_N_PATHS, Math.min(MAX_N_PATHS, Math.trunc(n)));
+}
+
+/** Validate a custom Monte Carlo path-count string from the desk control. */
+export function parseMonteCarloPathInput(raw: string): {
+  ok: true;
+  n: number;
+} | {
+  ok: false;
+  title: string;
+  body: string;
+} {
+  const trimmed = String(raw ?? "").trim().replace(/,/g, "");
+  if (!trimmed) {
+    return {
+      ok: false,
+      title: "Path Count Required",
+      body: `Enter a whole number between ${MIN_N_PATHS.toLocaleString("en-IN")} and ${MAX_N_PATHS.toLocaleString("en-IN")}.`,
+    };
+  }
+  if (!/^\d+$/.test(trimmed)) {
+    return {
+      ok: false,
+      title: "Invalid Path Count",
+      body: "Monte Carlo path count must be a whole number (no decimals, letters, or symbols).",
+    };
+  }
+  const n = Number(trimmed);
+  if (!Number.isFinite(n)) {
+    return {
+      ok: false,
+      title: "Invalid Path Count",
+      body: "That value could not be read as a number. Please try again.",
+    };
+  }
+  if (n < MIN_N_PATHS) {
+    return {
+      ok: false,
+      title: "Path Count Too Low",
+      body: `Monte Carlo path count must be at least ${MIN_N_PATHS.toLocaleString("en-IN")}.`,
+    };
+  }
+  if (n > MAX_N_PATHS) {
+    return {
+      ok: false,
+      title: "Path Count Too High",
+      body: `Monte Carlo path count must be at most ${MAX_N_PATHS.toLocaleString("en-IN")}. Choose a preset or enter a smaller custom value.`,
+    };
+  }
+  return { ok: true, n: clampNPaths(n) };
 }
 
 /** Map option codes to long-form labels. Default book is puts. */
