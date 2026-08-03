@@ -538,10 +538,8 @@ export function KpiBand() {
   const { filteredKpis, filteredSummary, nPaths, product, summary } = useForwardTest();
   if (!filteredKpis || !filteredSummary.length) return null;
   const principalCr = product?.principal_cr ?? 100;
-  const principalLabel =
-    Number.isInteger(principalCr) || Math.abs(principalCr - Math.round(principalCr)) < 1e-9
-      ? `${Math.round(principalCr)}`
-      : formatNum(principalCr, 2);
+  const principalLabel = formatNum(principalCr, 2);
+  const fmtCount = (n: number) => n.toLocaleString("en-IN");
   const meanTotal = filteredKpis.mean_total;
   const medianTotal = filteredKpis.median_total;
   const meanIrr = filteredKpis.mean_irr;
@@ -554,55 +552,55 @@ export function KpiBand() {
   const belowMeanIrr = filteredSummary.filter((s) => s.irr < meanIrr).length;
   const aboveMedianIrr = filteredSummary.filter((s) => s.irr > medianIrr).length;
   const belowMedianIrr = filteredSummary.filter((s) => s.irr < medianIrr).length;
-  const runPaths = summary?.n_paths ?? summary?.path_count ?? nPaths;
+  const runPaths = Number(summary?.n_paths ?? summary?.path_count ?? nPaths);
 
   const items = [
     {
       label: "Monte Carlo Paths",
-      mean: String(runPaths),
+      mean: fmtCount(runPaths),
       median: null as string | null,
     },
     {
-      label: "Terminal Value In ₹ Crores",
-      mean: formatNum(meanTotal, 3),
-      median: formatNum(medianTotal, 3),
+      label: "Terminal Value",
+      mean: `${formatNum(meanTotal, 2)} Crores`,
+      median: `${formatNum(medianTotal, 2)} Crores`,
     },
     {
       label: "Paths Above / Below Mean Terminal",
-      mean: String(aboveMeanTotal),
-      median: String(belowMeanTotal),
+      mean: fmtCount(aboveMeanTotal),
+      median: fmtCount(belowMeanTotal),
       meanCaption: "Above Mean",
       medianCaption: "Below Mean",
     },
     {
       label: "Paths Above / Below Median Terminal",
-      mean: String(aboveMedianTotal),
-      median: String(belowMedianTotal),
+      mean: fmtCount(aboveMedianTotal),
+      median: fmtCount(belowMedianTotal),
       meanCaption: "Above Median",
       medianCaption: "Below Median",
     },
     {
       label: "Internal Rate Of Return",
-      mean: formatPct(meanIrr, 3),
-      median: formatPct(medianIrr, 3),
+      mean: formatPct(meanIrr, 2),
+      median: formatPct(medianIrr, 2),
     },
     {
       label: "Paths Above / Below Mean IRR",
-      mean: String(aboveMeanIrr),
-      median: String(belowMeanIrr),
+      mean: fmtCount(aboveMeanIrr),
+      median: fmtCount(belowMeanIrr),
       meanCaption: "Above Mean",
       medianCaption: "Below Mean",
     },
     {
       label: "Paths Above / Below Median IRR",
-      mean: String(aboveMedianIrr),
-      median: String(belowMedianIrr),
+      mean: fmtCount(aboveMedianIrr),
+      median: fmtCount(belowMedianIrr),
       meanCaption: "Above Median",
       medianCaption: "Below Median",
     },
     {
       label: `Share Finishing Above ${principalLabel} Crores`,
-      mean: formatPct(filteredKpis.hit_rate_gt_100, 3),
+      mean: formatPct(filteredKpis.hit_rate_gt_100, 2),
       median: null,
     },
   ];
@@ -616,7 +614,7 @@ export function KpiBand() {
             animate={{ opacity: 1, y: 0 }}
             whileHover={{ y: -4, scale: 1.02 }}
             transition={{ type: "spring", stiffness: 380, damping: 26 }}
-            className="glass glass-glow-cyan min-w-[11.5rem] flex-1 rounded-2xl p-4"
+            className="glass glass-glow-cyan min-w-[18rem] flex-1 rounded-2xl px-4 py-3"
           >
             <p className="text-[10px] tracking-[0.16em] text-[var(--ar-subtle)] font-ui">{k.label}</p>
             {k.median != null ? (
@@ -625,17 +623,17 @@ export function KpiBand() {
                   <p className="text-[9px] tracking-[0.12em] text-[var(--ar-subtle)] font-ui">
                     {"meanCaption" in k && k.meanCaption ? k.meanCaption : "Mean"}
                   </p>
-                  <p className="font-display text-xl tabular-nums text-[var(--ar-maroon)]">{k.mean}</p>
+                  <p className="mt-1 font-display text-lg tabular-nums text-[var(--ar-maroon)]">{k.mean}</p>
                 </div>
                 <div>
                   <p className="text-[9px] tracking-[0.12em] text-[var(--ar-subtle)] font-ui">
                     {"medianCaption" in k && k.medianCaption ? k.medianCaption : "Median"}
                   </p>
-                  <p className="font-display text-xl tabular-nums text-[var(--ar-maroon)]">{k.median}</p>
+                  <p className="mt-1 font-display text-lg tabular-nums text-[var(--ar-maroon)]">{k.median}</p>
                 </div>
               </div>
             ) : (
-              <p className="mt-2 font-display text-2xl tabular-nums text-[var(--ar-maroon)]">{k.mean}</p>
+              <p className="mt-1 font-display text-lg tabular-nums text-[var(--ar-maroon)]">{k.mean}</p>
             )}
           </motion.div>
         ))}

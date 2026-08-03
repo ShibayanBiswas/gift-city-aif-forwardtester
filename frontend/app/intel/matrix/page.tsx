@@ -89,7 +89,7 @@ export default function MonteCarloMatrixPage() {
       : "";
   const sampleNote =
     preview?.date_sample === "head_tail"
-      ? " · On-screen columns sample early and late dates (Product End included)"
+      ? " · On-screen columns sample early and late dates · Product End included"
       : "";
   const tableSubtitle = truncated
     ? `Showing ${shownPaths.toLocaleString("en-IN")} of ${Number(nPaths).toLocaleString("en-IN")} paths · ${shownDates.toLocaleString("en-IN")} of ${Number(nDates).toLocaleString("en-IN")} trading dates${sampleNote}${horizonNote} · Download Excel for every trading date`
@@ -148,8 +148,8 @@ export default function MonteCarloMatrixPage() {
           <div className="mt-4 horizontal-rail-fill w-full">
             <div className="horizontal-rail-fill-inner flex w-full gap-3">
             {[
-              { label: "Paths", value: String(nPaths) },
-              { label: "Trading Dates", value: String(nDates) },
+              { label: "Paths", value: Number(nPaths).toLocaleString("en-IN") },
+              { label: "Trading Dates", value: Number(nDates).toLocaleString("en-IN") },
               {
                 label: "Start",
                 value: formatDeskDate(

@@ -150,7 +150,7 @@ export function ProductSpecTables({ product }: { product: ProductSpec }) {
                 {
                   name: "Fund Economics",
                   title: `${displayName} · Fund Economics`,
-                  subtitle: `Principal ${formatNum(product.principal_cr, 2)} Cr · Cash ${pctLabel(product.cash_pct ?? 0.05)} / G-Sec ${pctLabel(product.gsec_pct ?? 0.95)}`,
+                  subtitle: `Principal ${formatNum(product.principal_cr, 2)} Crores · Cash ${pctLabel(product.cash_pct ?? 0.05)} / G-Sec ${pctLabel(product.gsec_pct ?? 0.95)}`,
                   headers: [...FUND_HEADERS],
                   rows: fundRows,
                   columnTypes: ["text", "text"],
@@ -158,7 +158,7 @@ export function ProductSpecTables({ product }: { product: ProductSpec }) {
                 {
                   name: "Observation Months",
                   title: `${displayName} · Observation Months`,
-                  subtitle: `Principal ${product.principal_cr} Cr · Tenure ${product.tenure_days} Days · ${product.n_obs} Observations`,
+                  subtitle: `Principal ${formatNum(product.principal_cr, 2)} Crores · Tenure ${Number(product.tenure_days).toLocaleString("en-IN")} Days · ${Number(product.n_obs).toLocaleString("en-IN")} Observations`,
                   headers: [...OBS_HEADERS],
                   rows: obsRows,
                   columnTypes: ["integer", "number", "number"],
@@ -332,9 +332,9 @@ export function ProductMetaStrip({ product }: { product: ProductSpec }) {
     { label: "Principal Amount", value: `${formatNum(product.principal_cr, 2)} Crores` },
     { label: "Product Start", value: formatDeskDate(productStart) },
     { label: "Product End", value: formatDeskDate(productEnd) },
-    { label: "Product Tenure", value: `${product.tenure_days} Calendar Days` },
-    { label: "Observation Count", value: String(product.n_obs) },
-    { label: "Active Option Legs", value: String(activeCount) },
+    { label: "Product Tenure", value: `${Number(product.tenure_days).toLocaleString("en-IN")} Calendar Days` },
+    { label: "Observation Count", value: Number(product.n_obs).toLocaleString("en-IN") },
+    { label: "Active Option Legs", value: activeCount.toLocaleString("en-IN") },
     {
       label: "Monte Carlo Paths",
       value: mcPaths != null ? mcPaths.toLocaleString("en-IN") : "—",

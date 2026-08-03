@@ -17,7 +17,7 @@ import { LogicFlowDiagram, LogicModuleCard } from "@/components/logic/LogicFlowD
 import { logicModules, withLiveAtlasData } from "@/lib/logic-atlas";
 import { stripBracketDeep } from "@/lib/plainText";
 import { useForwardTest } from "@/lib/store";
-import { cn } from "@/lib/api";
+import { cn, formatNum } from "@/lib/api";
 
 const DESK_LINKS = [
   { href: "/product", label: "Product" },
@@ -92,7 +92,7 @@ export function LogicAtlasConsole() {
           {product ? (
             <span className="intel-hero-badge">
               <LineChart className="h-3.5 w-3.5" />
-              Live · {product.principal_cr.toFixed(0)} Cr · {product.n_obs} Obs
+              Live · {formatNum(product.principal_cr, 2)} Crores · {product.n_obs} Obs
             </span>
           ) : null}
           {market ? (
@@ -111,7 +111,7 @@ export function LogicAtlasConsole() {
             { label: "Pipeline Steps", value: String(totalStages) },
             {
               label: "Live Principal",
-              value: product ? `${product.principal_cr.toFixed(2)} Cr` : "—",
+              value: product ? `${formatNum(product.principal_cr, 2)} Crores` : "—",
             },
             {
               label: "Market Through",
