@@ -298,16 +298,47 @@ def _path_window_map(payload: dict[str, Any], n_paths: int) -> dict[int, tuple[s
     return out
 
 
+def _sample_date_indices(total_dates: int, budget: int, *, mode: str = "head_tail") -> list[int]:
+    """Pick trading-date indices for previews and charts.
+
+    ``head_tail`` keeps Product End visible for table previews.
+    ``even`` strides evenly across the full horizon for line plots.
+    """
+    if total_dates <= 0 or budget <= 0:
+        return []
+    if total_dates <= budget:
+        return list(range(total_dates))
+    sample = str(mode or "head_tail").strip().lower()
+    if sample == "even":
+        if budget == 1:
+            return [0]
+        step = (total_dates - 1) / (budget - 1)
+        out: list[int] = []
+        seen: set[int] = set()
+        for i in range(budget):
+            idx = min(total_dates - 1, int(round(i * step)))
+            if idx not in seen:
+                seen.add(idx)
+                out.append(idx)
+        if out[-1] != total_dates - 1:
+            out.append(total_dates - 1)
+        return out
+    head = budget // 2
+    tail = budget - head
+    return list(range(head)) + list(range(total_dates - tail, total_dates))
+
+
 def matrix_preview(
     payload: dict[str, Any],
     *,
     max_paths: int = 25,
     max_dates: int = 40,
+    date_sample: str = "head_tail",
 ) -> dict[str, Any]:
     """Preview without requiring the full matrix in RAM — stream GBM rows.
 
-    When the horizon is longer than ``max_dates``, take the first half and last
-    half of trading dates so Product End remains visible (not only early columns).
+    When the horizon is longer than ``max_dates``, sample trading dates so Product
+    End stays in view for tables, or stride evenly for path line charts.
     """
     dates: list[date] = payload["dates"]
     mat = payload.get("matrix")
@@ -315,12 +346,7 @@ def matrix_preview(
     total_dates = int(payload.get("n_dates") or len(dates))
     n_paths = min(int(max_paths), total_paths)
     budget = min(int(max_dates), total_dates, len(dates))
-    if total_dates <= budget:
-        date_indices = list(range(total_dates))
-    else:
-        head = budget // 2
-        tail = budget - head
-        date_indices = list(range(head)) + list(range(total_dates - tail, total_dates))
+    date_indices = _sample_date_indices(total_dates, budget, mode=date_sample)
     preview_dates = [dates[i] for i in date_indices]
     n_dates = len(preview_dates)
     windows = _path_window_map(payload, total_paths)
@@ -366,8 +392,68 @@ def matrix_preview(
         "preview_dates": n_dates,
         "headers": headers,
         "rows": rows,
-        "truncated": total_paths > n_paths or total_dates > n_dates,
-        "date_sample": "head_tail" if total_dates > n_dates else "full",
+        "truncated": total_paths > n_paths or total_dates > len(date_indices),
+        "date_sample": (
+            "full"
+            if total_dates <= len(date_indices)
+            else ("even" if str(date_sample).strip().lower() == "even" else "head_tail")
+        ),
+        "horizon_start": dates[0].isoformat() if dates else None,
+        "horizon_end": dates[-1].isoformat() if dates else None,
+    }
+
+
+def matrix_chart(
+    payload: dict[str, Any],
+    *,
+    max_dates: int = 220,
+) -> dict[str, Any]:
+    """Compact even-sampled spots for the home simulated-Nifty fan chart.
+
+    Returns every path so nothing is dropped from the plot; dates are strided
+    evenly across As Of → Product End for smooth line rendering.
+    """
+    dates: list[date] = payload["dates"]
+    mat = payload.get("matrix")
+    total_paths = int(payload.get("n_paths") or (mat.shape[0] if mat is not None else 0))
+    total_dates = int(payload.get("n_dates") or len(dates))
+    budget = min(max(2, int(max_dates)), total_dates, len(dates))
+    date_indices = _sample_date_indices(total_dates, budget, mode="even")
+    chart_dates = [dates[i].isoformat() for i in date_indices]
+    series: list[list[float]] = []
+    base_seed = int(payload.get("base_seed") or GBM_BASE_SEED)
+    if mat is not None:
+        for i in range(total_paths):
+            series.append([round(float(mat[i, j]), 4) for j in date_indices])
+    else:
+        params = GbmParams(
+            spot0=float(payload["spot0"]),
+            asof=str(payload.get("asof") or ""),
+            mean_return=float(payload["mean_return"]),
+            std_dev=float(payload["std_dev"]),
+            drift=float(payload["drift"]),
+            n_returns=int(payload.get("n_returns") or 0),
+            first_date=str(payload.get("first_date") or "2001-01-01"),
+            last_date=str(payload.get("last_date") or payload.get("asof") or ""),
+        )
+        for path_id in range(1, total_paths + 1):
+            spots = gbm_spots(
+                params.spot0,
+                len(dates),
+                params.drift,
+                params.std_dev,
+                path_id=path_id,
+                base_seed=base_seed,
+            )
+            series.append([round(float(spots[j]), 4) for j in date_indices])
+    return {
+        **matrix_meta(payload),
+        "dates": chart_dates,
+        "series": series,
+        "n_paths": total_paths,
+        "n_dates": total_dates,
+        "chart_dates": len(chart_dates),
+        "date_sample": "full" if total_dates <= len(date_indices) else "even",
         "horizon_start": dates[0].isoformat() if dates else None,
         "horizon_end": dates[-1].isoformat() if dates else None,
     }

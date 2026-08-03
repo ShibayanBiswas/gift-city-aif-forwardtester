@@ -28,6 +28,7 @@ from app.engine.market_sync import sync_market_to_present
 from app.engine.runtime import is_constrained_host
 from app.engine.mc_matrix import (
     load_mc_matrix,
+    matrix_chart,
     matrix_meta,
     matrix_preview,
     save_mc_matrix,
@@ -1316,6 +1317,19 @@ def job_mc_matrix_preview(
             payload,
             max_paths=max(1, min(int(max_paths), 400)),
             max_dates=max(1, min(int(max_dates), 400)),
+        ),
+    }
+
+
+@app.get("/api/forwardtest/{job_id}/mc-matrix/chart")
+def job_mc_matrix_chart(job_id: str, max_dates: int = 220) -> dict:
+    """Even-sampled Nifty levels for every simulated path — home fan chart."""
+    payload = _mc_matrix_payload(job_id)
+    return {
+        "ok": True,
+        **matrix_chart(
+            payload,
+            max_dates=max(2, min(int(max_dates), 400)),
         ),
     }
 
