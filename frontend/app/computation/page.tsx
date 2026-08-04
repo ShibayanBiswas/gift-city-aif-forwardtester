@@ -461,7 +461,7 @@ function ComputationPageInner() {
                         Annualised Internal Rate Of Return
                       </p>
                       <p className="mt-1 text-[11px] leading-snug text-[var(--ar-muted)] font-ui">
-                        IRR On Terminal Value Over Product Tenure Days
+                        IRR On Terminal Value Over Path Tenure Days
                       </p>
                       <p className="mt-3 font-display text-4xl tabular-nums text-[var(--ar-maroon)]">
                         {formatPct(s.irr, 3)}
