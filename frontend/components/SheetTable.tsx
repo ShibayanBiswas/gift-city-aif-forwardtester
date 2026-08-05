@@ -3,6 +3,7 @@
 import { DownloadButton } from "@/components/DownloadButton";
 import { withHorizontalMinus } from "@/lib/api";
 import { downloadExcel, type CellValue, type ColumnType } from "@/lib/download";
+import { stripBracketText } from "@/lib/plainText";
 
 const DEFAULT_STICKY_WIDTHS = [72, 118, 118];
 
@@ -78,14 +79,16 @@ export function SheetTable({
           Math.max(0, headers.length - stickyLeftCols) * 96,
       )
     : minWidth;
+  const cleanTitle = stripBracketText(title);
+  const cleanSubtitle = subtitle ? stripBracketText(subtitle) : undefined;
 
   return (
     <section className="sheet-card">
       <div className="flex flex-wrap items-end justify-between gap-3 border-b border-[var(--ar-border)] bg-gradient-to-r from-[var(--ar-table-head-from)] to-transparent px-5 py-4">
         <div>
           <p className="text-[10px] uppercase tracking-[0.2em] text-[var(--ar-subtle)] font-ui">Data Table</p>
-          <h3 className="font-display text-xl text-[var(--ar-maroon)]">{title}</h3>
-          {subtitle ? <p className="mt-1 text-sm text-[var(--ar-muted)] font-ui">{subtitle}</p> : null}
+          <h3 className="font-display text-xl text-[var(--ar-maroon)]">{cleanTitle}</h3>
+          {cleanSubtitle ? <p className="mt-1 text-sm text-[var(--ar-muted)] font-ui">{cleanSubtitle}</p> : null}
         </div>
         {!hideDownload ? (
           <DownloadButton
@@ -95,9 +98,9 @@ export function SheetTable({
                 headers,
                 (exportRows ?? rows).map((r) => r.map((c) => c)),
                 {
-                  sheetName: sheetName ?? title.slice(0, 31),
-                  title,
-                  subtitle,
+                  sheetName: sheetName ?? cleanTitle.slice(0, 31),
+                  title: cleanTitle,
+                  subtitle: cleanSubtitle,
                   columnTypes,
                 },
               )

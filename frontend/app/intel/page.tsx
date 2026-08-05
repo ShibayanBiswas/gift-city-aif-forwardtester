@@ -125,8 +125,8 @@ export default function IntelPage() {
                 Forward Calendar Dates
               </h2>
               <p className="mt-1 max-w-3xl text-sm leading-relaxed text-[var(--ar-muted)] font-ui">
-                Futures shift dates and monthly Nifty option expiry dates from As Of Today through Product End
-    (as-of month included when its monthly expiry is still ahead; prior month anchors roll Δt).
+                Futures shift dates and monthly Nifty option expiry dates from As Of Today through Product End.
+                Only shifts on or after As Of Today are listed. The prior month still anchors the first roll day-count.
               </p>
             </div>
             <div className="flex flex-wrap gap-2">
@@ -195,8 +195,8 @@ export default function IntelPage() {
           title="Futures Shift Dates"
           subtitle={
             rollDisplayRows.length
-              ? `${rollDisplayRows.length} monthly Nifty expiries from ${String(rollDisplayRows[0][1])} through ${String(rollDisplayRows[rollDisplayRows.length - 1][1])} (As Of ${asOfLabel} → Product End ${simEndLabel}).`
-              : `No futures shift dates between ${asOfLabel} and ${simEndLabel}.`
+              ? `${rollDisplayRows.length} monthly Nifty expiries from ${String(rollDisplayRows[0][1])} through ${String(rollDisplayRows[rollDisplayRows.length - 1][1])}. As Of Today ${asOfLabel} · Product End ${simEndLabel}.`
+              : `No futures shift dates from As Of Today ${asOfLabel} through Product End ${simEndLabel}.`
           }
           headers={["Row", "Futures Shift Date", "Weekday"]}
           rows={rollDisplayRows}
@@ -214,8 +214,8 @@ export default function IntelPage() {
           title="Nifty Option Expiries"
           subtitle={
             expiryDisplayRows.length
-              ? `${expiryDisplayRows.length} monthly expiries from ${String(expiryDisplayRows[0][1])} through ${String(expiryDisplayRows[expiryDisplayRows.length - 1][1])} (As Of ${asOfLabel} → Product End ${simEndLabel}).`
-              : `No monthly expiries between ${asOfLabel} and ${simEndLabel}.`
+              ? `${expiryDisplayRows.length} monthly expiries from ${String(expiryDisplayRows[0][1])} through ${String(expiryDisplayRows[expiryDisplayRows.length - 1][1])}. As Of Today ${asOfLabel} · Product End ${simEndLabel}.`
+              : `No monthly expiries from As Of Today ${asOfLabel} through Product End ${simEndLabel}.`
           }
           headers={["Row", "Expiry Date", "Weekday", "Contract"]}
           rows={expiryDisplayRows}
