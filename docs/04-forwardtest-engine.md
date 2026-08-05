@@ -109,18 +109,21 @@ Header chips: **As Of Today** · **Product End** · **Tenure Days** · **Monte C
 | Era | Sessions | Monthly expiry | Futures shift |
 |-----|----------|----------------|---------------|
 | Historical (≤ as-of) | Nifty CSV (holiday-aware) | NSE Thu→Tue via `calendar_build` + overrides | **= monthly option expiry** (`roll_shifts == expiries`) |
-| Forward (> as-of) | Mon–Fri + projected holidays | Same monthly-last builder | **= monthly option expiry** |
+| Forward (> as-of) | Mon–Fri + projected holidays | Same monthly-last builder; **as-of month kept** if expiry still ahead | **= monthly option expiry** |
 
 ### Backtester calc parity
 
 | Module | Parity |
 |--------|--------|
 | `black_scholes.py` | Byte-identical |
-| `nav.py` | Same ledger math; Forwardtester adds optional path-local roll points |
+| `calendar_build.py` / `market_sync.py` | Byte-identical |
+| `nav.py` | Same ledger math; Forwardtester adds optional path-local roll points (`roll_on_day`) |
 | Product rate defaults | Identical (Forwardtester adds Monte Carlo Paths; Simulation End Days is legacy/ignored) |
 | `_recompute_roll_costs` | Same 7% first-TD / later-calendar rules |
 | Futures / expiry calendars | Identical lists; `pin_current_month_roll_to_latest` is a deprecated no-op |
 | `hedge.py` | Same BS / contract math; observation Nifty taken from **path spots** (required for GBM; on history equals `market.nifty_on`) |
+
+Engines are a **forked twin** of Gift AIF Backtester (not a shared import package). Re-run `scripts/windup_suite.py` after engine edits.
 
 ---
 
@@ -135,7 +138,7 @@ Header chips: **As Of Today** · **Product End** · **Tenure Days** · **Monte C
 | Product End | Same Backtester `path_end_calendar`: ~5Y anniversary floored to prior month-end when tenure ∈ [1700, 2000]; else `start + tenure_days` |
 | Path count | **Monte Carlo Paths N** — default 1000; clamp 1…10000; free hosts ceiling ~2000 |
 | Spots | GBM along **path trading days only** (no weekend prices); S₀ = live as-of Nifty; independent seed per `path_id` |
-| Hedge / NAV | Identical engines to Gift AIF Backtester; spots come from path GBM |
+| Hedge / NAV | **Forked twin** engines to Gift AIF Backtester (`black_scholes` byte-identical; path spots / path rolls for GBM) |
 
 ### GBM matrix (parity with desk Monte Carlo Excel)
 

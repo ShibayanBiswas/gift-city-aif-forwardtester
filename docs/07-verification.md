@@ -34,7 +34,7 @@ Master index: [README.md](README.md).
 | First roll cost | **4.7713** index pts (19 trading days) |
 | Futures / expiry calendars | `roll_shifts == expiries` (hist + forward); holiday floor backward — Backtester parity |
 
-Auto-sync triggers: API startup · `GET /api/sync` · `scripts/sync_market_data.py`. Trading-day / roll counts move with sync — do not hardcode them in desk copy.
+Auto-sync triggers: API startup · first desk hit each calendar day · `GET /api/sync` · Vercel `/api/wake` cron · desk focus / Run · `scripts/sync_market_data.py`. Trading-day / roll counts move with sync — do not hardcode them in desk copy.
 
 ---
 
@@ -374,8 +374,29 @@ After `./start.ps1` / `./start.sh` or production deploy
 5. **Desk → Daily Ledger** — charts render for selected path.
 6. **Intel → Market Calendar** — futures shift / expiry **dates** only (no Nifty or roll-cost columns).
 7. **Intel → Monte Carlo Matrix** — preview + Download Excel matches Home file.
-8. **Header strip** — As Of Today · Simulation End · Simulation End Days · Trading Days · Monthly Expiries (horizon counts).
-9. **Production** — follow [08-deploy-vercel-render.md](08-deploy-vercel-render.md); Vercel `/api/health` proxies to Render.
+8. **Header strip** — As Of Today · Product End · Trading Days · Monthly Expiries (horizon counts; Simulation End Days is legacy/unused).
+9. **Production** — follow [08-deploy-vercel-render.md](08-deploy-vercel-render.md); Vercel `/api/wake` syncs market; `/api/health` proxies to Render.
+
+---
+
+## Wind-up confirmation (2026-08-05)
+
+| Gate | Result |
+|------|--------|
+| `scripts/windup_suite.py` | **15/15 PASS** (rolls, calendar, MC, parity, e2e, dynamic products, BS bytes) |
+| `audit_option_book_identity.py` | **PASS** — option book path-invariant; NAV = sum of components |
+| `audit_calc_deep.py` FT↔BT shared-roll NAV/IRR | **Exact match** (e.g. Total 88.954481 on GBM sample window; hist Path1 shared-roll identity holds) |
+| Futures shifts | `==` monthly option expiries (hist + forward); as-of month included when expiry still ahead |
+| Holiday snap | **Backward** only (Backtester / NSE) |
+| Product End | `path_end_calendar(asof, tenure)` — dynamic with as-of |
+| Daily as-of advance | Yahoo sync on day roll + cron + desk focus + Run |
+
+**Verdict: yes — you can wind up this project** for the Forwardtester scope (GBM Monte Carlo from live as-of through Product End, Backtester-parity hedge/NAV math, Intel calendars, deploy path).
+
+**Operational caveats (not blockers):**
+1. Engines are a **forked twin** of the Backtester (byte-identical `black_scholes` / `calendar_build` / `market_sync`; `nav`/`hedge` add path hooks). Re-run `windup_suite.py` after any engine edit.
+2. Completed Runs are **snapshots** of that day’s as-of — re-Run after market sync advances.
+3. Free-host path soft-cap (~2000) and Yahoo sync latency on cold start are deploy limits, not formula bugs.
 
 ---
 

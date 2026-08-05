@@ -20,6 +20,7 @@ SCRIPTS = [
     "verify_monte_carlo_paths.py",
     "audit_forward_parity.py",
     "audit_calc_deep.py",
+    "audit_option_book_identity.py",
     "audit_1000_limits.py",
     "e2e_edge_cases.py",
     "verify_monthly_excel.py",

@@ -151,7 +151,8 @@ When **Live**:
 | URL | Expect |
 |-----|--------|
 | `https://YOUR-SERVICE.onrender.com/api/health` | `"ok": true` |
-| `https://YOUR-SERVICE.onrender.com/api/ping` | Fast wake ping |
+| `https://YOUR-SERVICE.onrender.com/api/ping` | Fast wake ping (no market I/O) |
+| `https://YOUR-SERVICE.onrender.com/api/sync` | Yahoo + calendar sync (preferred daily) |
 | `https://YOUR-SERVICE.onrender.com/api/sync` | Market + horizon meta |
 | `https://YOUR-SERVICE.onrender.com/docs` | Swagger UI |
 
@@ -171,12 +172,15 @@ Copy the base URL (no path, no trailing slash) for Vercel `BACKEND_URL`.
 Browser → https://your-app.vercel.app/api/*  →  https://your-service.onrender.com/api/*
 ```
 
-`frontend/vercel.json` also schedules a daily wake cron:
+`frontend/vercel.json` schedules wake+sync crons (Render `BACKEND_URL`):
 
 ```text
-GET /api/wake   (cron: 0 3 * * *)  →  hits Render /api/ping using BACKEND_URL
+GET /api/wake   (cron: 0 3 * * *     UTC)       →  Render /api/sync (Yahoo + calendars)
+GET /api/wake   (cron: 15 10 * * 1-5 UTC)       →  same after NSE close (weekdays)
 ```
 
+Fallback: if `/api/sync` is unavailable, wake still tries `/api/ping` then `/api/health`.
+Desk focus / hourly refresh / Run also call `/api/sync` so As Of and Product End advance with the latest Nifty close.
 ### 2.2 Import Project
 
 1. Sign in to Vercel with GitHub.

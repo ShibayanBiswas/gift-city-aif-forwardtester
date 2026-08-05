@@ -586,22 +586,22 @@ export const logicModules: LogicModule[] = [
       },
       {
         title: "Spot lookup helpers",
-        body: "nifty_on floors to prior close; spots_for_dates uses contiguous slice optimisation when path dates align with market.dates indices.",
+        body: "Historical MarketDB uses nifty_on (floor to prior close). Forward GBM paths pass spots into hedge/nav; observation Nifty uses _spot_on_or_before on that path series.",
       },
       {
         title: "Roll cost construction",
-        body: "Seven percent carry on index futures: average spot over the shift interval times calendar day fraction. Stored once at load, indexed by date.",
+        body: "Seven percent carry on index futures: average spot over the shift interval times calendar day fraction. Historical series stored at load; each GBM path recomputes via path_roll_vector.",
         code: "roll = 0.07 × avg_spot × Δt_calendar / 365",
       },
       {
         title: "Futures shift calendar",
-        body: "Monthly-last option expiries double as futures shift dates. roll_shifts and roll_by_expiry stay in sync for Computation rollover rows.",
+        body: "Monthly-last option expiries double as futures shift dates (WF1 / Backtester). As-of month is included when its expiry is still ahead. roll_shifts and expiries stay in sync.",
       },
       {
         title: "NAV roll application",
-        body: "run_nav multiplies roll_on_day by cumulative futures position and scales to crores. Rolls stop after the last observation expiry.",
+        body: "run_nav multiplies roll_on_day by cumulative futures position and scales to crores. Rolls stop after the last observation expiry. Forward runs pass path_roll_vector; shared-roll identity matches Backtester.",
         bullets: [
-          "roll_on_day from rolls_for_dates",
+          "roll_on_day from path_roll_vector (GBM) or rolls_for_dates (hist)",
           "Masked when date > last_observation",
           "tax_ben = roll_cost × 0.42744",
         ],
@@ -783,11 +783,11 @@ export const logicModules: LogicModule[] = [
         kind: "process",
         description: "Each observation month m becomes target = start + m × 30.5 calendar days.",
         detail:
-          "build_observation_details iterates product.observation_months, computing offset_days = m × 30.5, target_date, and Nifty on target via market.nifty_on.",
+          "build_observation_details iterates product.observation_months, computing offset_days = m × 30.5 and target_date. Observation Nifty comes from path spots via _spot_on_or_before (equals market.nifty_on only when the path is historical).",
         bullets: [
           "Seven targets in sample (months 38…56)",
           "30.5-day month convention",
-          "obs_builds carries month, target, expiry, nifty",
+          "obs_builds carries month, target, expiry, nifty (UI / export)",
         ],
         steps: [
           "For each m in observation_months: offset = m × 30.5.",
@@ -946,11 +946,12 @@ export const logicModules: LogicModule[] = [
       },
       {
         title: "PathHedge outputs",
-        body: "Downstream nav.py consumes req_delta, last_observation, and obs_builds. Hedging Sheet UI renders legs and observation map from the same structure.",
+        body: "run_nav consumes req_delta and last_observation (plus path-local roll_on_day). obs_builds feed Hedging Sheet / Excel only — not the NAV ledger.",
         bullets: [
           "req_delta → futures inventory",
           "last_observation → roll cutoff",
-          "obs_builds → observation table",
+          "obs_builds → observation table (UI)",
+          "path_roll_vector → roll_on_day for GBM paths",
         ],
       },
     ],
