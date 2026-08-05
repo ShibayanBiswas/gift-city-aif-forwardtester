@@ -75,9 +75,23 @@ def main() -> int:
 
     trading = set(fwd.dates)
     # After as-of: futures shift == monthly option expiry (never month-end TD).
+    # As-of month is included when its expiry is still ahead (e.g. Aug expiry
+    # after an early-August as-of).
     fwd_rolls = [d for d in fwd.roll_shifts if asof < d <= horizon]
     fwd_exps = [e for e in fwd.expiries if asof < e <= horizon]
     assert fwd_rolls == fwd_exps, (fwd_rolls[:3], fwd_exps[:3])
+    assert fwd_rolls, "expected at least one forward monthly expiry"
+    # Prior hist shift (July when as-of is early August) must precede first forward.
+    hist_prior = [d for d in m.roll_shifts if d <= asof]
+    assert hist_prior, "expected historical roll calendar through as-of"
+    assert hist_prior[-1] < fwd_rolls[0], (hist_prior[-1], fwd_rolls[0])
+    # Current month: if scheduled monthly expiry is still after as-of, it must appear.
+    from calendar import monthrange
+
+    asof_me = date(asof.year, asof.month, monthrange(asof.year, asof.month)[1])
+    asof_month_exp = last_monthly_expiry_on_or_before(asof_me, trading, asof=horizon)
+    if asof_month_exp is not None and asof_month_exp > asof:
+        assert asof_month_exp == fwd_rolls[0], (asof_month_exp, fwd_rolls[0])
     for e in fwd_exps:
         assert e in trading, e
         me = _month_end(e)

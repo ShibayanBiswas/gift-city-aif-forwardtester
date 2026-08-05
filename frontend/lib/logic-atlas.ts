@@ -343,7 +343,7 @@ export const logicModules: LogicModule[] = [
         ],
         steps: [
           "_weekday_sessions(asof+1, product_end).",
-          "_forward_month_rolls_and_expiries for complete months after as-of.",
+          "_forward_month_rolls_and_expiries for months whose monthly expiry is still after as-of (as-of month included when still ahead).",
           "path_roll_vector(path.dates, path.spots, roll_shifts) for NAV.",
         ],
       },

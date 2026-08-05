@@ -122,7 +122,8 @@ export default function IntelPage() {
                 Forward Calendar Dates
               </h2>
               <p className="mt-1 max-w-3xl text-sm leading-relaxed text-[var(--ar-muted)] font-ui">
-                Futures shift dates and monthly Nifty option expiry dates from As Of Today through Product End.
+                Futures shift dates and monthly Nifty option expiry dates from As Of Today through Product End
+    (as-of month included when its monthly expiry is still ahead; prior month anchors roll Δt).
               </p>
             </div>
             <div className="flex flex-wrap gap-2">
@@ -189,7 +190,11 @@ export default function IntelPage() {
       {!loadError && tab === "rolls" ? (
         <SheetTable
           title="Futures Shift Dates"
-          subtitle={`${rollDisplayRows.length} dates from ${asOfLabel} through ${simEndLabel}.`}
+          subtitle={
+            rollDisplayRows.length
+              ? `${rollDisplayRows.length} monthly Nifty expiries from ${String(rollDisplayRows[0][1])} through ${String(rollDisplayRows[rollDisplayRows.length - 1][1])} (As Of ${asOfLabel} → Product End ${simEndLabel}).`
+              : `No futures shift dates between ${asOfLabel} and ${simEndLabel}.`
+          }
           headers={["Row", "Futures Shift Date", "Weekday"]}
           rows={rollDisplayRows}
           exportRows={rollExportRows}
@@ -204,7 +209,11 @@ export default function IntelPage() {
       {!loadError && tab === "expiries" ? (
         <SheetTable
           title="Nifty Option Expiries"
-          subtitle={`${expiryDisplayRows.length} monthly expiry dates from ${asOfLabel} through ${simEndLabel}.`}
+          subtitle={
+            expiryDisplayRows.length
+              ? `${expiryDisplayRows.length} monthly expiries from ${String(expiryDisplayRows[0][1])} through ${String(expiryDisplayRows[expiryDisplayRows.length - 1][1])} (As Of ${asOfLabel} → Product End ${simEndLabel}).`
+              : `No monthly expiries between ${asOfLabel} and ${simEndLabel}.`
+          }
           headers={["Row", "Expiry Date", "Weekday", "Contract"]}
           rows={expiryDisplayRows}
           exportRows={expiryExportRows}

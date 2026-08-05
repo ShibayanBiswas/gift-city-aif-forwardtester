@@ -5,11 +5,14 @@ Forward trading sessions (after last historical Nifty close = as-of):
     weekday gaps in ``nifty_daily.csv`` (month–day pattern of the last years).
   - Month lengths follow the real calendar (28/29/30/31), including leap Februaries.
 
-Forward event calendars (months strictly after as-of, complete months only):
+Forward event calendars (months whose monthly expiry is still after as-of):
   - **Futures shift / roll** = monthly-last Nifty **option expiry** (WF1 / Backtester).
   - **Monthly Nifty option expiry** = last Thursday (pre Sep-2025) or last Tuesday
     (from Sep-2025), snapped to the **previous** trading session when that weekday
     is a holiday (never forward to Wednesday).
+  - The as-of month is included when its expiry is still ahead (e.g. as-of early
+    August still lists that August monthly expiry; prior month July remains the
+    previous shift for roll-cost Δt).
 
 Horizon end is **Product End** = ``path_end_calendar(as-of, tenure_days)``
 (not a separate Simulation End Days control). Optional Path-1 GBM fill is
@@ -90,21 +93,24 @@ def _forward_month_rolls_and_expiries(
     after: date,
     end: date,
 ) -> tuple[list[date], list[date]]:
-    """Future monthly rolls and expiries for complete months after ``after``.
+    """Future monthly rolls and expiries from ``after`` through ``end``.
 
     Both calendars use the Backtester / WF1 rule:
       monthly-last Nifty option expiry (Thu→Tue era) with holiday floor **backward**.
-    Futures shift date == that expiry date. Incomplete pad months are skipped.
+    Futures shift date == that expiry date.
+
+    Includes the **as-of month** when its monthly expiry is still strictly after
+    ``after`` (e.g. as-of 03-Aug-2026 still emits 25-Aug-2026). Months whose
+    expiry has already passed (≤ as-of) are omitted. Incomplete pad months at
+    the horizon are skipped via ``asof=end``.
     """
     trading = set(trading_dates)
     rolls: list[date] = []
     expiries: list[date] = []
 
     for me in month_ends(after, end):
-        if (me.year, me.month) <= (after.year, after.month):
-            continue
-        # Same builder as Backtester; asof=end skips months whose scheduled weekday
-        # is still beyond the horizon (do not invent a floor onto the pad end).
+        # Do NOT skip the as-of calendar month — only skip if the monthly expiry
+        # itself is already on/before as-of (handled by exp <= after below).
         exp = last_monthly_expiry_on_or_before(me, trading, asof=end)
         if exp is None or exp <= after or exp > end:
             continue
