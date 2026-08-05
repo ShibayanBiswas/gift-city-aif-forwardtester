@@ -42,7 +42,7 @@ Metric chips (product meta, KPI band, GBM params, path meta, header market meta)
 
 **Product meta order:** Principal Amount · Product Start · Product End · Product Tenure · Observation Count · Active Option Legs · Monte Carlo Paths.
 
-**Tables:** cell text is never ellipsized — wide sheets scroll horizontally.
+**Tables:** cell text is never ellipsized — wide sheets scroll **horizontally and vertically** via `.sheet-table-scroll` (not `.desk-rail-scroll`, which is horizontal-only for chip rails). Sticky Path / Start / End columns stay frozen on Simulated Nifty Paths.
 
 **Sizing (desk lock):** cards are **compact** — ~10–10.5 rem min-width, moderate padding, value text ~1.05–1.28 rem (KPI means use `text-lg` / `text-xl`, not oversized `text-2xl`).
 

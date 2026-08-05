@@ -513,6 +513,38 @@ html.dark .desk-rail-scroll:focus-within::-webkit-scrollbar-thumb {
   background: color-mix(in srgb, var(--ar-gold) 48%, transparent);
 }
 
+/* Data tables (Simulated Nifty Paths, ledger sheets) — both axes scroll. */
+.sheet-table-scroll {
+  width: 100%;
+  overflow: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-gutter: stable;
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, var(--ar-gold) 45%, transparent) transparent;
+}
+.sheet-table-scroll::-webkit-scrollbar {
+  height: 8px;
+  width: 8px;
+}
+.sheet-table-scroll::-webkit-scrollbar-track {
+  background: color-mix(in srgb, var(--ar-border) 55%, transparent);
+  border-radius: 999px;
+}
+.sheet-table-scroll::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--ar-gold) 55%, var(--ar-maroon) 18%);
+}
+.sheet-table-scroll::-webkit-scrollbar-corner {
+  background: transparent;
+}
+html.dark .sheet-table-scroll {
+  scrollbar-color: color-mix(in srgb, var(--ar-gold) 40%, transparent) transparent;
+}
+html.dark .sheet-table-scroll::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--ar-gold) 48%, transparent);
+}
+
 /* Alias kept for older class names in pages */
 .desk-card-rail {
   width: 100%;
