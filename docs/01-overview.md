@@ -18,10 +18,10 @@ The web app is a **live reimplementation** of `Gift AIF Working File 1.xlsm` hed
 |------------|--------|
 | Any product input | Parse principal, tenure days, Monte Carlo Paths, observation months, option book |
 | Forward path atlas | **Single tenure window**: Start = as-of; End = **Product End** = `path_end_calendar(asof, tenure)` for every path |
-| Forward calendars | Sat/Sun closed; monthly expiry = last Tuesday; futures shift = last trading day of month; leap/30/31 aware |
+| Forward calendars | Sat/Sun closed; monthly expiry = futures shift = last Thu/Tue (era) with holiday floor **backward**; leap/30/31 aware |
 | Hedging Sheet parity | Same as Backtester: `month × 30.5` → expiry map; options book; required futures delta (obs Nifty from path spots) |
 | Computation | MTM, rolls, cash, G-Sec, fees, tx, NAV, IRR — same formulas; Forwardtester feeds **path-local** roll points |
-| Historical roll calendar | Same as Backtester: finished months = monthly option expiry; open month pinned via `pin_current_month_roll_to_latest` |
+| Historical roll calendar | Same as Backtester: **every** month's futures shift = monthly option expiry (`roll_shifts == expiries`) |
 | Header horizon strip | **As Of Today** · Product End · Tenure Days · Monte Carlo Paths · Trading Days · Monthly Expiries — full-width equal cards |
 | Intel · Market Calendar | Shared futures shift dates · monthly last-Tuesday expiries (no path prices) |
 | GBM paths | Matrix like desk Monte Carlo Excel: vertical path ids \(1…N\); columns = **trading dates**; \(S_t = S_{t-1}\cdot\exp(\mathrm{drift}+\sigma Z)\); μ/σ from **2001→as-of** every Run |
@@ -68,7 +68,7 @@ Product_Input_File.xlsx (or upload)
  ▼
  forward_calendar.py → Mon–Fri pad to Product End (calendar dates only)
                          · last-Tuesday monthly expiries
-                         · month-end futures shifts
+                         · futures shifts = monthly option expiries
  │
  ▼
  paths.py + mc_matrix.py → N identical tenure windows (Start = as-of, End = Product End)
@@ -93,7 +93,7 @@ Sheet-level mirror map: [02-excel-sheet-logic.md](02-excel-sheet-logic.md). Modu
 
 ## Path Identity Checks (Hedge / NAV Parity Anchors)
 
-Forwardtester **path starts are from as-of**, not 2001 Macro Path pins. The rows below are **Backtester / WF1 gold pins** used to keep `hedge.py` + `nav.py` byte-identical when fed the same historical spots. Full tables: [09-formulas-and-product-books.md](09-formulas-and-product-books.md) §11 · [07-verification.md](07-verification.md).
+Forwardtester **path starts are from as-of**, not 2001 Macro Path pins. The rows below are **Backtester / WF1 gold pins** used to keep hedge/NAV **math-identical** when fed the same historical spots (`black_scholes.py` is byte-identical; `nav.py`/`hedge.py` share formulas with path-spot/roll hooks). Full tables: [09-formulas-and-product-books.md](09-formulas-and-product-books.md) §11 · [07-verification.md](07-verification.md).
 
 | Check | Expected |
 |-------|----------|
@@ -101,7 +101,7 @@ Forwardtester **path starts are from as-of**, not 2001 Macro Path pins. The rows
 | WF1 Path 1 Total | **180.7724201145** Cr WF1 · engine Δ ≈ 10⁻⁸ |
 | WF1 Path 10 Total | **216.4729879081** Cr WF1 · engine Δ ≈ 10⁻⁷ |
 | First futures roll (hist) | 19 TD from Jan-2001 → ≈ **4.7713** pts |
-| Open-month futures roll | Pinned to latest Nifty session (`pin_current_month_roll_to_latest`) — Backtester parity |
+| Futures / expiry calendars | Identical (`roll_shifts == expiries`); holiday snap backward — Backtester / WF1 parity |
 | Forward Path 1…N | Each starts on **As Of Today**; ends on **Product End** (`path_end_calendar`) |
 | Header Trading Days / Expiries | Count **as-of → Product End** (Mon–Fri; last-Tuesday expiries) |
 | Intel columns | Row / dates / levels only — **no Source** column (Backtester UI parity) |

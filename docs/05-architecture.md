@@ -35,7 +35,7 @@ gift-city-aif-forwardtester/   # https://github.com/ShibayanBiswas/gift-city-aif
 └── scripts/                   # verify_*, sync_market_data, build_product_input
 ```
 
-**Note:** Forwardtester does **not** use Macro Paths CSV pins for the forward atlas. Historical roll open-month pin matches Backtester via `pin_current_month_roll_to_latest`.
+**Note:** Forwardtester does **not** use Macro Paths CSV pins for the forward atlas. Futures shifts equal monthly option expiries on load/sync and on the forward pad (same as Backtester / WF1).
 
 **Local only (gitignored):** `Gift AIF Working File 1.xlsm`, `AIF - Notes.xlsx`, `.env` — never commit secrets.
 
@@ -48,8 +48,8 @@ gift-city-aif-forwardtester/   # https://github.com/ShibayanBiswas/gift-city-aif
 | Product | `product.py` | `.xlsx` upload / sample | `ProductSpec` (+ tenure, Monte Carlo Paths) |
 | Market | `market.py` | `data/*.csv` | Historical `MarketDB`, lookups, cache |
 | Market sync | `market_sync.py` | Yahoo API, CSVs | Updated CSVs through present (as-of) |
-| Calendar (hist) | `calendar_build.py` | Overrides, NSE eras, **`pin_current_month_roll_to_latest`** | Historical expiries / open-month roll pin |
-| Forward calendar | `forward_calendar.py` | Hist market, horizon | Mon–Fri pad, month-end rolls, last-Tue expiries |
+| Calendar (hist) | `calendar_build.py` | Overrides, NSE eras, `last_monthly_expiry_on_or_before` | Historical expiries (= futures shifts) |
+| Forward calendar | `forward_calendar.py` | Hist market, horizon | Mon–Fri pad; rolls = monthly option expiries |
 | GBM | `gbm.py` | Historical returns **2001→as-of** | μ/σ/drift (dynamic each Run), `gbm_spots` |
 | Monte Carlo matrix | `mc_matrix.py` | GbmParams, horizon dates, n_paths | Path×date matrix, `.npz`, Excel export |
 | Paths | `paths.py` | Market, product, n_paths | Forward `PathSpec[]` (as-of → Product End; frequency ignored) |
@@ -230,7 +230,7 @@ Do **not** hardcode “235 Macro Paths” or frequency-driven path counts in ops
 | BS Forward / Discount | 6.6% / 7.6% |
 | Path 1 Total | ≈ 180.7724 Cr (WF1 / Backtester historical gold — hedge/NAV parity) |
 | Forward path count | **Monte Carlo Paths N** (default 1000) — no fixed 235 Macro Path pin file; no frequency start grid |
-| Open-month hist roll | `pin_current_month_roll_to_latest` through latest Nifty session |
+| Futures / expiry calendars | `roll_shifts = list(expiries)` on load + sync; forward pad same rule |
 
 ---
 

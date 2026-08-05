@@ -32,7 +32,7 @@ Master index: [README.md](README.md).
 | Nifty daily | 2001-01-01 → **latest session** (e.g. 2026-07-31 after sync) |
 | First roll shift | 2001-01-25 |
 | First roll cost | **4.7713** index pts (19 trading days) |
-| Open-month roll | Pinned to latest Nifty session (`pin_current_month_roll_to_latest`) — Backtester parity |
+| Futures / expiry calendars | `roll_shifts == expiries` (hist + forward); holiday floor backward — Backtester parity |
 
 Auto-sync triggers: API startup · `GET /api/sync` · `scripts/sync_market_data.py`. Trading-day / roll counts move with sync — do not hardcode them in desk copy.
 
@@ -46,7 +46,7 @@ Auto-sync triggers: API startup · `GET /api/sync` · `scripts/sync_market_data.
 | `nav.py` / `hedge.py` | Same ledger / contract math; FT uses path spots and path-local roll points |
 | Product rate defaults | Identical (Forwardtester adds Monte Carlo Paths) |
 | First roll | 19 TD → ≈ 4.7713 |
-| Open-month pin | `pin_current_month_roll_to_latest` on `load_market` + sync |
+| Futures shift builder | `shifts = list(expiries)` on `load_market` + sync; forward pad uses `last_monthly_expiry_on_or_before` |
 | Hedge observation Nifty | Path spot on/before expiry (equals `market.nifty_on` on history) |
 
 ```powershell
@@ -65,10 +65,10 @@ Horizon = **As Of Today** → **Product End** (`path_end_calendar(as-of, tenure)
 | Sessions | Mon–Fri only — **zero** Sat/Sun closes after as-of |
 | Month lengths | Real calendar (28/29/30/31; leap Feb e.g. 2028-02-29) |
 | Monthly option expiry | **Last Tuesday** of each complete month ≤ Product End |
-| Futures shift | **Last trading day** (last Mon–Fri) of each complete month |
+| Futures shift | **Monthly option expiry** (same date list as Expiry sheet) |
 | Roll cost (first) | `avg(TD closes ≤ first shift) × 7% × N_td/365` — **19** TDs → ≈ **4.7713** |
 | Roll cost (later) | `avg(TD closes in (prev, shift]) × 7% × calendar_Δt/365` — Sat/Sun in Δt, not in avg |
-| Open-month hist roll | Pinned to latest Nifty session (Backtester `pin_current_month_roll_to_latest`) |
+| Open-month hist roll | No last-TD pin — incomplete open month emits no shift until its option expiry exists |
 | Path spots | GBM on path trading days only; hedge/NAV = Backtester engines |
 | Dynamic as-of | After deploy / `/api/sync`, as-of and Product End advance with latest Nifty |
 | Intel UI | Market Calendar = shared dates; path Nifty / rolls on Hedging / MC Matrix |
@@ -384,8 +384,8 @@ After `./start.ps1` / `./start.sh` or production deploy
 | Change | Minimum checks |
 |--------|----------------|
 | `nav.py`, `hedge.py`, roll logic | Smoke Path 1 + Path 10 + `verify_monthly_excel.py` + `verify_roll_costs.py` |
-| `calendar_build` pin / market sync | Open-month roll = last Nifty date; first roll ≈ 4.7713 |
-| `product.py` / Product Input sample | Six-leg book guard + Path 1 total + Simulation End Days default 7300 |
+| `calendar_build` / market sync | `roll_shifts == expiries`; first roll ≈ 4.7713; holiday floor backward |
+| `product.py` / Product Input sample | Six-leg book guard + Path 1 total; horizon = tenure Product End (Simulation End Days ignored) |
 | Market CSVs / sync | `/api/sync` meta + first roll cost ≈ 4.7713 |
 | Path builder / tenure / forward calendar | `verify_forward_calendar.py` + dynamic product suite |
 | `gbm.py` / `mc_matrix.py` | Home download Excel: 2001→as-of params + date columns; MC Matrix differs by path |

@@ -22,9 +22,9 @@ Product Excel (Product_Input_File.xlsx or upload)
  forward_calendar.py + paths.py + mc_matrix.py
    As-of = latest Nifty session (dynamic after deploy)
    Product End = path_end_calendar(asof, tenure)
-   Forward sessions = Mon–Fri only (Sat/Sun closed)
-   Forward rolls = last trading day of each month
-   Forward monthly expiries = last Tuesday of each month
+   Forward sessions = Mon–Fri only (Sat/Sun closed; projected holidays excluded)
+   Forward rolls = monthly option expiries (same as Expiry sheet)
+   Forward monthly expiries = last Thu/Tue by NSE era (holiday → previous session)
    Every path: Start = as-of, End = Product End (N independent GBM seeds)
    Logical GBM matrix: rows = paths, columns = trading dates — **never held fully in RAM**
    Each path regenerates its GBM row from seed + params on demand
@@ -52,12 +52,12 @@ Sheet mirror reference: [02-excel-sheet-logic.md](02-excel-sheet-logic.md). API 
 | Product parser | `product.py` | Excel → `ProductSpec`, tenure, Monte Carlo Paths, legs |
 | Market loader | `market.py` | Historical CSV load, `nifty_on`, roll model, LRU cache |
 | Market sync | `market_sync.py` | Yahoo `^NSEI` append through present; historical calendars |
-| Forward calendar | `forward_calendar.py` | Mon–Fri pad, month-end roll *dates*, last-Tuesday expiries |
+| Forward calendar | `forward_calendar.py` | Mon–Fri pad; rolls = monthly option expiries |
 | Path rolls | `market.path_roll_vector` | 7% points from that path's GBM spots |
 | GBM | `gbm.py` | Estimate μ/σ from history **2001 → as-of** (dynamic); per-path `gbm_spots` |
 | Monte Carlo matrix | `mc_matrix.py` | Build / persist / Excel-export path×date Nifty grid |
 | Path builder | `paths.py` | N copies of one tenure window (as-of → Product End) |
-| Expiry builder | `calendar_build.py` | Historical NSE expiries (Thu→Tue era); `month_ends`; **`pin_current_month_roll_to_latest`** (Backtester parity) |
+| Expiry builder | `calendar_build.py` | Historical NSE expiries (Thu→Tue era); `month_ends`; holiday floor **backward** |
 | Hedging | `hedge.py` | Observations, legs, required futures delta (Backtester math; obs Nifty from path spots for GBM) |
 | Black–Scholes | `black_scholes.py` | Forward/discount puts, central ±0.5 delta — **byte-identical to Backtester** |
 | NAV / Computation | `nav.py` | Futures inventory, MTM, rolls, cash, Gsec, fees, tx, total, IRR — same ledger as Backtester; Forwardtester passes path-local roll points |
@@ -90,25 +90,26 @@ Header chips: **As Of Today** · **Product End** · **Tenure Days** · **Monte C
 - From the day **after** as-of through Product End (plus a short pad for path tenure / observations).
 - **Monday–Friday only.** Saturday and Sunday never receive a close.
 - Real calendar stepping: January 31, April 30, February 28 / **29 in leap years** (e.g. 2028-02-29) are handled via `datetime` month arithmetic (`month_ends`).
-- Forward pad does **not** model NSE holidays — every weekday is a session.
+- Forward pad **projects** recent historical weekday holidays onto future month–days (`project_holidays`) so expiry holiday floors can snap backward correctly.
 
 ### Futures shift / roll (forward months)
 
-- **Last trading day of each calendar month** = last Mon–Fri on/before the real month-end.
-- Only **complete** months are emitted (true month-end weekday must lie on the trading calendar and on/before the horizon). Truncated pad months never invent a fake shift on the pad’s last day.
+- **Monthly-last Nifty option expiry** for each complete month after as-of (same date as the Expiry calendar).
+- Holiday rule: scheduled Thu/Tue floored to the **previous** trading session — never forward to Wednesday.
+- Truncated pad months never invent a fake shift on the pad’s last day.
 - Roll **cost** = same 7% average-spot × day-fraction model as the Backtester (`path_roll_vector` / `_recompute_roll_costs`), recomputed on **that path's** GBM closes. Historical CSV seeds through as-of are for estimation / hist calendar only.
 
 ### Monthly Nifty option expiry (forward months)
 
-- **Last Tuesday** of each calendar month.
-- Same completeness guard as rolls (Tuesday must be on the calendar and ≤ horizon).
+- Same builder as Backtester: `last_monthly_expiry_on_or_before` (Thu era → Tue era from Sep-2025).
+- **Identical** to the futures shift list for those months.
 
 ### Historical vs forward (do not conflate)
 
 | Era | Sessions | Monthly expiry | Futures shift |
 |-----|----------|----------------|---------------|
-| Historical (≤ as-of) | Nifty CSV (holiday-aware) | NSE Thu→Tue via `calendar_build` + overrides | Monthly option expiry; **open month pinned** to latest Nifty session (`pin_current_month_roll_to_latest`) |
-| Forward (> as-of) | Mon–Fri synthetic | Last Tuesday | Last trading day of month |
+| Historical (≤ as-of) | Nifty CSV (holiday-aware) | NSE Thu→Tue via `calendar_build` + overrides | **= monthly option expiry** (`roll_shifts == expiries`) |
+| Forward (> as-of) | Mon–Fri + projected holidays | Same monthly-last builder | **= monthly option expiry** |
 
 ### Backtester calc parity
 
@@ -118,7 +119,7 @@ Header chips: **As Of Today** · **Product End** · **Tenure Days** · **Monte C
 | `nav.py` | Same ledger math; Forwardtester adds optional path-local roll points |
 | Product rate defaults | Identical (Forwardtester adds Monte Carlo Paths; Simulation End Days is legacy/ignored) |
 | `_recompute_roll_costs` | Same 7% first-TD / later-calendar rules |
-| `pin_current_month_roll_to_latest` | Same open-month pin on historical load + sync |
+| Futures / expiry calendars | Identical lists; `pin_current_month_roll_to_latest` is a deprecated no-op |
 | `hedge.py` | Same BS / contract math; observation Nifty taken from **path spots** (required for GBM; on history equals `market.nifty_on`) |
 
 ---
@@ -174,7 +175,7 @@ Downloads:
 Therefore:
 
 - **No** shared “Market Reference Workbook” of forward Nifty closes
-- **Yes** shared calendar rules (Mon–Fri sessions, last-Tuesday expiries, month-end roll *dates*)
+- **Yes** shared calendar rules (Mon–Fri sessions; monthly option expiry = futures shift)
 - **Yes** path-local Nifty, expiry marks, and roll *points* (Hedging / Computation / Monte Carlo Matrix)
 
 There are **no** Macro Paths CSV pins (235 historical windows). Those belong to the Backtester.
@@ -232,7 +233,7 @@ Same daily ledger as the Backtester: futures inventory, MTM, 7% rolls (gated aft
 
 | Sheet | Range | Columns (no Source) | Content |
 |-------|-------|---------------------|---------|
-| Market Calendar · Futures shifts | as-of → Product End | Row · Shift Date · Weekday | Month-end trading days (dates only) |
+| Market Calendar · Futures shifts | as-of → Product End | Row · Shift Date · Weekday | Monthly option expiry dates (identical to Expiry sheet) |
 | Market Calendar · Expiries | as-of → Product End | Row · Expiry · Weekday · Contract | Last Tuesdays (dates only) |
 | Monte Carlo Matrix | all paths × all horizon dates | Path \\ Date · desk dates | Full grid + Excel (same as Home download); on-screen preview samples early + late dates |
 | Hedging / Computation | selected path tenure | Path Nifty · roll points · obs marks | Per-path GBM + `path_roll_vector` |
@@ -249,7 +250,7 @@ See [02-excel-sheet-logic.md](02-excel-sheet-logic.md) for WF1 sheet names vs en
 | Historical Nifty ≤ as-of | Yes | μ / σ / S₀ estimation sample |
 | Forward session calendar | Yes | Mon–Fri dates to Product End |
 | Monthly expiry dates | Yes | Last Tuesday of complete months |
-| Futures shift dates | Yes | Last Mon–Fri of complete months |
+| Futures shift dates | Yes | Monthly option expiries (identical list) |
 | Simulated Nifty closes | **No — per path** | `gbm_spots(..., path_id)` |
 | Roll *points* | **No — per path** | `path_roll_vector(dates, spots, shifts)` |
 | Obs Nifty / deltas / NAV | **No — per path** | hedge + nav on path spots |

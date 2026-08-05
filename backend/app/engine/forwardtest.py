@@ -256,7 +256,7 @@ def _init_worker(payload: dict[str, Any]) -> None:
 
 
 def _eval_chunk(windows: list[tuple[int, str, str]]) -> list[dict[str, Any]]:
-    """Evaluate a batch of (path_id, start, end) staggered tenure windows."""
+    """Evaluate a batch of (path_id, start, end) windows (identical tenure; GBM seed differs)."""
     assert _WORKER_PRODUCT is not None and _WORKER_MARKET is not None
     assert _WORKER_PARAMS is not None
     product = _WORKER_PRODUCT

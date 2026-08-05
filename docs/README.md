@@ -24,10 +24,10 @@ Gift City AIF Forwardtester projects structured-unit outcomes from **As Of Today
 | Monte Carlo Paths | default **1000**; presets **100 / 500 / 1000 / 5000 / 10000** or Custom 1…10000; confirm at **≥ 5000**; free hosts clamp near **2000** |
 | Header chips | As Of Today · Product End · Tenure Days · Monte Carlo Paths · Trading Days · Monthly Expiries — full-width equal cards |
 | Horizon (legacy) | **Simulation End Days** / frequency start grids are **ignored** — not the horizon |
-| Forward calendar | Mon–Fri; last-Tuesday monthly expiry; month-end futures shift |
+| Forward calendar | Mon–Fri (+ projected holidays); monthly option expiry = futures shift (Thu→Tue era; holiday → prior session) |
 | Roll cost | First = trading-day count (19 → ≈4.7713); later = calendar Δt; weekends never in avg |
-| Historical open month | `pin_current_month_roll_to_latest` (Backtester-identical) |
-| Hedge / NAV | `black_scholes` identical to Backtester; `nav`/`hedge` add path-local roll points / spots |
+| Futures / expiry calendars | Identical lists: `roll_shifts == expiries` (WF1 / Backtester) — no open-month last-TD pin |
+| Hedge / NAV | `black_scholes` byte-identical; `nav`/`hedge` add path-local roll points / spots |
 | GBM μ / σ | **Dynamic** every Run from Nifty **2001-01-01 → today’s as-of** (`estimate_gbm_params`) |
 | GBM matrix | Rows = path \(1…N\); cols = **trading dates** as-of→Product End; \(S_t = S_{t-1}\cdot\exp(\mathrm{drift}+\sigma Z)\) |
 | Path count | User / product **N** (Monte Carlo Paths) — not f(frequency, horizon) |

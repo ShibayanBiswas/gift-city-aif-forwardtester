@@ -195,8 +195,8 @@ Maps to engine modules in [04-forwardtest-engine.md](04-forwardtest-engine.md) a
 
 ```
 Product Input → product.py (+ tenure · Monte Carlo Paths)
-Market CSVs → market.py / market_sync.py (+ pin_current_month_roll_to_latest)
-Forward pad → forward_calendar.py (Mon–Fri · last-Tue · month-end rolls)
+Market CSVs → market.py / market_sync.py (shifts = monthly expiries)
+Forward pad → forward_calendar.py (Mon–Fri · monthly expiry = futures shift)
 Path windows → paths.py + gbm.py (as-of → Product End; N seeds; no 235 CSV pins)
 Hedging Sheet → hedge.py + black_scholes.py
 Computation → nav.py

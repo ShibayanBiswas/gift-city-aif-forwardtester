@@ -14,7 +14,7 @@ This document explains what each WF1 sheet does and how the Python engine mirror
 | Excel Sheet | Engine module(s) | Data / UI | Role |
 |-------------|------------------|-----------|------|
 | Macro Paths | `paths.py`, `gbm.py`, `forward_calendar.py` | Paths tab | **Forward** Monte Carlo: N copies of one tenure window as-of → Product End (no 235 CSV pins) |
-| Roll Cost + Paths | `market.py`, `market_sync.py`, `forward_calendar.py` | `nifty_daily.csv`, `roll_costs.csv` · Intel | Historical through as-of; forward Mon–Fri closes + month-end shifts |
+| Roll Cost + Paths | `market.py`, `market_sync.py`, `forward_calendar.py` | `nifty_daily.csv`, `roll_costs.csv` · Intel | Historical through as-of; forward Mon–Fri closes + monthly option-expiry shifts |
 | Expiry | `calendar_build.py`, `forward_calendar.py` | `nifty_expiries.csv` · Intel | Historical NSE calendar; forward = last Tuesday of each month |
 | As per HS | `hedge.py`, `black_scholes.py`, `product.py` | Hedging Sheet UI | Observations + options book + Req. Delta (Backtester-identical) |
 | Computation | `nav.py` | Computation / Daily Ledger UI | Daily NAV / result block (Backtester-identical) |
@@ -69,11 +69,14 @@ Roll uses a **7% futures carry model** — separate from BS Forward 6.6% on the 
 | First month | `avg(Nifty on trading days ≤ first shift) × 7% × N_td/365` | **19** = trading days from 2001-01-01 through 2001-01-25 → ≈ **4.7713** pts. Sat/Sun never in avg or count. |
 | Later months | `avg(Nifty on trading days in (prev, shift]) × 7% × (calendar days between shifts) / 365` | Calendar Δt between shift dates (Sat/Sun **in** Δt; not in avg) |
 
-### Historical open-month pin (Backtester parity)
+### Futures / expiry calendars (Backtester / WF1 parity)
 
-Finished months keep monthly option-expiry shifts. The **current / terminal** Nifty month uses `pin_current_month_roll_to_latest`: roll date = latest session in `nifty_daily.csv` for that month (same as Gift AIF Backtester). Hedging Sheet monthly expiries stay on true option dates — do not reuse this helper for them.
+**Every** month's futures shift date = that month's monthly-last Nifty option expiry
+(`roll_shifts == expiries`). There is no open-month last-trading-day pin.
+`pin_current_month_roll_to_latest` is a deprecated no-op kept for import safety.
 
-Verify: `scripts/verify_roll_costs.py`.
+Verify: `scripts/verify_roll_costs.py`, `scripts/verify_forward_calendar.py`,
+`scripts/verify_nifty_expiries.py` (`rolls_eq_monthly=True`).
 
 ### Maintenance and auto-sync
 
@@ -82,17 +85,18 @@ Working File Excel historically stops mid-year. The engine **extends** futures s
 **Daily auto-sync** (`market_sync.sync_market_to_present` — API startup + `GET /api/sync` + `scripts/sync_market_data.py`)
 
 1. Append missing `^NSEI` closes through today
-2. Extend roll shifts + monthly expiries through last Nifty date
+2. Extend roll shifts + monthly expiries through last Nifty date (`shifts = list(expiries)`)
 3. Clear market LRU cache so Intel / Hedging / Computation see present calendars
 
-**Engine rule:** never invent a roll on an option-only expiry that is not a futures shift date.
+**Engine rule:** futures shift dates and monthly option expiries are the same calendar.
 
 ### Forwardtester pad (after as-of)
 
 | Rule | Detail |
 |------|--------|
-| Sessions | Mon–Fri only through Product End — no Sat/Sun closes |
-| Futures shift | **Last trading day of each calendar month** |
+| Sessions | Mon–Fri through Product End, minus projected holidays — no Sat/Sun closes |
+| Futures shift | **Monthly option expiry** (last Thu/Tue by NSE era; holiday → previous session) |
+| Monthly expiry | Same date as futures shift |
 | Roll cost | Same 7% model on **each path's** GBM closes (path_roll_vector) |
 | Incomplete months | Skipped — never invent a shift on a truncated pad day |
 
