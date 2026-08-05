@@ -1222,10 +1222,9 @@ html.dark .desk-select {
 }
 .logic-pipeline-item {
   display: flex;
-  /* Same horizontal footprint as before — only vertical height grows with description lines. */
+  /* Horizontal size unchanged from original desk cards. */
   flex: 1 0 10.5rem;
   min-width: 10.5rem;
-  max-width: 100%;
   align-items: stretch;
   gap: 0.3rem;
 }
@@ -1233,9 +1232,10 @@ html.dark .desk-select {
   flex: 1 1 auto;
   width: 100%;
   min-width: 0;
-  /* Baseline width unchanged; height grows for longer description copy. */
+  /* Floor = previous card height; grows taller only when description needs more lines. */
   min-height: 9.25rem;
   height: auto;
+  overflow: visible;
 }
 .logic-flow-arrow {
   margin: 0;
@@ -1271,6 +1271,7 @@ html.dark .desk-select {
     flex: 0 0 auto;
     min-height: 9.5rem;
     height: auto;
+    overflow: visible;
   }
 }
 

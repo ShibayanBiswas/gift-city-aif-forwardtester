@@ -97,7 +97,7 @@ function FlowNode({
   return (
     <motion.button
       className={cn(
-        "logic-node group relative min-w-0 w-full flex-1 overflow-hidden rounded-xl border px-3 py-2.5 text-left shadow-sm transition-all duration-200",
+        "logic-node group relative min-w-0 w-full flex-1 rounded-xl border px-3 py-2.5 text-left shadow-sm transition-all duration-200",
         `logic-node--${node.kind}`,
         colors.border,
         colors.bg,
@@ -127,14 +127,13 @@ function FlowNode({
             {node.kind}
           </p>
         </div>
-        <div className="min-w-0 flex-1">
+        <div className="min-w-0">
           <p className="text-[0.95rem] font-semibold leading-snug text-[var(--ar-ink)]">{node.label}</p>
-          <p className="mt-1 line-clamp-5 text-[11px] leading-snug text-[var(--ar-muted)] font-ui">
-            {blurb}
-          </p>
+          {/* No line-clamp — width stays fixed; vertical height grows with description lines. */}
+          <p className="mt-1 text-[11px] leading-snug text-[var(--ar-muted)] font-ui">{blurb}</p>
         </div>
         {chip ? (
-          <p className="logic-node__chip font-ui">{chip}</p>
+          <p className="logic-node__chip mt-auto font-ui">{chip}</p>
         ) : null}
       </div>
     </motion.button>
@@ -231,7 +230,7 @@ export function LogicModuleCard({
             </div>
           ))}
         </div>
-        <p className="mt-2.5 line-clamp-2 text-xs leading-snug text-[var(--ar-muted)] font-ui">{module.purpose}</p>
+        <p className="mt-2.5 text-xs leading-snug text-[var(--ar-muted)] font-ui">{module.purpose}</p>
       </div>
     </button>
   );
