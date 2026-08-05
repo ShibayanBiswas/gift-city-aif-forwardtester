@@ -1052,7 +1052,8 @@ html.dark .desk-select {
   display: flex;
   height: 100%;
   width: 100%;
-  min-height: 11.5rem;
+  /* Match Backtester width via --logic-module-card-width; slight height room for live date metrics + purpose. */
+  min-height: 12.75rem;
   flex-direction: column;
   overflow: hidden;
   border-radius: 0.9rem;
@@ -1222,8 +1223,10 @@ html.dark .desk-select {
 }
 .logic-pipeline-item {
   display: flex;
+  /* Same flex basis as Backtester; max-width locks live width so long blurbs cannot inflate cards. */
   flex: 1 0 10.5rem;
   min-width: 10.5rem;
+  max-width: 28.875rem; /* ≈462px — measured Backtester Active Pipeline @1440 / 5 steps */
   align-items: stretch;
   gap: 0.3rem;
 }
@@ -1231,7 +1234,16 @@ html.dark .desk-select {
   flex: 1 1 auto;
   width: 100%;
   min-width: 0;
-  min-height: 9.25rem;
+  max-width: 100%;
+  /* Taller than Backtester 9.25rem so +3–4 description lines fit (line-clamp-6). */
+  min-height: 12.5rem;
+  height: auto;
+  overflow: hidden;
+}
+.logic-pipeline-item .logic-node p {
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 .logic-flow-arrow {
   margin: 0;
@@ -1261,11 +1273,13 @@ html.dark .desk-select {
   .logic-pipeline-item {
     flex: 0 0 auto;
     min-width: min(15.5rem, 72vw);
+    max-width: min(18rem, 85vw);
   }
   .logic-pipeline-item .logic-node {
     width: min(15.5rem, 72vw);
     flex: 0 0 auto;
-    min-height: 9.5rem;
+    min-height: 13rem;
+    height: auto;
   }
 }
 

@@ -129,7 +129,8 @@ function FlowNode({
         </div>
         <div className="min-w-0 flex-1">
           <p className="text-[0.95rem] font-semibold leading-snug text-[var(--ar-ink)]">{node.label}</p>
-          <p className="mt-1 line-clamp-3 text-[11px] leading-snug text-[var(--ar-muted)] font-ui">
+          {/* Backtester width; +3–4 description lines vs BT line-clamp-3. */}
+          <p className="mt-1 line-clamp-6 text-[11px] leading-snug text-[var(--ar-muted)] font-ui">
             {blurb}
           </p>
         </div>
@@ -231,7 +232,9 @@ export function LogicModuleCard({
             </div>
           ))}
         </div>
-        <p className="mt-2.5 line-clamp-2 text-xs leading-snug text-[var(--ar-muted)] font-ui">{module.purpose}</p>
+        <p className="mt-auto pt-2.5 line-clamp-3 text-xs leading-snug text-[var(--ar-muted)] font-ui">
+          {module.purpose}
+        </p>
       </div>
     </button>
   );

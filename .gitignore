@@ -27,3 +27,4 @@ build/
 agent-tools/
 *.swp
 *~
+tmp_ui_audit/
