@@ -387,7 +387,7 @@ After `./start.ps1` / `./start.sh` or production deploy
 | `audit_option_book_identity.py` | **PASS** — option book path-invariant; NAV = sum of components |
 | `audit_calc_deep.py` FT↔BT shared-roll NAV/IRR | **Exact match** (e.g. Total 88.954481 on GBM sample window; hist Path1 shared-roll identity holds) |
 | Futures shifts | `==` monthly option expiries (hist + forward); as-of month included when expiry still ahead |
-| Holiday snap | **Backward** only (Backtester / NSE) |
+| Holiday snap | **Backward** only (Backtester / NSE); forward projection = stable month–days + fixed national dates only (no movable-festival false Wednesdays) |
 | Product End | `path_end_calendar(asof, tenure)` — dynamic with as-of |
 | Daily as-of advance | Yahoo sync on day roll + cron + desk focus + Run |
 

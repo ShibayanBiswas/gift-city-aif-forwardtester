@@ -15,6 +15,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "backend"))
 
 from app.engine.calendar_build import (  # noqa: E402
+    TUESDAY_EXPIRY_ERA_START,
     expiry_weekday_for,
     last_monthly_expiry_on_or_before,
 )
@@ -103,8 +104,16 @@ def main() -> int:
         while scheduled.weekday() != weekday:
             scheduled -= timedelta(days=1)
         assert e <= scheduled and (scheduled - e).days <= 10, (e, scheduled)
-        # Never snap forward onto a later weekday than the contract day.
-        assert e.weekday() <= weekday or e < scheduled, (e, weekday)
+        # Tue-era monthly expiries land on Tue, or Mon/Fri after a holiday snap —
+        # never Wed/Thu (that was the over-projected-holiday bug, e.g. 24-Mar-2027).
+        if e >= TUESDAY_EXPIRY_ERA_START:
+            assert e.weekday() in (0, 1, 4), (
+                f"Tue-era monthly expiry on invalid weekday: {e.isoformat()} "
+                f"{e.strftime('%A')} (scheduled last Tue={scheduled.isoformat()})"
+            )
+        else:
+            # Thu-era: Thu, or Wed/Tue/Mon/Fri after snap — not after a forward move.
+            assert e.weekday() <= weekday or e < scheduled, (e, weekday)
 
     paths, fm, params, h = build_paths(
         m,

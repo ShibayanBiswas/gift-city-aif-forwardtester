@@ -13,6 +13,10 @@ Forward event calendars (months whose monthly expiry is still after as-of):
   - The as-of month is included when its expiry is still ahead (e.g. as-of early
     August still lists that August monthly expiry; prior month July remains the
     previous shift for roll-cost Δt).
+  - Forward holiday projection keeps only **stable** month–days (≥3 hits in the
+    lookback) plus fixed national dates (26 Jan / 15 Aug / 2 Oct / 25 Dec). Movable
+    festivals are not projected by calendar day — that incorrectly closed last
+    Tuesdays (e.g. 30-Mar-2027 → false 24-Mar Wednesday).
 
 Horizon end is **Product End** = ``path_end_calendar(as-of, tenure_days)``
 (not a separate Simulation End Days control). Optional Path-1 GBM fill is
@@ -46,21 +50,45 @@ def historical_weekday_holidays(dates: list[date]) -> set[date]:
     return holidays
 
 
+# Fixed-date Indian market holidays (same calendar date every year).
+# Movable festivals (Holi, Diwali, Eid, Good Friday, …) must NOT be projected
+# by month–day — that wrongly closes last-Tuesday expiries (e.g. 30-Mar-2027).
+_FIXED_NATIONAL_HOLIDAY_MD: frozenset[tuple[int, int]] = frozenset(
+    {
+        (1, 26),  # Republic Day
+        (8, 15),  # Independence Day
+        (10, 2),  # Gandhi Jayanti
+        (12, 25),  # Christmas
+    }
+)
+
+
 def project_holidays(
     hist_holidays: set[date],
     asof: date,
     end: date,
     *,
     lookback_years: int = 6,
+    min_year_hits: int = 3,
 ) -> set[date]:
-    """Project recent historical holiday month–days onto the forward calendar."""
+    """Project *stable* historical holiday month–days onto the forward calendar.
+
+    Only month–days that appear as weekday holidays in ``min_year_hits`` distinct
+    years within the lookback window are projected, plus fixed national dates.
+    One-off / movable festivals (Holi, etc.) are excluded so last-Tuesday monthly
+    expiries are not falsely closed and snapped onto Wednesday.
+    """
     if not hist_holidays or end <= asof:
         return set()
     cutoff = date(asof.year - lookback_years, 1, 1)
-    md: set[tuple[int, int]] = set()
+    hits: dict[tuple[int, int], set[int]] = {}
     for h in hist_holidays:
-        if h >= cutoff and h <= asof:
-            md.add((h.month, h.day))
+        if h >= cutoff and h <= asof and h.weekday() < 5:
+            hits.setdefault((h.month, h.day), set()).add(h.year)
+    md: set[tuple[int, int]] = set(_FIXED_NATIONAL_HOLIDAY_MD)
+    for key, years in hits.items():
+        if len(years) >= min_year_hits:
+            md.add(key)
     out: set[date] = set()
     y = asof.year
     while y <= end.year + 1:

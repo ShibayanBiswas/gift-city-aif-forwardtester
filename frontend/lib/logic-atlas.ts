@@ -337,7 +337,7 @@ export const logicModules: LogicModule[] = [
         kind: "engine",
         description: "Trading-day pad with monthly option expiries; futures shifts match those expiries.",
         detail:
-          "extend_market_forward appends weekday sessions through the horizon pad (projected holidays excluded). month_ends respects 28/29/30/31-day months (leap Februaries). Futures shifts and monthly expiries both use last_monthly_expiry_on_or_before (holiday → previous session). Incomplete pad months are skipped.",
+          "extend_market_forward appends weekday sessions through the horizon pad. Holiday projection keeps only stable month–days (≥3 lookback hits) plus fixed national dates — movable festivals are not copied by calendar day. month_ends respects 28/29/30/31-day months. Futures shifts and monthly expiries both use last_monthly_expiry_on_or_before (holiday → previous session). Incomplete pad months are skipped.",
         bullets: [
           "Saturday / Sunday always closed",
           "Futures shift = monthly option expiry in every month (WF1 / Backtester)",

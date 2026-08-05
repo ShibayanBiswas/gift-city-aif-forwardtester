@@ -90,7 +90,7 @@ Header chips: **As Of Today** · **Product End** · **Tenure Days** · **Monte C
 - From the day **after** as-of through Product End (plus a short pad for path tenure / observations).
 - **Monday–Friday only.** Saturday and Sunday never receive a close.
 - Real calendar stepping: January 31, April 30, February 28 / **29 in leap years** (e.g. 2028-02-29) are handled via `datetime` month arithmetic (`month_ends`).
-- Forward pad **projects** recent historical weekday holidays onto future month–days (`project_holidays`) so expiry holiday floors can snap backward correctly.
+- Forward pad **projects** only *stable* historical weekday holidays onto future month–days (`project_holidays`: ≥3 lookback hits + fixed 26 Jan / 15 Aug / 2 Oct / 25 Dec). Movable festivals are not projected by date — that wrongly closed last Tuesdays (e.g. 30-Mar-2027 → 24-Mar Wednesday).
 
 ### Futures shift / roll (forward months)
 
