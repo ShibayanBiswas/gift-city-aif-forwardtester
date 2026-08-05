@@ -383,7 +383,7 @@ After `./start.ps1` / `./start.sh` or production deploy
 
 | Gate | Result |
 |------|--------|
-| `scripts/windup_suite.py` | **16/16 PASS** (rolls, calendar, MC, option-book identity, parity, e2e, dynamic products, BS bytes) |
+| `scripts/windup_suite.py` | **16/16 PASS** (2026-08-05 re-confirm; rolls, calendar, MC, option-book, FT↔BT parity, e2e, BS bytes) |
 | `audit_option_book_identity.py` | **PASS** — option book path-invariant; NAV = sum of components |
 | `audit_calc_deep.py` FT↔BT shared-roll NAV/IRR | **Exact match** on shared rolls |
 | Futures shifts | `==` monthly option expiries (hist + forward); as-of month included when expiry still ahead |
