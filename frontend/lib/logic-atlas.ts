@@ -319,7 +319,9 @@ export const logicModules: LogicModule[] = [
         detail:
           "No staggered frequency starts. Path 1…N are identical calendar windows; only the GBM seed (path_id) differs. As-of = market.last_date after Yahoo sync.",
         bullets: [
-          "As-of updates after deploy via /api/sync",
+          "As-of / Product End advance daily via /api/sync (cron + desk focus + Run)",
+          "As Of = latest Nifty session after Yahoo sync",
+          "Cached Run snapshots clear when live as-of drifts",
           "N paths · same Start / End · default N = 1000",
           "Product End = path_end_calendar(asof, tenure)",
         ],
@@ -475,7 +477,7 @@ export const logicModules: LogicModule[] = [
         detail:
           "load_market builds historical dates/closes through present (as-of). estimate_gbm_params reads μ and σ from that history. Path evaluation uses gbm_spots(S0, μ, σ, path_id) on Mon–Fri sessions — per-path series appear on Hedging / Computation / Simulated Nifty Paths; Intel · Market Calendar is dates only.",
         bullets: [
-          "As-of = latest Nifty session after /api/sync",
+          "As-of = latest Nifty session after /api/sync (daily auto-pull)",
           "Forward sessions: Mon–Fri only (calendar pad)",
           "Simulated prices = per-path GBM lognormals",
         ],

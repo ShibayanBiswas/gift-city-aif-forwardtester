@@ -150,6 +150,15 @@ function clearDeskResults(
   }
 }
 
+function asofKey(v: string | null | undefined): string {
+  return (v || "").slice(0, 10);
+}
+
+function sessionAsOf(summary: ForwardTestSummary | null | undefined): string {
+  if (!summary) return "";
+  return asofKey(summary.asof || summary.simulation_start || summary.mc_matrix?.asof);
+}
+
 export function ForwardTestProvider({ children }: { children: ReactNode }) {
   const [dark, setDark] = useState(false);
   const [market, setMarket] = useState<Store["market"]>(null);
@@ -205,6 +214,27 @@ export function ForwardTestProvider({ children }: { children: ReactNode }) {
     }
     setSessionReady(true);
 
+    const applyLiveMarket = (m: NonNullable<Store["market"]>) => {
+      setMarket(m);
+      const live = asofKey(m.asof || m.last_date);
+      if (live) {
+        const y = Number(live.slice(0, 4));
+        if (Number.isFinite(y) && y >= 2001) setSinceYear(y);
+      }
+      const runAsOf = sessionAsOf(summaryRef.current);
+      if (live && runAsOf && live !== runAsOf) {
+        restoredSessionRef.current = false;
+        clearDeskResults(
+          setSummary,
+          setJobId,
+          setPathDetail,
+          setPathDetailError,
+          setPathId,
+          cacheQuotaWarnedRef,
+        );
+      }
+    };
+
     void (async () => {
       try {
         // Non-blocking wake: apply horizon meta as soon as sync returns; do not wait on it.
@@ -212,7 +242,7 @@ export function ForwardTestProvider({ children }: { children: ReactNode }) {
           .sync()
           .then((s) => {
             if (s?.market && isDeskHorizonMeta(s.market as { simulation_end?: string; simulation_end_days?: number })) {
-              setMarket(s.market as NonNullable<Store["market"]>);
+              applyLiveMarket(s.market as NonNullable<Store["market"]>);
             }
           })
           .catch(() => keepApiAwake());
@@ -227,20 +257,15 @@ export function ForwardTestProvider({ children }: { children: ReactNode }) {
             Number(p.n_paths) !== Number(m.n_paths))
         ) {
           const m2 = await client.marketMeta();
-          setMarket(m2);
+          applyLiveMarket(m2);
         } else {
-          setMarket(m);
+          applyLiveMarket(m);
         }
         setProduct(p);
         // Keep restored path count when a finished run is cached in this tab.
         if (!restoredSessionRef.current) {
           if (p?.n_paths != null) setNPathsState(clampNPaths(Number(p.n_paths)));
           else if (m?.n_paths != null) setNPathsState(clampNPaths(Number(m.n_paths)));
-        }
-        // Dynamic as-of year from latest Nifty session (not a hardcoded 2001 default).
-        if (m?.last_date) {
-          const y = Number(String(m.last_date).slice(0, 4));
-          if (Number.isFinite(y) && y >= 2001) setSinceYear(y);
         }
         // Drop in-progress job pointer only — completed runs live in sessionStorage.
         try {
@@ -254,22 +279,52 @@ export function ForwardTestProvider({ children }: { children: ReactNode }) {
     })();
   }, []);
 
-  // Re-pull desk horizon meta when the tab becomes visible and strip looks historical-only.
+  // Each day / tab focus: re-sync Yahoo so As Of, Product End, rolls, and GBM shift.
+  // Drop cached Run results when live as-of drifts past the frozen job snapshot.
   useEffect(() => {
-    const refreshIfStale = () => {
-      if (document.visibilityState !== "visible") return;
-      if (isDeskHorizonMeta(market)) return;
-      void client
-        .marketMeta()
-        .then((m) => {
-          if (isDeskHorizonMeta(m)) setMarket(m);
-        })
-        .catch(() => undefined);
+    let cancelled = false;
+    const rollForwardDesk = async () => {
+      if (cancelled || document.visibilityState === "hidden") return;
+      try {
+        const synced = await client.sync();
+        const raw =
+          synced?.market &&
+          isDeskHorizonMeta(synced.market as { simulation_end?: string; simulation_end_days?: number })
+            ? (synced.market as NonNullable<Store["market"]>)
+            : await client.marketMeta();
+        if (cancelled || !raw) return;
+        setMarket(raw);
+        const live = asofKey(raw.asof || raw.last_date);
+        if (live) {
+          const y = Number(live.slice(0, 4));
+          if (Number.isFinite(y) && y >= 2001) setSinceYear(y);
+        }
+        const runAsOf = sessionAsOf(summaryRef.current);
+        if (live && runAsOf && live !== runAsOf) {
+          clearDeskResults(
+            setSummary,
+            setJobId,
+            setPathDetail,
+            setPathDetailError,
+            setPathId,
+            cacheQuotaWarnedRef,
+          );
+        }
+      } catch {
+        /* keep last known desk while API wakes */
+      }
     };
-    document.addEventListener("visibilitychange", refreshIfStale);
-    refreshIfStale();
-    return () => document.removeEventListener("visibilitychange", refreshIfStale);
-  }, [market]);
+    const onVis = () => {
+      if (document.visibilityState === "visible") void rollForwardDesk();
+    };
+    document.addEventListener("visibilitychange", onVis);
+    const id = window.setInterval(() => void rollForwardDesk(), 60 * 60_000);
+    return () => {
+      cancelled = true;
+      document.removeEventListener("visibilitychange", onVis);
+      window.clearInterval(id);
+    };
+  }, []);
 
   // Keep Render warm while the desk tab is open (free tier sleeps after ~15 min idle).
   useEffect(() => {
@@ -553,8 +608,27 @@ export function ForwardTestProvider({ children }: { children: ReactNode }) {
           : "Market sync did not complete";
       throw new Error(detail);
     }
-    const m = await client.marketMeta();
+    const m =
+      synced.market && isDeskHorizonMeta(synced.market)
+        ? (synced.market as NonNullable<Store["market"]>)
+        : await client.marketMeta();
     setMarket(m);
+    const live = asofKey(m.asof || m.last_date);
+    if (live) {
+      const y = Number(live.slice(0, 4));
+      if (Number.isFinite(y) && y >= 2001) setSinceYear(y);
+    }
+    const runAsOf = sessionAsOf(summaryRef.current);
+    if (live && runAsOf && live !== runAsOf) {
+      clearDeskResults(
+        setSummary,
+        setJobId,
+        setPathDetail,
+        setPathDetailError,
+        setPathId,
+        cacheQuotaWarnedRef,
+      );
+    }
   }, []);
 
   const refreshProduct = useCallback(async () => {
@@ -597,7 +671,17 @@ export function ForwardTestProvider({ children }: { children: ReactNode }) {
     const maxWallMs = 45 * 60_000;
     let pollSoftFails = 0;
     try {
-      // Cold Render: wake first so the Run POST is not raced by proxy retries.
+      // Cold Render: wake + pull latest Nifty so paths start on today's as-of.
+      setMessage("Refreshing market…");
+      try {
+        const synced = await client.sync();
+        if (synced?.market && isDeskHorizonMeta(synced.market)) {
+          setMarket(synced.market as NonNullable<Store["market"]>);
+        }
+      } catch {
+        await keepApiAwake();
+      }
+      if (gen !== runGenRef.current) return;
       setMessage("Waking API…");
       await keepApiAwake();
       if (gen !== runGenRef.current) return;

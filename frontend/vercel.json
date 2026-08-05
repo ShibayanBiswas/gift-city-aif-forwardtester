@@ -5,6 +5,10 @@
     {
       "path": "/api/wake",
       "schedule": "0 3 * * *"
+    },
+    {
+      "path": "/api/wake",
+      "schedule": "15 10 * * 1-5"
     }
   ],
   "headers": [

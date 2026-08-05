@@ -95,10 +95,44 @@ _run_lock: asyncio.Lock | None = None
 _desk_cache_key: tuple[Any, ...] | None = None
 _desk_cache: dict[str, Any] | None = None
 _market_synced_at: str | None = None
+_last_sync_calendar_day: date | None = None
+_market_sync_lock = threading.Lock()
 # Excel export queue — one heavy write_only build at a time on free hosts.
 _export_lock = threading.Lock()
 _xlsx_build_lock = threading.Lock()
 _exports: dict[str, dict[str, Any]] = {}
+
+
+def _ensure_market_fresh(
+    *,
+    force_pull: bool = False,
+    rebuild_calendars: bool = False,
+) -> dict[str, Any] | None:
+    """Yahoo-extend Nifty + calendars when the calendar day rolls (or force_pull).
+
+    As Of / Product End / rolls / GBM all derive from ``nifty_daily.csv`` last
+    close — without a daily pull the desk freezes on yesterday's session.
+    ``rebuild_calendars`` maps to ``sync_market_to_present(force=True)``.
+    """
+    global _market_synced_at, _last_sync_calendar_day
+    today = date.today()
+    if not force_pull and not rebuild_calendars and _last_sync_calendar_day == today:
+        return None
+    with _market_sync_lock:
+        if not force_pull and not rebuild_calendars and _last_sync_calendar_day == today:
+            return None
+        try:
+            synced = sync_market_to_present(force=rebuild_calendars)
+            clear_market_cache()
+            _invalidate_desk_cache()
+            if synced.get("ok"):
+                _market_synced_at = datetime.now(timezone.utc).isoformat()
+                _last_sync_calendar_day = today
+            return synced
+        except Exception as e:
+            clear_market_cache()
+            _invalidate_desk_cache()
+            return {"ok": False, "error": str(e)}
 
 
 def _get_run_lock() -> asyncio.Lock:
@@ -131,9 +165,11 @@ def _desk_market():
     Path-1 price workbook for the forward horizon.
 
     Cached by (as-of, tenure, obs months) so header / Intel meta stay snappy
-    on Render free tier.
+    on Render free tier. First desk hit each calendar day re-syncs Yahoo so
+    As Of / Product End advance with the latest Nifty close.
     """
     global _desk_cache_key, _desk_cache
+    _ensure_market_fresh()
     base = load_market()
     product = _ensure_product()
     days = resolved_simulation_end_days(product)
@@ -454,12 +490,8 @@ def _startup() -> None:
             pass
 
     def _bg_market_sync() -> None:
-        global _market_synced_at
         try:
-            sync_market_to_present()
-            clear_market_cache()
-            _invalidate_desk_cache()
-            _market_synced_at = datetime.now(timezone.utc).isoformat()
+            _ensure_market_fresh(force_pull=True, rebuild_calendars=True)
             if mongo.is_configured():
                 try:
                     mongo.save_market_snapshot(_horizon_meta(_desk_market()))
@@ -537,19 +569,14 @@ def sync_status(force: bool = False) -> dict:
     """Wake-up ping + daily market sync (Nifty + roll/expiry calendars through present).
 
     Pass ``force=true`` to rebuild roll/expiry calendars even when no new Nifty
-    rows were appended (desk “refresh calendars” control).
+    rows were appended (desk “refresh calendars” control). Cron / wake hits this
+    so As Of and Product End advance every trading day.
     """
-    global _market_synced_at
-    try:
-        synced = sync_market_to_present(force=force)
-        clear_market_cache()
-        _invalidate_desk_cache()
-        if synced.get("ok"):
-            _market_synced_at = datetime.now(timezone.utc).isoformat()
-    except Exception as e:
-        synced = {"ok": False, "error": str(e)}
-        clear_market_cache()
-        _invalidate_desk_cache()
+    synced = _ensure_market_fresh(force_pull=True, rebuild_calendars=force) or {
+        "ok": True,
+        "skipped_heavy": True,
+        "reason": "already synced today",
+    }
     desk = _desk_market()
     meta = _horizon_meta(desk)
     mongo_status = mongo.ping()
@@ -567,6 +594,7 @@ def sync_status(force: bool = False) -> dict:
         "product_loaded": _current_product is not None,
         "market_synced_at": _market_synced_at,
         "asof": meta.get("asof"),
+        "simulation_end": meta.get("simulation_end") or meta.get("product_end"),
     }
 
 
@@ -752,6 +780,9 @@ async def start_forwardtest(body: RunRequest) -> dict:
     global _active_job_id
     if _current_product is None:
         _load_default_product()
+
+    # Fresh as-of / Product End before every Run (paths must start on current session).
+    await asyncio.to_thread(_ensure_market_fresh)
 
     # Idempotent: cold-start proxies / double-clicks must not spawn a second job.
     token = (body.client_run_id or "").strip()[:64] or None

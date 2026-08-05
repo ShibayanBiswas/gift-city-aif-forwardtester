@@ -12,7 +12,7 @@ type TabId = "rolls" | "expiries";
 
 /** Shared forward calendar only — no path Nifty / roll points (those differ by path). */
 export default function IntelPage() {
-  const { market, product } = useForwardTest();
+  const { market, product, refreshMarket } = useForwardTest();
   const [tab, setTab] = useState<TabId>("rolls");
   const [rollDates, setRollDates] = useState<Array<{ shift_date: string }>>([]);
   const [expiryDates, setExpiryDates] = useState<
@@ -23,10 +23,13 @@ export default function IntelPage() {
   const [asOf, setAsOf] = useState<string | null>(null);
   const [simEnd, setSimEnd] = useState<string | null>(null);
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (opts?: { sync?: boolean }) => {
     setLoading(true);
     setLoadError(null);
     try {
+      if (opts?.sync) {
+        await refreshMarket();
+      }
       const [rolls, expiries] = await Promise.all([client.rolls(), client.expiries(false)]);
       setRollDates(rolls.rows.map((r) => ({ shift_date: r.shift_date })));
       setExpiryDates(
@@ -47,7 +50,7 @@ export default function IntelPage() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [refreshMarket]);
 
   useEffect(() => {
     void load();
@@ -135,7 +138,7 @@ export default function IntelPage() {
               </Link>
               <button
                 type="button"
-                onClick={() => void load()}
+                onClick={() => void load({ sync: true })}
                 disabled={loading}
                 className="rounded-lg border border-[rgba(212,178,76,0.45)] px-3 py-1.5 text-xs font-semibold text-[var(--ar-maroon)] disabled:opacity-50 font-ui"
               >

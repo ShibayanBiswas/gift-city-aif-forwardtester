@@ -1,12 +1,15 @@
 import { NextResponse } from "next/server";
 
 export const dynamic = "force-dynamic";
-/** Allow Render cold start when cron / desk wake hits this route. */
+/** Allow Render cold start + Yahoo sync when cron / desk wake hits this route. */
 export const maxDuration = 60;
 
 /**
  * Server-side wake for the Render API (avoids browser hanging on cold proxy).
  * Used by Vercel Cron and optional desk preflight.
+ *
+ * Prefer /api/sync so As Of / Product End advance with the latest Nifty close;
+ * fall back to ping/health if sync is unavailable.
  */
 export async function GET() {
   const backend = (process.env.BACKEND_URL || "").replace(/\/$/, "");
@@ -21,6 +24,24 @@ export async function GET() {
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), 55_000);
   try {
+    const syncRes = await fetch(`${backend}/api/sync`, {
+      cache: "no-store",
+      signal: ctrl.signal,
+    });
+    if (syncRes.ok) {
+      const body = await syncRes.json().catch(() => ({}));
+      return NextResponse.json({
+        ok: true,
+        upstream: body,
+        ms: Date.now() - started,
+        backend,
+        via: "sync",
+        asof: (body as { asof?: string })?.asof ?? null,
+        simulation_end:
+          (body as { simulation_end?: string })?.simulation_end ?? null,
+      });
+    }
+
     const pingRes = await fetch(`${backend}/api/ping`, {
       cache: "no-store",
       signal: ctrl.signal,
