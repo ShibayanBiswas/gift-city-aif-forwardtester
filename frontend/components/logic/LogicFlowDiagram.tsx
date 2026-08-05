@@ -129,7 +129,7 @@ function FlowNode({
         </div>
         <div className="min-w-0 flex-1">
           <p className="text-[0.95rem] font-semibold leading-snug text-[var(--ar-ink)]">{node.label}</p>
-          <p className="mt-1 line-clamp-3 text-[11px] leading-snug text-[var(--ar-muted)] font-ui">
+          <p className="mt-1 line-clamp-6 text-[11px] leading-snug text-[var(--ar-muted)] font-ui">
             {blurb}
           </p>
         </div>
