@@ -18,7 +18,7 @@ The web app is a **live reimplementation** of `Gift AIF Working File 1.xlsm` hed
 |------------|--------|
 | Any product input | Parse principal, tenure days, Monte Carlo Paths, observation months, option book |
 | Forward path atlas | **Single tenure window**: Start = as-of; End = **Product End** = `path_end_calendar(asof, tenure)` for every path |
-| Forward calendars | Sat/Sun closed; monthly expiry = futures shift = last Thu/Tue (era) with holiday floor **backward**; as-of month kept when expiry still ahead; leap/30/31 aware |
+| Forward calendars | Sat/Sun closed; monthly expiry = futures shift = last Thu/Tue (era) with holiday floor **backward**; stable holiday projection only (no movable-festival false Wednesdays); as-of month kept when expiry still ahead; leap/30/31 aware |
 | Hedging Sheet parity | Same as Backtester: `month × 30.5` → expiry map; options book; required futures delta (obs Nifty from path spots) |
 | Computation | MTM, rolls, cash, G-Sec, fees, tx, NAV, IRR — same formulas; Forwardtester feeds **path-local** roll points |
 | Historical roll calendar | Same as Backtester: **every** month's futures shift = monthly option expiry (`roll_shifts == expiries`) |

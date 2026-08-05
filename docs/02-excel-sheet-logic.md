@@ -94,9 +94,9 @@ Working File Excel historically stops mid-year. The engine **extends** futures s
 
 | Rule | Detail |
 |------|--------|
-| Sessions | Mon–Fri through Product End, minus projected holidays — no Sat/Sun closes |
-| Futures shift | **Monthly option expiry** (last Thu/Tue by NSE era; holiday → previous session) |
-| Monthly expiry | Same date as futures shift |
+| Sessions | Mon–Fri through Product End, minus **stable** projected holidays + fixed national dates (26 Jan / 15 Aug / 2 Oct / 25 Dec) — movable festivals are not copied by calendar day; no Sat/Sun closes |
+| Futures shift | **Monthly option expiry** (last Thu/Tue by NSE era; holiday → previous session); as-of month kept when expiry still ahead |
+| Monthly expiry | Same date as futures shift (Tue-era lands on Tue, or Mon/Fri after snap — never false Wednesday) |
 | Roll cost | Same 7% model on **each path's** GBM closes (path_roll_vector) |
 | Incomplete months | Skipped — never invent a shift on a truncated pad day |
 
@@ -126,8 +126,9 @@ Historical months through as-of use NSE schedule + overrides (Thu era → Tue er
 
 | Rule | Detail |
 |------|--------|
-| Monthly option expiry | **Last Tuesday** of each calendar month |
-| Completeness | Tuesday must lie on the Mon–Fri pad and on/before Product End |
+| Monthly option expiry | **Last Tuesday** of each calendar month (Thu era pre Sep-2025); holiday → prior Mon/Fri — never a false Wednesday |
+| As-of month | Included when that month’s expiry is still after As Of |
+| Completeness | Expiry must lie on the Mon–Fri pad and on/before Product End |
 | Weeklies | Not synthesized on the forward pad (Intel monthly list = last Tuesdays) |
 
 Full forward calendar: [04-forwardtest-engine.md](04-forwardtest-engine.md).

@@ -383,13 +383,14 @@ After `./start.ps1` / `./start.sh` or production deploy
 
 | Gate | Result |
 |------|--------|
-| `scripts/windup_suite.py` | **15/15 PASS** (rolls, calendar, MC, parity, e2e, dynamic products, BS bytes) |
+| `scripts/windup_suite.py` | **16/16 PASS** (rolls, calendar, MC, option-book identity, parity, e2e, dynamic products, BS bytes) |
 | `audit_option_book_identity.py` | **PASS** — option book path-invariant; NAV = sum of components |
-| `audit_calc_deep.py` FT↔BT shared-roll NAV/IRR | **Exact match** (e.g. Total 88.954481 on GBM sample window; hist Path1 shared-roll identity holds) |
+| `audit_calc_deep.py` FT↔BT shared-roll NAV/IRR | **Exact match** on shared rolls |
 | Futures shifts | `==` monthly option expiries (hist + forward); as-of month included when expiry still ahead |
-| Holiday snap | **Backward** only (Backtester / NSE); forward projection = stable month–days + fixed national dates only (no movable-festival false Wednesdays) |
+| Holiday snap | **Backward** only (Backtester / NSE); forward projection = stable month–days (≥3 lookback) + fixed national dates only — movable festivals not projected (fixes false **24-Mar-2027 Wednesday**; correct **30-Mar-2027 Tuesday**) |
 | Product End | `path_end_calendar(asof, tenure)` — dynamic with as-of |
 | Daily as-of advance | Yahoo sync on day roll + cron + desk focus + Run |
+| Roll 7% · qty · obs×30.5 | **Identical** to Backtester (spots differ: GBM vs history) |
 
 **Verdict: yes — you can wind up this project** for the Forwardtester scope (GBM Monte Carlo from live as-of through Product End, Backtester-parity hedge/NAV math, Intel calendars, deploy path).
 

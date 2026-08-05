@@ -24,7 +24,7 @@ Gift City AIF Forwardtester projects structured-unit outcomes from **As Of Today
 | Monte Carlo Paths | default **1000**; presets **100 / 500 / 1000 / 5000 / 10000** or Custom 1…10000; confirm at **≥ 5000**; free hosts clamp near **2000** |
 | Header chips | As Of Today · Product End · Tenure Days · Monte Carlo Paths · Trading Days · Monthly Expiries — full-width equal cards |
 | Horizon (legacy) | **Simulation End Days** / frequency start grids are **ignored** — not the horizon |
-| Forward calendar | Mon–Fri (+ stable projected holidays / fixed national dates); monthly option expiry = futures shift (Thu→Tue era; holiday → prior session); **as-of month included** when expiry still ahead |
+| Forward holiday projection | Stable month–days (≥3 lookback hits) + fixed 26 Jan / 15 Aug / 2 Oct / 25 Dec only — no movable-festival false Wednesdays (e.g. Mar-2027 = **30-Tue**, not 24-Wed) |
 | Roll cost | First = trading-day count (19 → ≈4.7713); later = calendar Δt; weekends never in avg |
 | Futures / expiry calendars | Identical lists: `roll_shifts == expiries` (WF1 / Backtester) — no open-month last-TD pin |
 | Hedge / NAV | `black_scholes` byte-identical; `nav`/`hedge` forked twins with path-local roll points / spots |

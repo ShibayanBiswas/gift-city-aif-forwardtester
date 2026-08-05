@@ -443,9 +443,9 @@ Path 235 Summary row may be **mislabeled** as path id 1 at sheet tail — match 
 | Expiry rule (through Aug-2025) | Last **Thursday** trading day of month |
 | Expiry rule (from Sep-2025) | Last **Tuesday** (NSE circular) |
 | Holiday handling | Snap to **previous** Nifty session |
-| Forward (> as-of) | Mon–Fri (+ projected holidays); monthly expiry = futures shift |
+| Forward (> as-of) | Mon–Fri + **stable** projected holidays (≥3 lookback hits) + fixed national dates; monthly expiry = futures shift; as-of month kept when still ahead |
 
-Auto-sync: API startup · `GET /api/sync` · `scripts/sync_market_data.py`. Trading-day counts are dynamic — do not hardcode in desk copy.
+Auto-sync: API startup · first desk hit each calendar day · `GET /api/sync` · Vercel `/api/wake` cron · desk focus / Run · `scripts/sync_market_data.py`. Trading-day counts are dynamic — do not hardcode in desk copy.
 
 **Verify rolls:** `PYTHONPATH=backend .venv/Scripts/python scripts/verify_roll_costs.py`
 

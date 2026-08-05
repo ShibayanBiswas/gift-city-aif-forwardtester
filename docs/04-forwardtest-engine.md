@@ -22,9 +22,9 @@ Product Excel (Product_Input_File.xlsx or upload)
  forward_calendar.py + paths.py + mc_matrix.py
    As-of = latest Nifty session (dynamic after deploy)
    Product End = path_end_calendar(asof, tenure)
-   Forward sessions = Mon–Fri only (Sat/Sun closed; projected holidays excluded)
-   Forward rolls = monthly option expiries (same as Expiry sheet)
-   Forward monthly expiries = last Thu/Tue by NSE era (holiday → previous session)
+   Forward sessions = Mon–Fri only (Sat/Sun closed; stable projected holidays + fixed national dates excluded)
+   Forward rolls = monthly option expiries (same as Expiry sheet; as-of month if expiry still ahead)
+   Forward monthly expiries = last Thu/Tue by NSE era (holiday → previous session; never false Wednesday)
    Every path: Start = as-of, End = Product End (N independent GBM seeds)
    Logical GBM matrix: rows = paths, columns = trading dates — **never held fully in RAM**
    Each path regenerates its GBM row from seed + params on demand
@@ -109,7 +109,7 @@ Header chips: **As Of Today** · **Product End** · **Tenure Days** · **Monte C
 | Era | Sessions | Monthly expiry | Futures shift |
 |-----|----------|----------------|---------------|
 | Historical (≤ as-of) | Nifty CSV (holiday-aware) | NSE Thu→Tue via `calendar_build` + overrides | **= monthly option expiry** (`roll_shifts == expiries`) |
-| Forward (> as-of) | Mon–Fri + projected holidays | Same monthly-last builder; **as-of month kept** if expiry still ahead | **= monthly option expiry** |
+| Forward (> as-of) | Mon–Fri + stable projected holidays / fixed national dates | Same monthly-last builder; **as-of month kept** if expiry still ahead | **= monthly option expiry** |
 
 ### Backtester calc parity
 
