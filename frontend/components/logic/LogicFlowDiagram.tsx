@@ -97,7 +97,7 @@ function FlowNode({
   return (
     <motion.button
       className={cn(
-        "logic-node group relative min-w-0 w-full flex-1 rounded-xl border px-3 py-2.5 text-left shadow-sm transition-all duration-200",
+        "logic-node group relative min-w-0 w-full flex-1 overflow-hidden rounded-xl border px-3 py-2.5 text-left shadow-sm transition-all duration-200",
         `logic-node--${node.kind}`,
         colors.border,
         colors.bg,
@@ -127,13 +127,17 @@ function FlowNode({
             {node.kind}
           </p>
         </div>
-        <div className="min-w-0">
+        <div className="min-w-0 flex-1">
           <p className="text-[0.95rem] font-semibold leading-snug text-[var(--ar-ink)]">{node.label}</p>
-          {/* No line-clamp — width stays fixed; vertical height grows with description lines. */}
-          <p className="mt-1 text-[11px] leading-snug text-[var(--ar-muted)] font-ui">{blurb}</p>
+          {/* Wrap inside fixed card width — no line-clamp so height grows vertically only. */}
+          <p className="mt-1 break-words text-[11px] leading-snug text-[var(--ar-muted)] font-ui">
+            {blurb}
+          </p>
         </div>
         {chip ? (
-          <p className="logic-node__chip mt-auto font-ui">{chip}</p>
+          <p className="logic-node__chip font-ui" title={chip}>
+            {chip}
+          </p>
         ) : null}
       </div>
     </motion.button>

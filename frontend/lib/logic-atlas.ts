@@ -79,7 +79,7 @@ export const logicModules: LogicModule[] = [
         detail:
           "POST /api/product/upload copies the file to data/uploads/current_product.xlsx; GET /api/product/sample serves the repo sample. The next Run always parses whatever file is current — there is no second product source mid-job.",
         bullets: [
-          "Sample Input or Upload → current_product.xlsx",
+          "→ current_product.xlsx",
           "openpyxl load with data_only=True",
           "First sheet matching product / input / as per",
         ],

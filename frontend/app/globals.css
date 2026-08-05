@@ -1222,7 +1222,7 @@ html.dark .desk-select {
 }
 .logic-pipeline-item {
   display: flex;
-  /* Horizontal size unchanged from original desk cards. */
+  /* Exact horizontal footprint from prior desk CSS (unchanged). */
   flex: 1 0 10.5rem;
   min-width: 10.5rem;
   align-items: stretch;
@@ -1232,10 +1232,9 @@ html.dark .desk-select {
   flex: 1 1 auto;
   width: 100%;
   min-width: 0;
-  /* Floor = previous card height; grows taller only when description needs more lines. */
   min-height: 9.25rem;
+  /* Only change vs prior: grow taller for longer description copy. */
   height: auto;
-  overflow: visible;
 }
 .logic-flow-arrow {
   margin: 0;
@@ -1271,7 +1270,6 @@ html.dark .desk-select {
     flex: 0 0 auto;
     min-height: 9.5rem;
     height: auto;
-    overflow: visible;
   }
 }
 
