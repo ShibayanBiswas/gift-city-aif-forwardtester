@@ -1,4 +1,4 @@
-"""Verify forward calendar desk rules (Mon–Fri, last-Tuesday expiry, month-end rolls).
+"""Verify forward calendar desk rules (Mon–Fri, monthly option expiry = futures shift).
 
 Horizon = Product End = path_end_calendar(as-of, tenure) — not Simulation End Days.
 
@@ -14,11 +14,11 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "backend"))
 
-from app.engine.forward_calendar import (  # noqa: E402
-    _last_tuesday_of_month_calendar,
-    _last_weekday_of_month,
-    _weekday_sessions,
+from app.engine.calendar_build import (  # noqa: E402
+    expiry_weekday_for,
+    last_monthly_expiry_on_or_before,
 )
+from app.engine.forward_calendar import _weekday_sessions  # noqa: E402
 from app.engine.market import clear_market_cache, load_market  # noqa: E402
 from app.engine.paths import build_forward_market, build_paths, forward_asof  # noqa: E402
 from app.engine.product import (  # noqa: E402
@@ -49,6 +49,13 @@ def main() -> int:
     assert sim_days == prod.tenure_days == 1930
     assert horizon == path_end_calendar(asof, prod.tenure_days)
 
+    # Historical: futures shifts == monthly option expiries (WF1 / Backtester).
+    assert m.roll_shifts == m.expiries, (
+        f"hist rolls≠expiries first_diff={next((a,b) for a,b in zip(m.roll_shifts,m.expiries) if a!=b)}"
+        if len(m.roll_shifts) == len(m.expiries)
+        else f"len rolls={len(m.roll_shifts)} exp={len(m.expiries)}"
+    )
+
     fwd, _ = build_forward_market(
         m,
         horizon,
@@ -66,18 +73,24 @@ def main() -> int:
     if asof < date(2028, 2, 29) <= horizon:
         assert date(2028, 2, 29) in fwd.date_to_idx
 
-    trading = set(span)
-    # After as-of only: open-month hist roll may be pinned to as-of (not month-end).
+    trading = set(fwd.dates)
+    # After as-of: futures shift == monthly option expiry (never month-end TD).
     fwd_rolls = [d for d in fwd.roll_shifts if asof < d <= horizon]
     fwd_exps = [e for e in fwd.expiries if asof < e <= horizon]
-    for r in fwd_rolls:
-        me = _month_end(r)
-        expect = max(d for d in trading if d.year == me.year and d.month == me.month)
-        assert r == expect, (r, expect, _last_weekday_of_month(me))
+    assert fwd_rolls == fwd_exps, (fwd_rolls[:3], fwd_exps[:3])
     for e in fwd_exps:
         assert e in trading, e
-        tue = _last_tuesday_of_month_calendar(_month_end(e))
-        assert e <= tue and (tue - e).days <= 10, (e, tue)
+        me = _month_end(e)
+        expect = last_monthly_expiry_on_or_before(me, trading, asof=horizon)
+        assert e == expect, (e, expect, me)
+        # Holiday floor is backward only: scheduled weekday ≥ expiry date.
+        weekday = expiry_weekday_for(me)
+        scheduled = me
+        while scheduled.weekday() != weekday:
+            scheduled -= timedelta(days=1)
+        assert e <= scheduled and (scheduled - e).days <= 10, (e, scheduled)
+        # Never snap forward onto a later weekday than the contract day.
+        assert e.weekday() <= weekday or e < scheduled, (e, weekday)
 
     paths, fm, params, h = build_paths(
         m,
@@ -102,7 +115,8 @@ def main() -> int:
     print(
         "OK forward calendar",
         f"asof={asof} product_end={horizon} days={(horizon - asof).days}",
-        f"sessions={len(span)} rolls={len(fwd_rolls)} expiries={len(fwd_exps)} paths={len(paths)}",
+        f"sessions={len(span)} rolls={len(fwd_rolls)} expiries={len(fwd_exps)} "
+        f"rolls_eq_expiries={fwd_rolls == fwd_exps} paths={len(paths)}",
     )
     return 0
 

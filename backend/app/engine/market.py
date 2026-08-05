@@ -13,7 +13,6 @@ import pandas as pd
 from .calendar_build import (
     build_all_option_expiries,
     build_monthly_expiries,
-    pin_current_month_roll_to_latest,
     read_dates_csv,
     write_expiries_csv,
 )
@@ -185,8 +184,8 @@ def path_roll_vector(
 ) -> tuple[np.ndarray, dict[date, float]]:
     """Roll *points* for one GBM path from that path's simulated Nifty.
 
-    Calendar shift *dates* come from the shared forward calendar (month-end
-    trading days). Spot averages — and therefore roll points — use only this
+    Calendar shift *dates* come from the shared forward calendar (monthly-last
+    Nifty option expiries). Spot averages — and therefore roll points — use only this
     path's dates/spots.
 
     The first shift *inside* the path window continues from the previous global
@@ -372,10 +371,9 @@ def load_market() -> MarketDB:
     shifts = _extend_shifts_through(dates, shifts)
     expiries, all_expiries, monthly_last = _resolve_expiries(dates, shifts)
 
-    # Finished months: futures shift = monthly option expiry (Notes / NSE).
-    # Open terminal month: pin roll date to latest Nifty session (Backtester parity).
-    # Hedging Sheet keeps `expiries` on true monthly-last option dates.
-    shifts = pin_current_month_roll_to_latest(list(expiries), dates)
+    # WF1 Roll Cost + Paths col B = Expiry monthly-last option date (not last TD).
+    # Futures shift calendar is identical to monthly option expiries.
+    shifts = list(expiries)
 
     model = _recompute_roll_costs(dates, closes, shifts)
     roll_by_expiry = {d: roll_seed.get(d, model.get(d, 0.0)) for d in shifts}

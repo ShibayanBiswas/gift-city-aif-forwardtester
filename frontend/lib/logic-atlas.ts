@@ -333,12 +333,12 @@ export const logicModules: LogicModule[] = [
         id: "calendar",
         label: "Forward Calendar",
         kind: "engine",
-        description: "Trading-day pad with monthly option expiries and month-end futures shifts.",
+        description: "Trading-day pad with monthly option expiries; futures shifts match those expiries.",
         detail:
           "extend_market_forward appends weekday sessions through the horizon pad. month_ends respects 28/29/30/31-day months (leap Februaries). Rolls = last Mon–Fri of each complete month; monthly expiries = monthly option expiry rule. Incomplete pad months are skipped.",
         bullets: [
           "Saturday / Sunday always closed",
-          "Futures shift ≠ option expiry in forward months (by design)",
+          "Futures shift = monthly option expiry in every month (WF1 / Backtester)",
           "7% roll points recomputed per path from that path's GBM spots",
         ],
         steps: [
@@ -412,7 +412,7 @@ export const logicModules: LogicModule[] = [
       "build_paths is the single forward path factory — no CSV Macro Path pins.",
       "As-of is always market.last_date (dynamic present after sync).",
       "Product End = path_end_calendar(asof, tenure) — Simulation End Days is unused.",
-      "Forward calendars: monthly expiry, month-end futures shift, leap/30/31 aware.",
+      "Forward calendars: monthly option expiry (= futures shift), leap/30/31 aware.",
       "GBM spots attach on trading days only; hedge.py and nav.py stay Backtester-parity.",
       "path_from_window rebuilds one path from cached summary start/end for path-detail views.",
     ],
@@ -428,7 +428,7 @@ export const logicModules: LogicModule[] = [
       },
       {
         title: "Forward calendar module",
-        body: "engine/forward_calendar.py owns Mon–Fri sessions, monthly expiries, and month-end rolls after as-of. Historical CSV calendars are unchanged through as-of.",
+        body: "engine/forward_calendar.py owns Mon–Fri sessions and monthly-last option expiries after as-of (futures shifts use the same dates). Historical CSV calendars are unchanged through as-of.",
         code: "extend_market_forward(market, product_end, gbm_params=...)",
       },
       {
@@ -459,7 +459,7 @@ export const logicModules: LogicModule[] = [
     engineFile: "engine/market.py",
     accent: "teal",
     purpose:
-      "MarketDB loads historical Nifty through as-of for μ/σ estimation and calendar seeds. Forward calendars (Mon–Fri, month-end rolls, monthly expiries) are shared date rules only. Each GBM path owns its simulated Nifty and its roll points — there is no shared forward price workbook.",
+      "MarketDB loads historical Nifty through as-of for μ/σ estimation and calendar seeds. Forward calendars (Mon–Fri sessions; monthly option expiry = futures shift) are shared date rules only. Each GBM path owns its simulated Nifty and its roll points — there is no shared forward price workbook.",
     stageCount: 5,
     metrics: [
       { label: "Roll Rate", value: "7%" },
@@ -489,11 +489,11 @@ export const logicModules: LogicModule[] = [
         id: "shifts",
         label: "Futures Shift Dates",
         kind: "lookup",
-        description: "Historical shifts from CSV; forward shifts = last trading day of each complete month.",
+        description: "Historical and forward shifts = monthly-last Nifty option expiry (WF1 / Backtester).",
         detail:
-          "Through as-of, roll_shifts follow the historical builder / CSV. After as-of, forward_calendar emits the last Mon–Fri on/before each real month-end (only complete months). Roll *points* are not stored as a shared workbook — path_roll_vector recomputes them from each path's spots.",
+          "Through as-of, roll_shifts follow build_monthly_expiries (same as the Expiry sheet). After as-of, forward_calendar emits the same monthly-last option dates (holiday → previous session). Roll *points* are not stored as a shared workbook — path_roll_vector recomputes them from each path's spots.",
         bullets: [
-          "Forward: last trading day of month (not the option expiry date)",
+          "Forward: futures shift date = monthly option expiry (not last trading day)",
           "Incomplete pad months never invent a fake shift",
           "Shared calendar dates; path-local roll points",
         ],
@@ -707,7 +707,7 @@ export const logicModules: LogicModule[] = [
       "build_monthly_expiries produces the monthly-last list used for observation mapping.",
       "hedge.resolve_observation_expiry: target month → expiry_by_month hit, else first_expiry_on_or_after.",
       "Observation targets use m × 30.5 calendar days from path start before expiry mapping.",
-      "Forward futures shifts are month-end trading days; monthly option expiries follow the desk expiry calendar — dates may differ.",
+      "Forward futures shifts equal monthly option expiries; holiday floors go backward to the previous session.",
       "expiry_overrides.csv optional layer sits first in the resolver priority stack.",
       "Intel · Market Calendar is shared dates only; simulated levels live per path on Simulated Nifty Paths / Hedging / Computation.",
     ],

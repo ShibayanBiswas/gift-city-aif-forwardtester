@@ -162,26 +162,13 @@ def pin_current_month_roll_to_latest(
     shifts: list[date],
     trading_dates: list[date],
 ) -> list[date]:
-    """Set the open/terminal month's futures roll date to its latest Nifty session.
+    """Deprecated no-op — kept for import safety.
 
-    Desk rule for Futures Roll Cost (same as Backtester):
-      - Finished months keep monthly option-expiry shifts (WF1 Roll Cost col B /
-        NSE last-Thu / last-Tue) so history stays WF1-aligned.
-      - The current (terminal) month uses the **last / current trading date**
-        present in nifty_daily.csv for that month — not an earlier monthly
-        option expiry while later sessions already exist.
-
-    First-row Excel gap (Jan-2001): trading-day count on/before first shift is
-    **19** (2001-01-01 … 2001-01-25 inclusive) → C3 = avg×7%×19/365 ≈ 4.7713.
-
-    Hedging Sheet monthly expiries are separate — do not use this helper for them.
+    WF1 Roll Cost + Paths col B uses the monthly-last Nifty **option expiry**
+    for every month (same as the Expiry sheet), never the last trading day.
+    Callers must pass monthly expiries through unchanged.
     """
-    if not trading_dates:
-        return list(shifts)
-    end = trading_dates[-1]
-    out = [d for d in shifts if (d.year, d.month) != (end.year, end.month)]
-    out.append(end)
-    return sorted(out)
+    return list(shifts)
 
 
 def build_all_option_expiries(

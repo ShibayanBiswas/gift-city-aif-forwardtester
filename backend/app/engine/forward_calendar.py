@@ -6,9 +6,10 @@ Forward trading sessions (after last historical Nifty close = as-of):
   - Month lengths follow the real calendar (28/29/30/31), including leap Februaries.
 
 Forward event calendars (months strictly after as-of, complete months only):
-  - **Futures shift / roll** = last trading day of each calendar month.
-  - **Monthly Nifty option expiry** = last Tuesday of each calendar month,
-    snapped to the previous trading session when that Tuesday is a holiday.
+  - **Futures shift / roll** = monthly-last Nifty **option expiry** (WF1 / Backtester).
+  - **Monthly Nifty option expiry** = last Thursday (pre Sep-2025) or last Tuesday
+    (from Sep-2025), snapped to the **previous** trading session when that weekday
+    is a holiday (never forward to Wednesday).
 
 Horizon end is **Product End** = ``path_end_calendar(as-of, tenure_days)``
 (not a separate Simulation End Days control). Optional Path-1 GBM fill is
@@ -22,7 +23,7 @@ from datetime import date, timedelta
 
 import numpy as np
 
-from .calendar_build import month_ends
+from .calendar_build import last_monthly_expiry_on_or_before, month_ends
 from .gbm import GBM_BASE_SEED, GbmParams, gbm_spots
 from .market import MarketDB, _recompute_roll_costs
 
@@ -83,52 +84,17 @@ def _weekday_sessions(start: date, end: date, holidays: set[date] | None = None)
     return out
 
 
-def _last_weekday_of_month(month_end: date) -> date:
-    """Last Mon–Fri on/before the real calendar month-end (ignores trading set)."""
-    d = month_end
-    while d.weekday() >= 5:
-        d -= timedelta(days=1)
-    return d
-
-
-def _last_tuesday_of_month_calendar(month_end: date) -> date:
-    """Last Tuesday on/before the real calendar month-end."""
-    d = month_end
-    while d.weekday() != 1:  # Tue = 1
-        d -= timedelta(days=1)
-    return d
-
-
-def _last_trading_day_of_month(month_end: date, trading: set[date]) -> date | None:
-    """Last session on/before month_end that is in ``trading``."""
-    d = month_end
-    for _ in range(12):
-        if d in trading:
-            return d
-        d -= timedelta(days=1)
-    return None
-
-
-def _snap_to_prior_session(d: date, trading: set[date]) -> date | None:
-    """If ``d`` is not a session, walk back to the previous trading day."""
-    cur = d
-    for _ in range(12):
-        if cur in trading:
-            return cur
-        cur -= timedelta(days=1)
-    return None
-
-
 def _forward_month_rolls_and_expiries(
     trading_dates: list[date],
     *,
     after: date,
     end: date,
 ) -> tuple[list[date], list[date]]:
-    """Future month-end rolls and last-Tuesday expiries for complete months after ``after``.
+    """Future monthly rolls and expiries for complete months after ``after``.
 
-    Expiry = last Tuesday snapped onto the trading calendar (holiday → prior session).
-    Roll = last trading day of the month. Incomplete pad months are skipped.
+    Both calendars use the Backtester / WF1 rule:
+      monthly-last Nifty option expiry (Thu→Tue era) with holiday floor **backward**.
+    Futures shift date == that expiry date. Incomplete pad months are skipped.
     """
     trading = set(trading_dates)
     rolls: list[date] = []
@@ -137,20 +103,13 @@ def _forward_month_rolls_and_expiries(
     for me in month_ends(after, end):
         if (me.year, me.month) <= (after.year, after.month):
             continue
-
-        true_roll = _last_weekday_of_month(me)
-        true_tue = _last_tuesday_of_month_calendar(me)
-
-        roll = _last_trading_day_of_month(me, trading)
-        if roll is None or roll <= after or roll > end:
+        # Same builder as Backtester; asof=end skips months whose scheduled weekday
+        # is still beyond the horizon (do not invent a floor onto the pad end).
+        exp = last_monthly_expiry_on_or_before(me, trading, asof=end)
+        if exp is None or exp <= after or exp > end:
             continue
-        if true_roll > end:
-            continue
-        rolls.append(roll)
-
-        exp = _snap_to_prior_session(true_tue, trading)
-        if exp is not None and exp > after and exp <= end:
-            expiries.append(exp)
+        expiries.append(exp)
+        rolls.append(exp)  # futures shift == monthly option expiry
 
     return sorted(set(rolls)), sorted(set(expiries))
 
@@ -166,8 +125,8 @@ def extend_market_forward(
     """Return a MarketDB covering through ``horizon_end`` with forward roll/expiry rules.
 
     Historical closes / expiries / rolls are preserved through ``market.last_date``.
-    Future sessions are Mon–Fri minus projected holidays; future rolls = month-end
-    trading days; future monthly expiries = last Tuesdays (holiday-snapped).
+    Future sessions are Mon–Fri minus projected holidays; future rolls and monthly
+    expiries are both monthly-last option dates (holiday → previous session).
     """
     if horizon_end <= market.last_date:
         return market

@@ -1391,8 +1391,8 @@ def _path_horizon_market(job_id: str, path_id: int) -> dict[str, Any]:
     """Full as-of → Simulation End Path Market sheet for one Monte Carlo path.
 
     Uses the saved MC matrix row — not the tenure-window path detail — so Intel
-    shows Nifty / last-Tuesday expiries / month-end rolls from today through
-    Simulation End with path-local prices and roll points.
+    shows Nifty / monthly option expiries / matching futures-shift dates from today through
+    Product End with path-local prices and roll points.
     """
     job = _get_job(job_id)
     if not job or job.get("status") != "done" or not job.get("result"):

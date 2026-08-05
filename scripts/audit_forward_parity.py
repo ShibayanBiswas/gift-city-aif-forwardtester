@@ -13,10 +13,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "backend"))
 
 from app.engine.black_scholes import _bs_price, central_delta  # noqa: E402
-from app.engine.forward_calendar import (  # noqa: E402
-    _last_tuesday_of_month_calendar,
-    _snap_to_prior_session,
-)
+from app.engine.calendar_build import last_monthly_expiry_on_or_before  # noqa: E402
 from app.engine.forwardtest import compute_single_path_detail, run_forwardtest  # noqa: E402
 from app.engine.gbm import GBM_BASE_SEED, estimate_gbm_params, gbm_spots  # noqa: E402
 from app.engine.market import load_market, path_roll_vector  # noqa: E402
@@ -113,7 +110,7 @@ def main() -> int:
         assert np.allclose(sliced, expect)
     check("slice_parity_horizon_row", True, "4 paths")
 
-    ml = [e for e in sorted(fwd.monthly_last_expiries) if asof <= e <= horizon]
+    ml = [e for e in sorted(fwd.monthly_last_expiries) if asof < e <= horizon]
     check("monthly_last_tuesday_count", len(ml) >= 40, f"n={len(ml)}")
     trading = set(fwd.dates)
     snap_ok = True
@@ -121,15 +118,24 @@ def main() -> int:
         for mo in range(1, 13):
             me = date(y, mo, monthrange(y, mo)[1])
             # Forward expiries are emitted for complete months after as-of only.
-            if date(y, mo, 1) <= asof or me > horizon:
+            if (y, mo) <= (asof.year, asof.month) or me > horizon:
                 continue
-            tue = _last_tuesday_of_month_calendar(me)
-            snap = _snap_to_prior_session(tue, trading)
-            if snap is None:
+            exp = last_monthly_expiry_on_or_before(me, trading, asof=horizon)
+            if exp is None or exp <= asof:
                 continue
-            if snap not in fwd.monthly_last_expiries and tue not in fwd.monthly_last_expiries:
+            if exp not in fwd.monthly_last_expiries:
                 snap_ok = False
-    check("monthly_expiry_snap_present", snap_ok and len(ml) > 0, f"first={ml[0] if ml else None}")
+    check(
+        "monthly_expiry_snap_present",
+        snap_ok and len(ml) > 0,
+        f"first={ml[0] if ml else None}",
+    )
+    check(
+        "forward_rolls_eq_expiries",
+        [d for d in fwd.roll_shifts if asof < d <= horizon]
+        == [e for e in fwd.expiries if asof < e <= horizon],
+        "",
+    )
 
     # First in-path roll must use calendar Δt from prior global shift (not seed N)
     p1 = paths[0]

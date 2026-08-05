@@ -239,7 +239,7 @@ def main() -> int:
         check(
             "nav_total_reconstructs_from_ledger",
             abs(recon - nav.total) < 1e-4,
-            f"recon={recon:.6f} total={nav.total:.6f} Δ={recon - nav.total:.2e}",
+            f"recon={recon:.6f} total={nav.total:.6f} delta={recon - nav.total:.2e}",
         )
         # Tax benefit is display-only
         sum_tax = sum(float(r["tax_benefit"]) for r in rows)
