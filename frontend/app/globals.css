@@ -1231,9 +1231,7 @@ html.dark .desk-select {
   flex: 1 1 auto;
   width: 100%;
   min-width: 0;
-  /* Prior width unchanged; min-height +~1.5rem for the extra 2–3 description lines. */
-  min-height: 10.75rem;
-  height: auto;
+  min-height: 9.25rem;
 }
 .logic-flow-arrow {
   margin: 0;
@@ -1267,8 +1265,7 @@ html.dark .desk-select {
   .logic-pipeline-item .logic-node {
     width: min(15.5rem, 72vw);
     flex: 0 0 auto;
-    min-height: 11rem;
-    height: auto;
+    min-height: 9.5rem;
   }
 }
 

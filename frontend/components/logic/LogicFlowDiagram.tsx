@@ -129,15 +129,12 @@ function FlowNode({
         </div>
         <div className="min-w-0 flex-1">
           <p className="text-[0.95rem] font-semibold leading-snug text-[var(--ar-ink)]">{node.label}</p>
-          {/* Same card width as before; +2–3 description lines → slight vertical growth only. */}
-          <p className="mt-1 line-clamp-5 text-[11px] leading-snug text-[var(--ar-muted)] font-ui">
+          <p className="mt-1 line-clamp-3 text-[11px] leading-snug text-[var(--ar-muted)] font-ui">
             {blurb}
           </p>
         </div>
         {chip ? (
-          <p className="logic-node__chip font-ui" title={chip}>
-            {chip}
-          </p>
+          <p className="logic-node__chip font-ui">{chip}</p>
         ) : null}
       </div>
     </motion.button>

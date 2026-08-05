@@ -234,7 +234,7 @@ export function LogicAtlasConsole() {
         <div className="border-b border-[var(--ar-border)] px-5 py-3">
           <h3 className="font-display text-lg text-[var(--ar-maroon)]">Defaults And Constants</h3>
           <p className="mt-1 text-sm text-[var(--ar-muted)] font-ui">
-            Live Product Input values for this stage · updates on upload
+            Live Product Input values for this stage (updates on upload)
           </p>
         </div>
         <div className="logic-module-rail px-5 py-3">
