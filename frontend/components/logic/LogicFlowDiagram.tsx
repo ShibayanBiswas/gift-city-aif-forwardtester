@@ -129,8 +129,8 @@ function FlowNode({
         </div>
         <div className="min-w-0 flex-1">
           <p className="text-[0.95rem] font-semibold leading-snug text-[var(--ar-ink)]">{node.label}</p>
-          {/* Wrap inside fixed card width — no line-clamp so height grows vertically only. */}
-          <p className="mt-1 break-words text-[11px] leading-snug text-[var(--ar-muted)] font-ui">
+          {/* Same card width as before; +2–3 description lines → slight vertical growth only. */}
+          <p className="mt-1 line-clamp-5 text-[11px] leading-snug text-[var(--ar-muted)] font-ui">
             {blurb}
           </p>
         </div>
@@ -234,7 +234,7 @@ export function LogicModuleCard({
             </div>
           ))}
         </div>
-        <p className="mt-2.5 text-xs leading-snug text-[var(--ar-muted)] font-ui">{module.purpose}</p>
+        <p className="mt-2.5 line-clamp-2 text-xs leading-snug text-[var(--ar-muted)] font-ui">{module.purpose}</p>
       </div>
     </button>
   );

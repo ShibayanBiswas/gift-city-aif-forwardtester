@@ -1222,7 +1222,6 @@ html.dark .desk-select {
 }
 .logic-pipeline-item {
   display: flex;
-  /* Exact horizontal footprint from prior desk CSS (unchanged). */
   flex: 1 0 10.5rem;
   min-width: 10.5rem;
   align-items: stretch;
@@ -1232,8 +1231,8 @@ html.dark .desk-select {
   flex: 1 1 auto;
   width: 100%;
   min-width: 0;
-  min-height: 9.25rem;
-  /* Only change vs prior: grow taller for longer description copy. */
+  /* Prior width unchanged; min-height +~1.5rem for the extra 2–3 description lines. */
+  min-height: 10.75rem;
   height: auto;
 }
 .logic-flow-arrow {
@@ -1268,7 +1267,7 @@ html.dark .desk-select {
   .logic-pipeline-item .logic-node {
     width: min(15.5rem, 72vw);
     flex: 0 0 auto;
-    min-height: 9.5rem;
+    min-height: 11rem;
     height: auto;
   }
 }

@@ -75,11 +75,11 @@ export const logicModules: LogicModule[] = [
         label: "Workbook Ingest",
         kind: "input",
         description:
-          "Sample Input or an uploaded .xlsx becomes the live product definition for the desk. The workbook is the only Run-time product source — no mid-job swap. Upload and Sample Input both land on the same current_product.xlsx path the API re-parses before every Monte Carlo Run.",
+          "Sample Input or an uploaded .xlsx becomes the live product definition for the desk. Upload and Sample Input both land on current_product.xlsx; every Run re-parses that file.",
         detail:
           "POST /api/product/upload copies the file to data/uploads/current_product.xlsx; GET /api/product/sample serves the repo sample. The next Run always parses whatever file is current — there is no second product source mid-job.",
         bullets: [
-          "→ current_product.xlsx",
+          "Sample Input or Upload → current_product.xlsx",
           "openpyxl load with data_only=True",
           "First sheet matching product / input / as per",
         ],
@@ -95,7 +95,7 @@ export const logicModules: LogicModule[] = [
         label: "Principal And Tenure",
         kind: "lookup",
         description:
-          "Label rows for Principal and Tenure Days supply notional and calendar tenure. Principal is INR notional (sample ₹100 Cr); Tenure Days drive Product End via path_end_calendar, IRR years, and fee accrual — the same Backtester tenure rule on every path.",
+          "Label rows for Principal and Tenure Days supply notional and calendar tenure. Principal is INR; Tenure Days set Product End via path_end_calendar.",
         detail:
           "Principal is stored in INR (sample 1,000,000,000 = ₹100 Cr). Tenure Days drives path_end_calendar, IRR denominator, and fee accrual calendar in nav.py.",
         bullets: [
@@ -115,7 +115,7 @@ export const logicModules: LogicModule[] = [
         label: "Observation Months",
         kind: "process",
         description:
-          "Month offsets under the Observation header, deduplicated in file order. Supported band is 1…7 observations; sample uses 38…56. Each offset becomes target = start + m × 30.5 days, then maps to the monthly Nifty option expiry on the Hedging Sheet.",
+          "Month offsets under the Observation header, deduplicated in file order. Band 1…7; sample 38…56; each maps as start + m × 30.5 to a monthly expiry.",
         detail:
           "Observation months are floats in [1, 120] read from the column whose header contains 'observation'. Sample book: 38, 41, 44, 47, 50, 53, 56. hedge.build_observations converts each to target = start + m × 30.5.",
         bullets: [
@@ -135,7 +135,7 @@ export const logicModules: LogicModule[] = [
         label: "Options Book Rows",
         kind: "engine",
         description:
-          "Each options-book row becomes an OptionLegSpec; active_legs feed build_legs, which expands every strike × n_obs observation expiries. Header-driven columns (Return, Strike %, Option, Forward 6.6%, Discount 7.6%, Vol Near/Far, Qty, Include) match the Backtester book; Include=No and zero qty rows stay display-only.",
+          "Each options-book row becomes an OptionLegSpec; active_legs feed build_legs, which expands every strike × n_obs observation expiries. Header map matches the Backtester book; Include=No rows stay display-only.",
         detail:
           "parse_product_workbook detects the header row containing Qty/Quantity, maps columns (Return Level, Strike %, Option, Forward, Discount, Vol Near, Vol Far, Qty, Include), and walks rows top to bottom. The sample book holds six put legs (−91.5 / 90.5 / 1.0 / −25.6 / 24.0 / 1.0 at strikes 137%–70%); hedge.build_legs later multiplies each active leg by seven observation expiries with contract qty = raw × principal / Spot₀ / n_obs.",
         bullets: [
@@ -202,7 +202,7 @@ export const logicModules: LogicModule[] = [
         label: "Product Spec",
         kind: "output",
         description:
-          "ProductSpec dataclass feeds paths, hedge_path, nav, and desk exports. It is the single source of truth for a Run: principal, tenure, observation months, legs, and Monte Carlo path count. Serialized via to_dict for API, job cache, and every worker path evaluation.",
+          "ProductSpec dataclass feeds paths, hedge_path, nav, and desk exports. It is the single Run source of truth for principal, tenure, legs, and path count.",
         detail:
           "ProductSpec exposes name, principal, tenure_days, observation_months, legs, source_file, plus computed principal_cr, n_obs, and active_legs. Serialized via to_dict / from_dict for API and job cache.",
         bullets: [
