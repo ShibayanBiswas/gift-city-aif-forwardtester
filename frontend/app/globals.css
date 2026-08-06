@@ -1052,8 +1052,7 @@ html.dark .desk-select {
   display: flex;
   height: 100%;
   width: 100%;
-  /* Match Backtester width via --logic-module-card-width; slight height room for live date metrics + purpose. */
-  min-height: 12.75rem;
+  min-height: 11.5rem;
   flex-direction: column;
   overflow: hidden;
   border-radius: 0.9rem;
@@ -1235,8 +1234,8 @@ html.dark .desk-select {
   width: 100%;
   min-width: 0;
   max-width: 100%;
-  /* Taller than Backtester 9.25rem so +3–4 description lines fit (line-clamp-6). */
-  min-height: 12.5rem;
+  /* Uniform card height — two-line descriptions only. */
+  min-height: 9.25rem;
   height: auto;
   overflow: hidden;
 }
@@ -1278,7 +1277,7 @@ html.dark .desk-select {
   .logic-pipeline-item .logic-node {
     width: min(15.5rem, 72vw);
     flex: 0 0 auto;
-    min-height: 13rem;
+    min-height: 9.5rem;
     height: auto;
   }
 }

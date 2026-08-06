@@ -62,7 +62,7 @@ export const logicModules: LogicModule[] = [
     engineFile: "engine/product.py",
     accent: "amber",
     purpose:
-      "The product workbook is read top to bottom for principal, tenure, observation months, and option legs. That book becomes the single input every later stage of the Run uses.",
+      "The product workbook sets principal, tenure, observations, and option legs. That book is the single input for the whole Run.",
     stageCount: 5,
     metrics: [
       { label: "Principal", value: "100 Cr" },
@@ -75,7 +75,7 @@ export const logicModules: LogicModule[] = [
         label: "Workbook Ingest",
         kind: "input",
         description:
-          "Sample Input or an uploaded workbook becomes the live product for the desk. Both paths save as the current product file. Every Run reads that file again before paths are built. There is no second product source mid-job.",
+          "Sample Input or Upload sets the live product workbook for the desk. Every Run reads that same file again.",
         detail:
           "Upload stores the workbook for the desk. Sample Input loads the shipped workbook. The Run always uses whichever file is current.",
         bullets: [
@@ -95,7 +95,7 @@ export const logicModules: LogicModule[] = [
         label: "Principal And Tenure",
         kind: "lookup",
         description:
-          "Principal and Tenure Days rows set the fund size and how long each path lasts. Sample principal is one hundred crore rupees. Tenure drives path end dates, IRR, and fee accrual. Both rows are required before a Run can start.",
+          "Principal and Tenure Days set fund size and path length. Both rows are required before a Run can start.",
         detail:
           "The reader finds the Principal and Tenure labels in the sheet and takes the values beside them. Desk chips show principal in crores for easy reading.",
         bullets: [
@@ -115,7 +115,7 @@ export const logicModules: LogicModule[] = [
         label: "Observation Months",
         kind: "process",
         description:
-          "Observation month offsets sit under the Observation header, in file order, with duplicates removed. The sample uses seven months: 38, 41, 44, 47, 50, 53, and 56. Each offset maps from path start onto a monthly Nifty option expiry. Products may use one to seven observations.",
+          "Observation months sit under the Observation header in file order. The sample uses seven months from 38 through 56.",
         detail:
           "The count of observation months sizes the options book and limits how far monthly paths can extend while the last observation still lands on a known expiry.",
         bullets: [
@@ -135,7 +135,7 @@ export const logicModules: LogicModule[] = [
         label: "Options Book Rows",
         kind: "engine",
         description:
-          "Each options-book row is one strike and quantity. Rows marked Include Yes enter the live book. The sample holds six put legs across the return levels in the sheet. On each path the engine expands every active strike across all observation expiries and scales contract size from principal and spot.",
+          "Each options-book row is one strike and quantity. Include Yes rows enter the live book used on every path.",
         detail:
           "Column headers drive the map: Return Level, Strike percent, Option, Forward, Discount, Vol Near, Vol Far, Qty, and Include. Blank rate cells use the desk defaults of 6.6 percent forward and 7.6 percent discount.",
         bullets: [
@@ -167,7 +167,7 @@ export const logicModules: LogicModule[] = [
         label: "Product Spec",
         kind: "output",
         description:
-          "The finished product book holds principal, tenure, observation months, active option legs, and fund economics. It is the single source of truth for a Run. Paths, hedging, computation, and desk exports all read the same book.",
+          "The finished product book holds principal, tenure, observations, and option legs. Paths, hedging, and computation all use that same book.",
         detail:
           "The Product tab shows this live book. After upload or Sample Input, every worker on the next Run uses the same snapshot.",
         bullets: [
@@ -270,7 +270,7 @@ export const logicModules: LogicModule[] = [
     engineFile: "engine/paths.py · engine/gbm.py · engine/forward_calendar.py",
     accent: "maroon",
     purpose:
-      "Every Monte Carlo path shares the same window: Start is As Of Today and End is Product End. Each path is a different random seed over that shared calendar. Spots land on Monday through Friday only.",
+      "Every path shares As Of Today through Product End. Each path is a different Monte Carlo seed on that calendar.",
     stageCount: 5,
     metrics: [
       { label: "All Paths Start", value: "As Of Today" },
@@ -283,7 +283,7 @@ export const logicModules: LogicModule[] = [
         label: "Single Window",
         kind: "input",
         description:
-          "All paths open on the latest Nifty session after market sync and close on Product End from tenure. There are no staggered start months. Path count defaults to one thousand; only the random seed changes from path to path.",
+          "Every path starts on As Of Today and ends on Product End. Only the random seed changes from path to path.",
         detail:
           "As Of advances when the desk syncs market data. Cached Run results clear when that as-of date drifts. The same Start and End apply to every seed.",
         bullets: [
@@ -303,7 +303,7 @@ export const logicModules: LogicModule[] = [
         label: "Forward Calendar",
         kind: "engine",
         description:
-          "Weekday sessions pad forward through the horizon. Futures shift dates match monthly option expiries. Holidays floor to the previous session. Incomplete pad months are skipped.",
+          "Weekday sessions pad forward through the horizon. Futures shift dates match monthly option expiries.",
         detail:
           "Holiday projection keeps only stable month–days from lookback plus fixed national dates — movable festivals are not copied by calendar day. Month lengths respect 28, 29, 30, and 31-day months. Market Calendar lists dates from as-of forward; a prior month may anchor day-count for the first roll but is not listed if it falls before as-of.",
         bullets: [
@@ -323,7 +323,7 @@ export const logicModules: LogicModule[] = [
         label: "Tenure End",
         kind: "process",
         description:
-          "Product End uses the same tenure anniversary rule as the Backtester. Every path ends on that shared date. Rolls and expiries clip to Product End.",
+          "Product End comes from tenure using the same Backtester calendar rule. All paths share that one end date.",
         detail:
           "For typical five-year tenures the end is roughly the last day of the month before the five-year anniversary. Custom tenure outside that band uses start plus tenure days. There is no separate simulation-end control.",
         bullets: [
@@ -342,7 +342,7 @@ export const logicModules: LogicModule[] = [
         label: "Simulated Spots",
         kind: "lookup",
         description:
-          "Each path steps one simulated Nifty close per trading day from today's as-of spot. Drift and volatility come from historical market history. The same calendar day can show different prices across paths.",
+          "Each path steps Nifty forward day by day with its own random seed. Same calendar dates, different prices.",
         detail:
           "Starting level is the as-of Nifty close. Each step multiplies by a random shock with estimated drift and volatility. Weekend days never appear in the spot series. Seeds are fixed per path id so a re-run is reproducible.",
         bullets: [
@@ -361,7 +361,7 @@ export const logicModules: LogicModule[] = [
         label: "Path Atlas",
         kind: "output",
         description:
-          "The finished atlas is the list of paths for hedge and NAV workers. Every window is identical; only seeds and simulated prices differ.",
+          "The path list feeds hedging and computation for every seed. Path count defaults to one thousand.",
         detail:
           "Each path carries an id, start, end, trading dates, and optional simulated spots. Market Calendar shows the shared shift and expiry dates. Path Nifty and roll points appear on Hedging, Computation, and Simulated Nifty Paths.",
         bullets: [
@@ -435,7 +435,7 @@ export const logicModules: LogicModule[] = [
     engineFile: "engine/market.py",
     accent: "teal",
     purpose:
-      "Historical Nifty through as-of feeds drift and volatility. Forward calendars share Monday–Friday sessions and monthly option-expiry shift dates. Each path owns its simulated Nifty and its roll points — there is no shared forward price workbook.",
+      "Historical Nifty sets drift and volatility; forward calendars share shift dates. Each path owns its simulated Nifty and roll points.",
     stageCount: 5,
     metrics: [
       { label: "Roll Rate", value: "7%" },
@@ -448,7 +448,7 @@ export const logicModules: LogicModule[] = [
         label: "Daily Nifty Close",
         kind: "input",
         description:
-          "Historical closes through as-of size the Monte Carlo model. After that, each path carries its own simulated Monday–Friday closes. Desk sheets show those path prices on Hedging, Computation, and Simulated Nifty Paths.",
+          "Historical Nifty through as-of sets drift and volatility. Forward prices then differ by Monte Carlo path.",
         detail:
           "Market sync pulls Nifty through the latest session. Drift and volatility come from that history. The same calendar day can print different simulated levels across paths.",
         bullets: [
@@ -467,7 +467,7 @@ export const logicModules: LogicModule[] = [
         label: "Futures Shift Dates",
         kind: "lookup",
         description:
-          "Historical and forward shift dates equal the monthly-last Nifty option expiry. Roll points are not a shared workbook — each path recomputes them from its own spots.",
+          "Futures shift dates match monthly option expiries. Only shifts on or after As Of Today appear on the calendar sheet.",
         detail:
           "Through as-of, shifts follow the monthly expiry calendar. After as-of, the forward pad emits the same monthly-last option dates, floored to the previous session on holidays. Incomplete pad months never invent a fake shift.",
         bullets: [
@@ -486,7 +486,7 @@ export const logicModules: LogicModule[] = [
         label: "Average Spot Span",
         kind: "process",
         description:
-          "Average Nifty on trading days only sizes the roll. Saturday and Sunday never enter the average.",
+          "Roll averages use trading-day closes only. Weekends never enter the average.",
         detail:
           "First shift: mean of closes with date on or before the first shift. Later shifts: mean of closes in the open interval after the prior shift through the current shift. Forward pad uses the same rule on each path's simulated closes.",
         bullets: [
@@ -505,7 +505,7 @@ export const logicModules: LogicModule[] = [
         label: "Roll Cost Points",
         kind: "engine",
         description:
-          "First month: seven percent times average spot times trading days over 365. Later months: seven percent times average spot times calendar days between shifts over 365. Different paths produce different roll points.",
+          "Roll cost is seven percent of the average spot times the day fraction. Later months use calendar days between shifts.",
         detail:
           "NAV scales by the product roll rate and zeros rolls after the last observation. Tax benefit is tracked separately and is not added to Total.",
         bullets: [
@@ -524,7 +524,7 @@ export const logicModules: LogicModule[] = [
         label: "Market Database",
         kind: "output",
         description:
-          "One shared market handle holds spots, rolls, expiries, and the month-to-expiry map for hedge and NAV. Forward prices and roll points stay per-path.",
+          "Calendars are shared; simulated Nifty and roll points stay path-specific. Hedging and NAV read both.",
         detail:
           "The month-to-expiry map lets observation mapping look up the monthly expiry in constant time. Intel · Market Calendar shows dates only — not a shared forward price book.",
         bullets: [
@@ -596,7 +596,7 @@ export const logicModules: LogicModule[] = [
     engineFile: "engine/calendar_build.py",
     accent: "ink",
     purpose:
-      "The expiry calendar builds monthly and full weekly Nifty option expiries from 2001. Hedging maps each observation target onto the monthly-last expiry for that month.",
+      "Monthly Nifty option expiries anchor observation mapping. Holidays step back to the prior trading session.",
     stageCount: 4,
     metrics: [
       { label: "Calendar Start", value: "2001" },
@@ -609,7 +609,7 @@ export const logicModules: LogicModule[] = [
         label: "Expiry Overrides",
         kind: "input",
         description:
-          "An optional overrides file can pin authoritative expiry dates for specific months. When a month is listed there, that date wins.",
+          "Optional expiry overrides win when a month is listed. Otherwise the usual monthly rule applies.",
         detail:
           "Otherwise the resolver falls through to the futures shift date or the weekday rule for that NSE era. Overrides load when the market initialises.",
         bullets: [
@@ -628,7 +628,7 @@ export const logicModules: LogicModule[] = [
         label: "Month Resolver",
         kind: "engine",
         description:
-          "For each month: override first, then futures shift, then the NSE weekday rule — last Thursday through August 2025, last Tuesday from September 2025. Holidays floor to the previous trading day.",
+          "Each month resolves to the last monthly option expiry weekday for its era. Holidays step back to the prior session.",
         detail:
           "Pre-2019 used monthly-only Thursdays. From February 2019 weeklies joined on Thursday. From September 2025 weekly and monthly move to Tuesday.",
         bullets: [
@@ -648,7 +648,7 @@ export const logicModules: LogicModule[] = [
         label: "Expiry List",
         kind: "output",
         description:
-          "The monthly-last expiry list from 2001 feeds Hedging Sheet observation mapping.",
+          "The monthly expiry list feeds observation mapping on the Hedging Sheet. One date per month.",
         detail:
           "A month-to-expiry dictionary lets each observation target resolve quickly. Sync rebuilds the list when Nifty history extends.",
         bullets: [
@@ -667,7 +667,7 @@ export const logicModules: LogicModule[] = [
         label: "Intel · Market Calendar",
         kind: "lookup",
         description:
-          "Market Calendar lists futures shift dates and monthly option expiries from as-of forward. Simulated Nifty and roll points differ by path — see Simulated Nifty Paths, Hedging, and Computation.",
+          "Market Calendar shows expiry and shift dates from as-of forward. Path Nifty lives on Hedging and Simulated Paths.",
         detail:
           "There is no shared forward price workbook. Calendar dates are shared; prices and roll points are path-local. Observation expiries also appear on the Hedging Sheet.",
         bullets: [
@@ -734,7 +734,7 @@ export const logicModules: LogicModule[] = [
     engineFile: "engine/hedge.py",
     accent: "gold",
     purpose:
-      "Each path maps observation months to monthly expiries, expands the options book across those dates, and sums Black–Scholes deltas into the daily futures inventory Computation needs.",
+      "Each path maps observations, expands the options book, and builds daily required futures delta. Computation reads that inventory.",
     stageCount: 7,
     metrics: [
       { label: "Forward", value: "6.6%" },
@@ -747,7 +747,7 @@ export const logicModules: LogicModule[] = [
         label: "Path Context",
         kind: "input",
         description:
-          "Path start and the first Nifty level on the path anchor all strikes and observation targets. The same product book applies on every path; only the starting spot changes.",
+          "Path start date and starting Nifty set strikes and observation anchors. Rates and vols come from the product book.",
         detail:
           "Start is the first trading day on the path. Spot zero is the first close (simulated for forward paths). Rates and vols come from the product legs and do not change by path.",
         bullets: [
@@ -766,7 +766,7 @@ export const logicModules: LogicModule[] = [
         label: "Observation Targets",
         kind: "process",
         description:
-          "Each observation month becomes a calendar target of path start plus month times 30.5 days. The sample uses seven months from 38 through 56.",
+          "Each observation month maps from path start onto a target date. That target snaps to a monthly option expiry.",
         detail:
           "Observation Nifty comes from the path's own spots on or before the target. That equals historical market lookup only when the path is historical.",
         bullets: [
@@ -785,7 +785,7 @@ export const logicModules: LogicModule[] = [
         label: "Map To Monthly Expiry",
         kind: "lookup",
         description:
-          "Each target snaps onto the monthly Nifty option expiry for that calendar month. If the month is missing, the first expiry on or after the target is used.",
+          "Observation targets land on the monthly Nifty expiry for that month. Order follows the product workbook.",
         detail:
           "Mapped expiries stay in product file order. Observation Nifty on each expiry date is recorded for the sheet.",
         bullets: [
@@ -804,7 +804,7 @@ export const logicModules: LogicModule[] = [
         label: "Build Option Legs",
         kind: "engine",
         description:
-          "Active product legs cross every observation expiry. Strike is spot zero times strike percent. Contract size is raw quantity times principal over spot zero over observation count.",
+          "Active option legs expand across every observation expiry. Contract size scales from principal and start spot.",
         detail:
           "Only Include Yes legs enter. The sample six puts across seven observations become forty-two built legs. Forward and discount rates come from each product row.",
         bullets: [
@@ -824,7 +824,7 @@ export const logicModules: LogicModule[] = [
         label: "Moneyness Volatility",
         kind: "lookup",
         description:
-          "Vol Near applies on the first observation; Vol Far on later ones. If a parsed vol is missing or non-positive, a moneyness default by strike percent is used.",
+          "Near vol applies on the first observation. Far vol applies on later observations.",
         detail:
           "Near and Far come from Product Input per leg. The same vols apply on every path.",
         bullets: [
@@ -843,7 +843,7 @@ export const logicModules: LogicModule[] = [
         label: "Option Delta",
         kind: "engine",
         description:
-          "Legs group by expiry. Black–Scholes prices with a half-point spot bump up and down; the difference times contract quantity sums into required delta.",
+          "Daily required futures delta comes from Black–Scholes bumps on the options book. That inventory opens Computation.",
         detail:
           "Time to expiry is calendar days from as-of over 365. Forward and discount rates come from the leg group. Puts and calls use the flag from the product row. There is no divide by twice the bump.",
         bullets: [
@@ -862,7 +862,7 @@ export const logicModules: LogicModule[] = [
         label: "Net Required Delta",
         kind: "output",
         description:
-          "One required-delta value per path trading day opens the Computation futures inventory. The last observation expiry gates when rolls stop.",
+          "Required delta aligns to each path trading day. Computation reads it as the futures opening balance.",
         detail:
           "NAV reads day-over-day change in required delta as traded futures quantity. Cumulative position marks MTM and scales roll.",
         bullets: [
@@ -948,7 +948,7 @@ export const logicModules: LogicModule[] = [
     engineFile: "engine/nav.py",
     accent: "rose",
     purpose:
-      "The daily ledger seeds cash and G-Sec from Product Input, marks futures from required delta, applies rolls, fees, and brokerage, then reports terminal Total and IRR.",
+      "The daily ledger applies futures MTM, roll, cash, G-Sec, fees, and brokerage. It reports terminal Total and IRR.",
     stageCount: 8,
     metrics: [
       { label: "Cash Buffer", value: "principal × cash_pct" },
@@ -961,7 +961,7 @@ export const logicModules: LogicModule[] = [
         label: "Futures Inventory",
         kind: "input",
         description:
-          "Required delta from hedging drives day-over-day traded quantity and the cumulative futures position that marks MTM.",
+          "Required delta drives futures quantity and cumulative position each day. Day zero opens at the first delta.",
         detail:
           "Opening change equals the first day's required delta. Later days use the difference versus the prior day. Cumulative position marks MTM and scales roll.",
         bullets: [
@@ -980,7 +980,7 @@ export const logicModules: LogicModule[] = [
         label: "Futures Mark To Market",
         kind: "engine",
         description:
-          "Daily MTM is prior cumulative futures times the Nifty move, scaled to crores. Day zero MTM is zero.",
+          "Futures mark-to-market follows the prior position times the Nifty move. Day zero mark-to-market is zero.",
         detail:
           "MTM accumulates into the cash buffer. The sum feeds the Result MTM block, including roll days.",
         bullets: [
@@ -999,7 +999,7 @@ export const logicModules: LogicModule[] = [
         label: "Rollover Cost",
         kind: "process",
         description:
-          "Roll cost hits on futures shift dates while the date is on or before the last observation. Tax benefit is tracked separately and is not in Total.",
+          "Roll cost hits on futures shift dates while observations remain open. Tax benefit is tracked but not in Total.",
         detail:
           "Roll equals minus roll points times cumulative futures, scaled to crores. After the last observation, roll is zeroed.",
         bullets: [
@@ -1018,7 +1018,7 @@ export const logicModules: LogicModule[] = [
         label: "Cash And Interest",
         kind: "engine",
         description:
-          "Cash buffer is principal times the cash percent at day zero. It absorbs MTM and roll and earns the Product Input cash rate on the prior balance.",
+          "Cash buffer starts from Product Input and absorbs mark-to-market and roll. It earns the cash interest rate.",
         detail:
           "Interest uses calendar day gaps between path dates. Cash plus interest for the Result block is the buffer plus sum of cash interest.",
         bullets: [
@@ -1037,7 +1037,7 @@ export const logicModules: LogicModule[] = [
         label: "G-Sec Compounding",
         kind: "engine",
         description:
-          "The bond sleeve is principal times the G-Sec percent at day zero and compounds at the Product Input G-Sec rate.",
+          "The G-Sec sleeve starts from Product Input and compounds at the G-Sec rate. Interest feeds the terminal result.",
         detail:
           "Opening G-Sec is the remainder of principal after the cash buffer. Growth uses calendar day gaps. Interest is the day-over-day increase.",
         bullets: [
@@ -1056,7 +1056,7 @@ export const logicModules: LogicModule[] = [
         label: "Transaction Costs",
         kind: "process",
         description:
-          "Buy and sell brokerage apply on futures turnover every trading day from Product Input rates.",
+          "Buy and sell brokerage apply on futures turnover each trading day. Rates come from Product Input.",
         detail:
           "Notional is absolute traded quantity times spot, scaled to crores. The same brokerage card applies every day. NAV subtracts today's and the prior day's costs each step.",
         bullets: [
@@ -1075,7 +1075,7 @@ export const logicModules: LogicModule[] = [
         label: "Management Fees",
         kind: "process",
         description:
-          "Management fee accrues at the Product Input fee rate on principal across path tenure.",
+          "Management fee accrues on principal across path tenure. Fees reduce the daily NAV build.",
         detail:
           "Fees use calendar day gaps, subtract from the daily NAV increment, and sum into the terminal Result.",
         bullets: [
@@ -1094,7 +1094,7 @@ export const logicModules: LogicModule[] = [
         label: "Result And IRR",
         kind: "output",
         description:
-          "Terminal components and annualised IRR from Total versus principal over tenure.",
+          "Terminal Total combines principal, mark-to-market, cash, G-Sec, costs, and fees. IRR annualises Total versus principal.",
         detail:
           "Total = principal + MTM + cash interest (with buffer) + G-Sec interest − transaction costs − fees. Tax benefit on roll is stored but not added. IRR annualises Total over calendar tenure days.",
         bullets: [
@@ -1174,7 +1174,7 @@ export const logicModules: LogicModule[] = [
     engineFile: "engine/forwardtest.py",
     accent: "maroon",
     purpose:
-      "The forward Run evaluates paths in parallel — hedge then NAV on each seed — stores the job summary and yearly KPIs, and powers the Since-year filter without re-running the engine.",
+      "The Run stores path totals and yearly KPIs for the desk. Since-year filters the view without re-running the engine.",
     stageCount: 5,
     metrics: [
       { label: "Paths", value: "1000" },
@@ -1187,7 +1187,7 @@ export const logicModules: LogicModule[] = [
         label: "Parallel Path Run",
         kind: "engine",
         description:
-          "Workers evaluate paths in parallel. Each path runs hedging then NAV. A new Run cancels the prior job safely and reports progress to the desk.",
+          "Workers evaluate paths in parallel. Each path runs hedge then the daily NAV ledger.",
         detail:
           "Workers share the same product book and market handle. Path count follows Monte Carlo Paths from the product (default one thousand).",
         bullets: [
@@ -1207,7 +1207,7 @@ export const logicModules: LogicModule[] = [
         label: "Path Summary Row",
         kind: "process",
         description:
-          "One result block per path: investment, MTM, cash, G-Sec, transaction costs, fees, Total, IRR, and Nifty levels.",
+          "Each path stores Total, IRR, and the main ledger components. Desk tables and charts read those rows.",
         detail:
           "Each row also carries start and end, average observation Nifty, absolute Nifty return, start year, trading-day count, and optional buy/sell cost splits.",
         bullets: [
@@ -1226,7 +1226,7 @@ export const logicModules: LogicModule[] = [
         label: "Yearly Rollup",
         kind: "engine",
         description:
-          "Groups path summaries by start year for mean, median, hit-rate, and extremes.",
+          "Yearly labs group path results for mean, median, and hit rate. Analytics charts use the same groups.",
         detail:
           "Yearly Lab aggregates after the Since-year filter. Charts show mean versus median IRR, hit rates, and tails.",
         bullets: [
@@ -1245,7 +1245,7 @@ export const logicModules: LogicModule[] = [
         label: "Since Year Filter",
         kind: "process",
         description:
-          "Trims which path rows feed Home KPIs and Analytics — no engine re-run.",
+          "The Since-year filter trims which paths feed Home and Analytics. No engine re-run is required.",
         detail:
           "Default Since year is 2001. The filter applies on the cached job summary. Path picker and yearly charts respect the same cutoff.",
         bullets: [
@@ -1264,7 +1264,7 @@ export const logicModules: LogicModule[] = [
         label: "Analytics Surfaces",
         kind: "output",
         description:
-          "Home summary, Yearly Lab, Path Summary table, single-path detail, and delta charts.",
+          "A new Run cancels the prior job cleanly. The latest completed summary stays until the next finish.",
         detail:
           "Path detail loads cached daily ledger, required delta, and legs from the job folder on demand. Home KPIs read the latest completed job summary.",
         bullets: [
