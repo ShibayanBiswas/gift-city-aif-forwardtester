@@ -395,7 +395,7 @@ export const logicModules: LogicModule[] = [
         title: "How paths are built",
         body: "The engine pads the market calendar through Product End, then clones one tenure window for each Monte Carlo seed. Date lists are shared. Frequency is ignored.",
         bullets: [
-          "Default N = 1000 paths (clamp 1…10000; free hosts near 2000)",
+          "Default one thousand Monte Carlo paths",
           "Tenure days from the product book set Product End",
           "Observation months still gate hedge feasibility",
         ],
