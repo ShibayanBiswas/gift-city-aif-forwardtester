@@ -270,10 +270,10 @@ export const logicModules: LogicModule[] = [
     engineFile: "engine/paths.py · engine/gbm.py · engine/forward_calendar.py",
     accent: "maroon",
     purpose:
-      "build_paths clones one tenure window — Start = as-of, End = path_end_calendar — for path_id 1…N. Each path is an independent GBM seed over the same shared dates. Spots are Mon–Fri only.",
+      "Every Monte Carlo path shares the same window: Start is As Of Today and End is Product End. Each path is a different random seed over that shared calendar. Spots land on Monday through Friday only.",
     stageCount: 5,
     metrics: [
-      { label: "All Paths Start", value: "As-Of Close" },
+      { label: "All Paths Start", value: "As Of Today" },
       { label: "All Paths End", value: "Product End" },
       { label: "Sessions", value: "Mon–Fri Only" },
     ],
@@ -282,92 +282,97 @@ export const logicModules: LogicModule[] = [
         id: "starts",
         label: "Single Window",
         kind: "input",
-        description: "Every Monte Carlo path shares Start = as-of and End = Product End.",
+        description:
+          "All paths open on the latest Nifty session after market sync and close on Product End from tenure. There are no staggered start months. Path count defaults to one thousand; only the random seed changes from path to path.",
         detail:
-          "No staggered frequency starts. Path 1…N are identical calendar windows; only the GBM seed (path_id) differs. As-of = market.last_date after Yahoo sync.",
+          "As Of advances when the desk syncs market data. Cached Run results clear when that as-of date drifts. The same Start and End apply to every seed.",
         bullets: [
-          "As-of / Product End advance daily via /api/sync (cron + desk focus + Run)",
-          "As Of = latest Nifty session after Yahoo sync",
-          "Cached Run snapshots clear when live as-of drifts",
-          "N paths · same Start / End · default N = 1000",
-          "Product End = path_end_calendar(asof, tenure)",
+          "Start = As Of Today for every path",
+          "End = Product End from tenure",
+          "Default one thousand Monte Carlo paths",
+          "Only the random seed differs per path",
         ],
         steps: [
-          "forward_asof(market) → latest Nifty session.",
-          "Product End = path_end_calendar(asof, tenure_days).",
-          "Clone the tenure template for path_id 1…N.",
+          "Take the latest Nifty session as As Of.",
+          "Compute Product End from As Of and tenure days.",
+          "Clone that window once for each Monte Carlo seed.",
         ],
       },
       {
         id: "calendar",
         label: "Forward Calendar",
         kind: "engine",
-        description: "Trading-day pad with monthly option expiries; futures shifts match those expiries.",
+        description:
+          "Weekday sessions pad forward through the horizon. Futures shift dates match monthly option expiries. Holidays floor to the previous session. Incomplete pad months are skipped.",
         detail:
-          "extend_market_forward appends weekday sessions through the horizon pad. Holiday projection keeps only stable month–days (≥3 lookback hits) plus fixed national dates — movable festivals are not copied by calendar day. month_ends respects 28/29/30/31-day months. Futures shifts and monthly expiries both use last_monthly_expiry_on_or_before (holiday → previous session). Incomplete pad months are skipped.",
+          "Holiday projection keeps only stable month–days from lookback plus fixed national dates — movable festivals are not copied by calendar day. Month lengths respect 28, 29, 30, and 31-day months. Market Calendar lists dates from as-of forward; a prior month may anchor day-count for the first roll but is not listed if it falls before as-of.",
         bullets: [
-          "Saturday / Sunday always closed",
-          "Futures shift = monthly option expiry in every month (WF1 / Backtester)",
-          "7% roll points recomputed per path from that path's GBM spots",
+          "Saturday and Sunday always closed",
+          "Futures shift = monthly option expiry",
+          "Roll points recomputed per path from that path's spots",
+          "Calendar shows dates from as-of forward",
         ],
         steps: [
-          "_weekday_sessions(asof+1, product_end).",
-          "_forward_month_rolls_and_expiries for months whose monthly expiry is still after as-of (as-of month included when still ahead).",
-          "path_roll_vector(path.dates, path.spots, roll_shifts) for NAV.",
+          "Add weekday sessions from the day after as-of through Product End.",
+          "Place monthly option expiries (and matching futures shifts) still ahead of as-of.",
+          "Build each path's roll points from its own simulated spots on those shift dates.",
         ],
       },
       {
         id: "end-rule",
         label: "Tenure End",
         kind: "process",
-        description: "Same Backtester path_end_calendar for every path (Product End).",
+        description:
+          "Product End uses the same tenure anniversary rule as the Backtester. Every path ends on that shared date. Rolls and expiries clip to Product End.",
         detail:
-          "All paths use path_end_calendar (≈5Y anniversary → prior month-end when tenure ∈ [1700,2000]). There is no separate Simulation End Days horizon.",
+          "For typical five-year tenures the end is roughly the last day of the month before the five-year anniversary. Custom tenure outside that band uses start plus tenure days. There is no separate simulation-end control.",
         bullets: [
           "Tenure rule matches Gift AIF Backtester",
-          "Every path end = Product End TD",
-          "Rolls / expiries clipped to Product End",
+          "Every path end = Product End",
+          "Rolls and expiries clip to Product End",
         ],
         steps: [
-          "_build_one(asof, tenure) → shared template.",
-          "Clone template for each path_id with independent seed.",
-          "Attach GBM spots along path.dates only.",
+          "Build one shared tenure template from as-of and tenure.",
+          "Clone the template for each Monte Carlo seed.",
+          "Attach simulated spots along the path trading days only.",
         ],
       },
       {
         id: "spots",
-        label: "GBM Spots",
+        label: "Simulated Spots",
         kind: "lookup",
-        description: "One GBM step per path trading day from live S₀.",
+        description:
+          "Each path steps one simulated Nifty close per trading day from today's as-of spot. Drift and volatility come from historical market history. The same calendar day can show different prices across paths.",
         detail:
-          "S_t = S_{t-1} · exp(drift + σ · Z). simulate_path_spots → gbm_spots(..., path_id). Matrix = rows path 1..n (like Nifty Simulations.xlsx); same day index ⇒ different prices. Seed deterministic per path_id.",
+          "Starting level is the as-of Nifty close. Each step multiplies by a random shock with estimated drift and volatility. Weekend days never appear in the spot series. Seeds are fixed per path id so a re-run is reproducible.",
         bullets: [
-          "S₀ = as-of Nifty close; drift = μ − ½σ²",
-          "Vertical path ids; independent Z per path",
-          "No weekend steps in the spot vector",
+          "Start spot = as-of Nifty close",
+          "One step per Monday–Friday session",
+          "Independent random seed per path",
         ],
         steps: [
-          "estimate_gbm_params(historical market).",
-          "For each PathSpec, gbm_spots(len(dates), path_id).",
-          "hedge_path / run_nav consume path.spots.",
+          "Estimate drift and volatility from historical Nifty.",
+          "For each path, simulate closes along the shared date list.",
+          "Hand those spots to hedging and computation for that path.",
         ],
       },
       {
         id: "atlas",
         label: "Path Atlas",
         kind: "output",
-        description: "List of PathSpec objects for hedge and NAV workers.",
+        description:
+          "The finished atlas is the list of paths for hedge and NAV workers. Every window is identical; only seeds and simulated prices differ.",
         detail:
-          "Each PathSpec carries path_id, start, end, dates[], and optional spots[]. All windows are identical; only seeds differ.",
+          "Each path carries an id, start, end, trading dates, and optional simulated spots. Market Calendar shows the shared shift and expiry dates. Path Nifty and roll points appear on Hedging, Computation, and Simulated Nifty Paths.",
         bullets: [
-          "Path count = N Monte Carlo Paths, default 1000",
-          "path_from_window rebuilds one path for detail views",
-          "black_scholes identical to Backtester; nav/hedge add path-local roll points and spots",
+          "Path count = Monte Carlo Paths (default 1000)",
+          "Shared dates; path-local prices and rolls",
+          "Detail views can rebuild one path from start and end",
         ],
         steps: [
-          "Return (paths, forward_market, gbm_params, product_end).",
-          "forwardtest.run_forwardtest evaluates each path.",
-          "Intel · Market Calendar shows shared shift / expiry dates; path Nifty and roll points are on Hedging, Computation, and Simulated Nifty Paths.",
+          "Return the path list, forward market pad, GBM params, and Product End.",
+          "The forward-test Run evaluates each path.",
+          "Desk sheets read shared calendars and path-local levels.",
         ],
       },
     ],
@@ -378,33 +383,32 @@ export const logicModules: LogicModule[] = [
       { label: "Free Host Cap", value: "~2000 Paths" },
     ],
     insights: [
-      "build_paths is the single forward path factory — no CSV Macro Path pins.",
-      "As-of is always market.last_date (dynamic present after sync).",
-      "Product End = path_end_calendar(asof, tenure) — Simulation End Days is unused.",
-      "Forward calendars: monthly option expiry (= futures shift), leap/30/31 aware.",
-      "GBM spots attach on trading days only; hedge.py and nav.py stay Backtester-parity.",
-      "path_from_window rebuilds one path from cached summary start/end for path-detail views.",
+      "All paths share one window: As Of Today through Product End — no historical CSV path pins.",
+      "As Of is always the latest Nifty session after market sync.",
+      "Product End comes from tenure; there is no separate simulation-end control.",
+      "Forward calendars use monthly option expiry as the futures shift date.",
+      "Simulated spots attach on trading days only; hedging and NAV stay Backtester-parity.",
+      "A single path can be rebuilt from cached start and end for detail views.",
     ],
     noteCards: [
       {
-        title: "build_paths orchestration",
-        body: "engine/paths.py::build_paths builds the forward market pad through Product End, then clones one tenure window for path_id 1…N. Date lists are shared across PathSpecs. Frequency is ignored.",
+        title: "How paths are built",
+        body: "The engine pads the market calendar through Product End, then clones one tenure window for each Monte Carlo seed. Date lists are shared. Frequency is ignored.",
         bullets: [
-          "N = Monte Carlo Paths, default 1000, clamp 1…10000, free hosts near 2000",
-          "tenure_days from ProductSpec → Product End",
-          "observation_months still gate hedge feasibility",
+          "Default N = 1000 paths (clamp 1…10000; free hosts near 2000)",
+          "Tenure days from the product book set Product End",
+          "Observation months still gate hedge feasibility",
         ],
       },
       {
-        title: "Forward calendar module",
-        body: "engine/forward_calendar.py owns Mon–Fri sessions and monthly-last option expiries after as-of (futures shifts use the same dates). Historical CSV calendars are unchanged through as-of.",
-        code: "extend_market_forward(market, product_end, gbm_params=...)",
+        title: "Forward calendar",
+        body: "Monday–Friday sessions and monthly-last option expiries after as-of. Futures shifts use the same dates. Historical calendars through as-of stay unchanged.",
       },
       {
         title: "Single tenure window",
-        body: "Every path uses the Backtester anniversary tenure end. There is no staggered start grid and no 7300-day Simulation End Days control.",
+        body: "Every path uses the Backtester anniversary tenure end. There is no staggered start grid and no separate long simulation-end control.",
         bullets: [
-          "Default N = 1000 Monte Carlo paths",
+          "Default one thousand Monte Carlo paths",
           "Start = as-of for all paths",
         ],
       },
@@ -413,12 +417,15 @@ export const logicModules: LogicModule[] = [
         body: "Forward Nifty prices, path spines, and Intel sheets never include Saturday or Sunday. Month lengths use real calendar arithmetic (Feb 28/29, 30/31-day months).",
       },
       {
-        title: "PathSpec contract",
-        body: "Every downstream stage receives PathSpec with a contiguous Mon–Fri date list and GBM spots aligned by index.",
-        code: "PathSpec(path_id, start, end, dates, spots)",
+        title: "What each path carries",
+        body: "Every downstream stage receives a path with a contiguous Mon–Fri date list and simulated spots aligned by day index.",
+      },
+      {
+        title: "Market Calendar display",
+        body: "Intel · Market Calendar lists futures shift and monthly expiry dates from as-of forward. A prior month may anchor the first roll day-count but is omitted from the list when it falls before as-of.",
       },
     ],
-    outputs: ["Forward Path Atlas", "GBM Spot Paths", "Product End Horizon"],
+    outputs: ["Forward Path Atlas", "Simulated Spot Paths", "Product End Horizon"],
   },
   {
     id: "roll-market",
@@ -428,7 +435,7 @@ export const logicModules: LogicModule[] = [
     engineFile: "engine/market.py",
     accent: "teal",
     purpose:
-      "MarketDB loads historical Nifty through as-of for μ/σ estimation and calendar seeds. Forward calendars (Mon–Fri sessions; monthly option expiry = futures shift) are shared date rules only. Each GBM path owns its simulated Nifty and its roll points — there is no shared forward price workbook.",
+      "Historical Nifty through as-of feeds drift and volatility. Forward calendars share Monday–Friday sessions and monthly option-expiry shift dates. Each path owns its simulated Nifty and its roll points — there is no shared forward price workbook.",
     stageCount: 5,
     metrics: [
       { label: "Roll Rate", value: "7%" },
@@ -440,137 +447,142 @@ export const logicModules: LogicModule[] = [
         id: "nifty",
         label: "Daily Nifty Close",
         kind: "input",
-        description: "Historical CSV through as-of for GBM estimation; each path then carries its own lognormal simulated closes.",
+        description:
+          "Historical closes through as-of size the Monte Carlo model. After that, each path carries its own simulated Monday–Friday closes. Desk sheets show those path prices on Hedging, Computation, and Simulated Nifty Paths.",
         detail:
-          "load_market builds historical dates/closes through present (as-of). estimate_gbm_params reads μ and σ from that history. Path evaluation uses gbm_spots(S0, μ, σ, path_id) on Mon–Fri sessions — per-path series appear on Hedging / Computation / Simulated Nifty Paths; Intel · Market Calendar is dates only.",
+          "Market sync pulls Nifty through the latest session. Drift and volatility come from that history. The same calendar day can print different simulated levels across paths.",
         bullets: [
-          "As-of = latest Nifty session after /api/sync (daily auto-pull)",
-          "Forward sessions: Mon–Fri only (calendar pad)",
-          "Simulated prices = per-path GBM lognormals",
+          "As Of = latest Nifty session after sync",
+          "Forward sessions: Monday–Friday only",
+          "Simulated prices are per-path",
         ],
         steps: [
-          "Read nifty_daily.csv into MarketDB through present.",
-          "estimate_gbm_params → S0, μ, σ, drift = μ − ½σ².",
-          "Each path: S_t = S_{t-1} · exp(drift + σ·Z); same day ⇒ different prices by path (Excel matrix rows).",
+          "Load historical Nifty through present.",
+          "Estimate starting spot, drift, and volatility.",
+          "On each path, step simulated closes day by day.",
         ],
       },
       {
         id: "shifts",
         label: "Futures Shift Dates",
         kind: "lookup",
-        description: "Historical and forward shifts = monthly-last Nifty option expiry (WF1 / Backtester).",
+        description:
+          "Historical and forward shift dates equal the monthly-last Nifty option expiry. Roll points are not a shared workbook — each path recomputes them from its own spots.",
         detail:
-          "Through as-of, roll_shifts follow build_monthly_expiries (same as the Expiry sheet). After as-of, forward_calendar emits the same monthly-last option dates (holiday → previous session). Roll *points* are not stored as a shared workbook — path_roll_vector recomputes them from each path's spots.",
+          "Through as-of, shifts follow the monthly expiry calendar. After as-of, the forward pad emits the same monthly-last option dates, floored to the previous session on holidays. Incomplete pad months never invent a fake shift.",
         bullets: [
-          "Forward: futures shift date = monthly option expiry (not last trading day)",
-          "Incomplete pad months never invent a fake shift",
+          "Shift date = monthly option expiry",
+          "Incomplete pad months skipped",
           "Shared calendar dates; path-local roll points",
         ],
         steps: [
-          "Preserve historical roll_shifts ≤ as-of.",
-          "_forward_month_rolls_and_expiries for months after as-of.",
-          "path_roll_vector on path dates/spots before run_nav.",
+          "Keep historical shifts on or before as-of.",
+          "Add monthly option-expiry shifts still ahead of as-of.",
+          "Recompute roll points on each path before NAV.",
         ],
       },
       {
         id: "avg",
         label: "Average Spot Span",
         kind: "process",
-        description: "Average Nifty on trading days only — Sat/Sun never enter the average.",
+        description:
+          "Average Nifty on trading days only sizes the roll. Saturday and Sunday never enter the average.",
         detail:
-          "Spot average always uses the trading-day series (weekends and other non-sessions absent). First shift: mean of closes with date ≤ first shift (19 TDs in Jan-2001). Later shifts: mean of closes in (prev, shift].",
+          "First shift: mean of closes with date on or before the first shift. Later shifts: mean of closes in the open interval after the prior shift through the current shift. Forward pad uses the same rule on each path's simulated closes.",
         bullets: [
-          "Trading calendar only — no Saturday / Sunday closes",
-          "First gap = 19 trading days → ≈ 4.7713 pts at 7%",
-          "Forward pad uses the same rule on each path's Mon–Fri GBM closes",
+          "Trading calendar only — no weekend closes",
+          "First gap uses trading-day count",
+          "Later gaps use calendar days between shifts",
         ],
         steps: [
           "Mask trading dates in the shift interval on this path.",
-          "Mean simulated Nifty closes over that mask.",
-          "Pass average spot into the 7% carry formula.",
+          "Average simulated Nifty closes over that mask.",
+          "Pass average spot into the seven-percent carry formula.",
         ],
       },
       {
         id: "roll",
         label: "Roll Cost Points",
         kind: "engine",
-        description: "First month: 7% × avg × trading_days/365. Later: 7% × avg × calendar_Δt/365.",
+        description:
+          "First month: seven percent times average spot times trading days over 365. Later months: seven percent times average spot times calendar days between shifts over 365. Different paths produce different roll points.",
         detail:
-          "path_roll_vector → _recompute_roll_costs on this path's dates/spots. First shift day-count = trading days. Later day-count = calendar days between shifts. NAV scales by product roll_rate and zeros rolls after last observation.",
+          "NAV scales by the product roll rate and zeros rolls after the last observation. Tax benefit is tracked separately and is not added to Total.",
         bullets: [
-          "First: avg × 7% × N_td / 365",
-          "Later: avg × 7% × (shift − prev).days / 365",
+          "Default roll rate 7%",
+          "Stops after last observation expiry",
           "Different paths ⇒ different roll points",
         ],
         steps: [
-          "Seed month → trading-day count on/before first shift on path.",
-          "Later months → calendar Δt between consecutive shifts.",
-          "nav: −roll_pts × fut_cum / 1e7 while date ≤ last_observation.",
+          "Seed month → trading-day count on or before first shift.",
+          "Later months → calendar days between consecutive shifts.",
+          "Apply roll against cumulative futures while date ≤ last observation.",
         ],
       },
       {
         id: "bus",
         label: "Market Database",
         kind: "output",
-        description: "Shared MarketDB: spots, rolls, expiries, expiry_by_month — consumed by hedge and NAV.",
+        description:
+          "One shared market handle holds spots, rolls, expiries, and the month-to-expiry map for hedge and NAV. Forward prices and roll points stay per-path.",
         detail:
-          "Single MarketDB for calendars + hist estimation. expiry_by_month enables O(1) resolve_observation_expiry. Forward prices and roll points are per-path — not a shared Intel workbook.",
+          "The month-to-expiry map lets observation mapping look up the monthly expiry in constant time. Intel · Market Calendar shows dates only — not a shared forward price book.",
         bullets: [
           "Shared across all paths in a job",
-          "expiry_by_month for hedging map",
-          "Intel shows Nifty on each expiry",
+          "Month map for hedging observation lookup",
+          "Intel shows calendars; prices are path-local",
         ],
         steps: [
-          "load_market() at worker init.",
-          "Pass market handle to build_paths, hedge_path, run_nav.",
-          "/api/sync extends CSVs through latest session.",
+          "Load market at worker start.",
+          "Pass the same handle to paths, hedging, and NAV.",
+          "Sync extends history through the latest session.",
         ],
       },
     ],
     defaults: [
       { label: "Assumed Rate", value: "7%" },
-      { label: "Tax Benefit Factor", value: "42.744% Of Roll (nav.py)" },
+      { label: "Tax Benefit Factor", value: "42.744% Of Roll" },
       { label: "First Roll Gap", value: "19 Trading Days From 2001-01-01" },
     ],
     insights: [
-      "load_market reads nifty_daily.csv, roll_costs.csv, and builds expiries via calendar_build.",
-      "/api/sync and scripts/sync_market_data.py extend market data through the latest Nifty session.",
-      "Roll points = 7% × average Nifty between shifts × calendar Δt/365; first interval uses 19 TD seed.",
-      "rolls_for_dates(path_dates) returns a vector aligned to the path — zero on non-shift days.",
-      "nav.run_nav zeros roll lookup when path date exceeds last_observation from hedge_path.",
-      "expiry_by_month and first_expiry_on_or_after power hedge.resolve_observation_expiry.",
-      "MarketDB is instantiated once per worker and shared across parallel path evaluations.",
+      "Historical Nifty, roll calendars, and expiries load from market data files at worker start.",
+      "Market sync extends history through the latest Nifty session.",
+      "Roll points = 7% × average Nifty between shifts × day fraction; first interval uses a trading-day seed.",
+      "Each path gets a roll vector aligned to its dates — zero on non-shift days.",
+      "NAV zeros roll when the path date exceeds the last observation from hedging.",
+      "The month-to-expiry map powers observation expiry lookup.",
+      "One market handle is shared across parallel path evaluations.",
     ],
     noteCards: [
       {
-        title: "MarketDB load path",
-        body: "engine/market.py::load_market assembles dates, closes, expiries, roll calendars, and lookup dicts from data/*.csv.",
+        title: "What the market load brings in",
+        body: "Spot series, shift-date roll points, and monthly plus full expiry calendars assemble from the data files at load.",
         bullets: [
-          "nifty_daily.csv — spot series",
-          "roll_costs.csv — shift-date roll points",
-          "calendar_build — monthly and all expiries",
+          "Daily Nifty — historical spot series",
+          "Roll costs — shift-date roll points",
+          "Calendar build — monthly and all expiries",
         ],
       },
       {
-        title: "Spot lookup helpers",
-        body: "Historical MarketDB uses nifty_on (floor to prior close). Forward GBM paths pass spots into hedge/nav; observation Nifty uses _spot_on_or_before on that path series.",
+        title: "Spot lookup",
+        body: "Historical lookup floors to the prior close. Forward paths pass their own simulated spots into hedge and NAV; observation Nifty uses the level on or before the target on that path.",
       },
       {
         title: "Roll cost construction",
-        body: "Seven percent carry on index futures: average spot over the shift interval times calendar day fraction. Historical series stored at load; each GBM path recomputes via path_roll_vector.",
-        code: "roll = 0.07 × avg_spot × Δt_calendar / 365",
+        body: "Seven percent carry on index futures: average spot over the shift interval times day fraction. Historical series stored at load; each simulated path recomputes from its own spots.",
+        code: "roll = 0.07 × avg_spot × Δt / 365",
       },
       {
         title: "Futures shift calendar",
-        body: "Monthly-last option expiries double as futures shift dates (WF1 / Backtester). As-of month is included when its expiry is still ahead. roll_shifts and expiries stay in sync.",
+        body: "Monthly-last option expiries double as futures shift dates. As-of month is included when its expiry is still ahead. Shift dates and expiries stay in sync.",
       },
       {
-        title: "NAV roll application",
-        body: "run_nav multiplies roll_on_day by cumulative futures position and scales to crores. Rolls stop after the last observation expiry. Forward runs pass path_roll_vector; shared-roll identity matches Backtester.",
+        title: "How NAV applies roll",
+        body: "NAV multiplies the day's roll by cumulative futures and scales to crores. Rolls stop after the last observation expiry. Tax benefit equals 42.744% of roll and is shown but excluded from Total.",
         bullets: [
-          "roll_on_day from path_roll_vector (GBM) or rolls_for_dates (hist)",
-          "Masked when date > last_observation",
-          "tax_ben = roll_cost × 0.42744",
+          "Roll on shift days from the path roll vector",
+          "Masked when date is after last observation",
+          "Tax benefit stored, not in Total",
         ],
       },
     ],
@@ -584,7 +596,7 @@ export const logicModules: LogicModule[] = [
     engineFile: "engine/calendar_build.py",
     accent: "ink",
     purpose:
-      "calendar_build produces monthly and full weekly expiries from 2001; hedge.resolve_observation_expiry maps observation targets onto monthly-last dates.",
+      "The expiry calendar builds monthly and full weekly Nifty option expiries from 2001. Hedging maps each observation target onto the monthly-last expiry for that month.",
     stageCount: 4,
     metrics: [
       { label: "Calendar Start", value: "2001" },
@@ -596,116 +608,120 @@ export const logicModules: LogicModule[] = [
         id: "overrides",
         label: "Expiry Overrides",
         kind: "input",
-        description: "Optional data/expiry_overrides.csv supplies authoritative dates where present.",
+        description:
+          "An optional overrides file can pin authoritative expiry dates for specific months. When a month is listed there, that date wins.",
         detail:
-          "When expiry_overrides.csv lists a month, that date wins in build_monthly_expiries. Otherwise the resolver falls through to futures shift or weekday rule.",
+          "Otherwise the resolver falls through to the futures shift date or the weekday rule for that NSE era. Overrides load when the market initialises.",
         bullets: [
-          "data/expiry_overrides.csv optional",
-          "Month-level authoritative dates",
+          "Optional month-level override file",
+          "Override wins when present",
           "Loaded at market init",
         ],
         steps: [
-          "Read expiry_overrides.csv if present.",
-          "Merge override dates into monthly build.",
-          "Write expiries.csv for Hedging Sheet consumption.",
+          "Read the override file if present.",
+          "Merge override dates into the monthly build.",
+          "Expose the monthly list for Hedging Sheet mapping.",
         ],
       },
       {
         id: "priority",
         label: "Month Resolver",
         kind: "engine",
-        description: "Override → futures shift → historical Thursday era, then current monthly expiry weekday.",
+        description:
+          "For each month: override first, then futures shift, then the NSE weekday rule — last Thursday through August 2025, last Tuesday from September 2025. Holidays floor to the previous trading day.",
         detail:
-          "last_monthly_expiry_on_or_before applies NSE schedule: pre-2019 monthly-only Thursdays; 2019–Aug-2025 weekly+monthly Thursdays; from Sep-2025 Tuesdays. Holiday dates floor to previous trading day.",
+          "Pre-2019 used monthly-only Thursdays. From February 2019 weeklies joined on Thursday. From September 2025 weekly and monthly move to Tuesday.",
         bullets: [
-          "TUESDAY_EXPIRY_ERA_START = 2025-09-01",
+          "Tuesday era from September 2025",
           "Holiday → previous trading day",
-          "Weekly series from Feb-2019 for Intel",
+          "Weekly series from February 2019 for Intel",
         ],
         steps: [
-          "Check override for (year, month).",
-          "Else use futures shift date if in roll calendar.",
+          "Check override for year and month.",
+          "Else use futures shift date if in the roll calendar.",
           "Else compute last weekday in month per era rule.",
-          "Floor to trading_day_on_or_before.",
+          "Floor to the prior trading day when needed.",
         ],
       },
       {
         id: "csv",
         label: "Expiry List",
         kind: "output",
-        description: "Single-column monthly expiry list consumed by Hedging Sheet mapping.",
+        description:
+          "The monthly-last expiry list from 2001 feeds Hedging Sheet observation mapping.",
         detail:
-          "build_monthly_expiries writes the monthly-last series from 2001. MarketDB.expiries and expiry_by_month dict power observation mapping in hedge.py.",
+          "A month-to-expiry dictionary lets each observation target resolve quickly. Sync rebuilds the list when Nifty history extends.",
         bullets: [
           "Monthly-last for observation map",
-          "Synced via scripts/sync_market_data.py",
           "From 2001 through latest Nifty date",
+          "Rebuilt when market history extends",
         ],
         steps: [
-          "build_monthly_expiries(trading_set) → list[date].",
-          "Populate expiry_by_month{(y,m): last_expiry}.",
-          "Expose via load_market to hedge_path.",
+          "Build the monthly-last series from the trading calendar.",
+          "Fill the month-to-expiry map.",
+          "Hand both to hedging on every path.",
         ],
       },
       {
         id: "intel",
         label: "Intel · Market Calendar",
         kind: "lookup",
-        description: "Per-path simulated Nifty, monthly expiries, and roll points for the selected GBM path.",
+        description:
+          "Market Calendar lists futures shift dates and monthly option expiries from as-of forward. Simulated Nifty and roll points differ by path — see Simulated Nifty Paths, Hedging, and Computation.",
         detail:
-          "There is no shared forward price workbook. Intel · Market Calendar lists futures shift dates and monthly option expiry dates only. Simulated Nifty and path_roll_vector points differ by path — see Simulated Nifty Paths, Hedging, and Computation.",
+          "There is no shared forward price workbook. Calendar dates are shared; prices and roll points are path-local. Observation expiries also appear on the Hedging Sheet.",
         bullets: [
-          "Requires a completed Run + selected path",
-          "Calendar dates shared; prices/points path-local",
-          "Observation expiries also appear on Hedging Sheet",
+          "Requires a completed Run and selected path for path levels",
+          "Calendar dates shared; prices path-local",
+          "Observation expiries also on Hedging Sheet",
         ],
         steps: [
-          "Load path detail (dates, nifty, rolls, monthly_expiries).",
-          "Monthly expiries feed hedge.resolve_observation_expiry dates.",
+          "Load path detail (dates, Nifty, rolls, monthly expiries).",
+          "Monthly expiries feed observation mapping.",
           "Roll points already applied in Computation for that path.",
         ],
       },
     ],
     defaults: [
-      { label: "Rebuild Script", value: "scripts/sync_market_data.py" },
       { label: "Observation Month Length", value: "30.5 Days" },
       { label: "Tuesday Era Start", value: "2025-09-01" },
+      { label: "Rebuild", value: "On market sync" },
     ],
     insights: [
-      "calendar_build implements NSE expiry weekday rules with era breaks at Feb-2019 (weeklies) and Sep-2025 (Tuesday).",
-      "build_monthly_expiries produces the monthly-last list used for observation mapping.",
-      "hedge.resolve_observation_expiry: target month → expiry_by_month hit, else first_expiry_on_or_after.",
-      "Observation targets use m × 30.5 calendar days from path start before expiry mapping.",
-      "Forward futures shifts equal monthly option expiries; holiday floors go backward to the previous session.",
-      "expiry_overrides.csv optional layer sits first in the resolver priority stack.",
-      "Intel · Market Calendar is shared dates only; simulated levels live per path on Simulated Nifty Paths / Hedging / Computation.",
+      "NSE expiry weekday rules break at February 2019 (weeklies) and September 2025 (Tuesday).",
+      "The monthly-last list is what observation mapping uses.",
+      "Each observation target maps to that month's monthly expiry, or the first expiry on or after the target.",
+      "Observation targets use month offset × 30.5 calendar days from path start before expiry mapping.",
+      "Forward futures shifts equal monthly option expiries; holidays floor backward.",
+      "Optional overrides sit first in the resolver stack.",
+      "Market Calendar is shared dates only; simulated levels live per path.",
     ],
     noteCards: [
       {
-        title: "Resolver priority stack",
-        body: "Monthly expiry for a calendar month resolves in order: CSV override, futures shift date, then computed last weekday per NSE era.",
+        title: "Resolver priority",
+        body: "Monthly expiry for a calendar month resolves in order: override, futures shift date, then computed last weekday per NSE era.",
         bullets: [
           "Override wins when present",
           "Shift date from roll calendar",
-          "Thu era → Tue era at Sep-2025",
+          "Thursday era → Tuesday era at September 2025",
         ],
       },
       {
         title: "NSE era breakpoints",
-        body: "Pre-2019: monthly-only last Thursday. Feb-2019+: weeklies on Thursday. Sep-2025+: weekly and monthly on Tuesday.",
+        body: "Pre-2019: monthly-only last Thursday. February 2019+: weeklies on Thursday. September 2025+: weekly and monthly on Tuesday.",
       },
       {
         title: "Hedging Sheet mapping",
-        body: "resolve_observation_expiry takes target = start + m×30.5 and returns the monthly expiry for that calendar month, or the first expiry on/after target.",
-        code: "exp = market.expiry_by_month[(target.year, target.month)] ?? first_expiry_on_or_after(target)",
+        body: "Each observation month becomes a calendar target of start plus month × 30.5 days. That target snaps to the monthly expiry for the target month, or the first expiry on or after the target.",
+        code: "target = start + m × 30.5 days → monthly expiry",
       },
       {
         title: "Two expiry lists",
-        body: "MarketDB.expiries is monthly-last for hedge. Intel · Market Calendar shows those expiry dates only; simulated Nifty on expiry is path-specific on Hedging / Computation.",
+        body: "Monthly-last expiries feed hedge and roll. Market Calendar shows those expiry dates from as-of forward; simulated Nifty on expiry is path-specific.",
       },
       {
         title: "Rebuild and sync",
-        body: "scripts/sync_market_data.py rebuilds calendars when Nifty history extends. /api/sync triggers the same extension path for live desk sessions.",
+        body: "Market sync rebuilds calendars when Nifty history extends so live desk sessions stay current.",
       },
     ],
     outputs: ["Monthly Expiry List", "Nifty On Expiry", "Observation Targets"],
@@ -718,7 +734,7 @@ export const logicModules: LogicModule[] = [
     engineFile: "engine/hedge.py",
     accent: "gold",
     purpose:
-      "hedge_path maps observation months to expiries, build_legs expands the product book, compute_req_delta sums Black–Scholes central deltas — output feeds nav.py futures inventory.",
+      "Each path maps observation months to monthly expiries, expands the options book across those dates, and sums Black–Scholes deltas into the daily futures inventory Computation needs.",
     stageCount: 7,
     metrics: [
       { label: "Forward", value: "6.6%" },
@@ -730,133 +746,134 @@ export const logicModules: LogicModule[] = [
         id: "path",
         label: "Path Context",
         kind: "input",
-        description: "Path start date and Spot₀ — first Nifty close on the path — anchor all strikes and observations.",
+        description:
+          "Path start and the first Nifty level on the path anchor all strikes and observation targets. The same product book applies on every path; only the starting spot changes.",
         detail:
-          "hedge_path(market, product, path_dates) sets start = path_dates[0], spot0 = spots[0], and passes both to build_legs. Path context is per-path; rates and vols come from ProductSpec legs (path-invariant).",
+          "Start is the first trading day on the path. Spot zero is the first close (simulated for forward paths). Rates and vols come from the product legs and do not change by path.",
         bullets: [
-          "Spot₀ = float(spots[0])",
-          "Same ProductSpec on every path",
-          "PathHedge bundles full hedge state",
+          "Spot zero = first close on the path",
+          "Same product book on every path",
+          "Full hedge state handed to NAV",
         ],
         steps: [
-          "Load spots via market.spots_for_dates(path_dates).",
-          "Record spot0 = spots[0] for strike scaling.",
-          "Initialize PathHedge container for downstream nav.",
+          "Load the path's spot series.",
+          "Record the first close for strike scaling.",
+          "Open the hedge container for downstream NAV.",
         ],
       },
       {
         id: "targets",
         label: "Observation Targets",
         kind: "process",
-        description: "Each observation month m becomes target = start + m × 30.5 calendar days.",
+        description:
+          "Each observation month becomes a calendar target of path start plus month times 30.5 days. The sample uses seven months from 38 through 56.",
         detail:
-          "build_observation_details iterates product.observation_months, computing offset_days = m × 30.5 and target_date. Observation Nifty comes from path spots via _spot_on_or_before (equals market.nifty_on only when the path is historical).",
+          "Observation Nifty comes from the path's own spots on or before the target. That equals historical market lookup only when the path is historical.",
         bullets: [
-          "Seven targets in sample (months 38…56)",
+          "Seven targets in the sample book",
           "30.5-day month convention",
-          "obs_builds carries month, target, expiry, nifty (UI / export)",
+          "Each row carries month, target, expiry, and Nifty",
         ],
         steps: [
-          "For each m in observation_months: offset = m × 30.5.",
-          "target = start + timedelta(days=offset).",
-          "Store ObservationBuild with target_date and offset_days.",
+          "For each observation month, offset = month × 30.5.",
+          "Target date = start plus that many calendar days.",
+          "Store the build row for the Hedging Sheet.",
         ],
       },
       {
         id: "map-exp",
         label: "Map To Monthly Expiry",
         kind: "lookup",
-        description: "resolve_observation_expiry snaps each target onto the monthly Nifty option expiry.",
+        description:
+          "Each target snaps onto the monthly Nifty option expiry for that calendar month. If the month is missing, the first expiry on or after the target is used.",
         detail:
-          "Lookup expiry_by_month[(target.year, target.month)]; if missing, market.first_expiry_on_or_after(target). Observations list = mapped expiries in file order.",
+          "Mapped expiries stay in product file order. Observation Nifty on each expiry date is recorded for the sheet.",
         bullets: [
           "Monthly-last expiry per target month",
-          "VLOOKUP+1 style fallback",
-          "observations[] feeds build_legs",
+          "Fallback to first expiry on or after target",
+          "Mapped list feeds the options book",
         ],
         steps: [
-          "Call resolve_observation_expiry(market, target) per month.",
-          "Append expiry to observations list.",
-          "Record obs_spots = nifty on each expiry date.",
+          "Resolve monthly expiry for each target.",
+          "Append expiry to the observations list.",
+          "Record Nifty on each expiry date.",
         ],
       },
       {
         id: "book",
         label: "Build Option Legs",
         kind: "engine",
-        description: "build_legs crosses product.active_legs with each observation expiry — full options book.",
+        description:
+          "Active product legs cross every observation expiry. Strike is spot zero times strike percent. Contract size is raw quantity times principal over spot zero over observation count.",
         detail:
-          "For each active OptionLegSpec: strike = spot0 × strike_pct / 100; contract qty = raw_qty × principal / spot0 / n_obs; nested loop over observation expiries creates one BuiltLeg per (spec, expiry) pair.",
+          "Only Include Yes legs enter. The sample six puts across seven observations become forty-two built legs. Forward and discount rates come from each product row.",
         bullets: [
-          "active_legs only — skips Include=No",
-          "Six sample puts × 7 obs = 42 built legs",
-          "Put/call from spec.option_type",
-          "Forward and Discount per leg from ProductSpec",
+          "Include Yes rows only",
+          "Six sample puts × seven obs = 42 legs",
+          "Qty = raw × principal / spot / n_obs",
         ],
         steps: [
-          "n_obs = max(len(observations), 1).",
-          "For spec in product.active_legs:",
-          "  strike = spot0 * spec.strike_pct / 100",
-          "  qty = spec.quantity * product.principal / spot0 / n_obs  (contract sizing)",
-          "  For obs_i, exp in enumerate(observations):",
-          "    vol = spec.vol_for_observation(obs_i) or vol_for_strike_pct",
-          "    append BuiltLeg(..., expiry=exp, quantity=qty, vol=vol)",
+          "Count observations (at least one).",
+          "For each active leg, set strike from spot zero and strike percent.",
+          "Size quantity from raw qty, principal, spot, and observation count.",
+          "Emit one built leg per observation expiry with the right vol.",
         ],
       },
       {
         id: "vol",
         label: "Moneyness Volatility",
         kind: "lookup",
-        description: "Vol Near on obs index 0; Vol Far on later indices; moneyness fallback when vol ≤ 0.",
+        description:
+          "Vol Near applies on the first observation; Vol Far on later ones. If a parsed vol is missing or non-positive, a moneyness default by strike percent is used.",
         detail:
-          "OptionLegSpec.vol_for_observation(0) returns vol_near when set; otherwise spec.vol. build_legs calls vol_for_strike_pct(strike_pct) from black_scholes when parsed vol is non-positive.",
+          "Near and Far come from Product Input per leg. The same vols apply on every path.",
         bullets: [
-          "Per-leg Near/Far from Product Input",
-          "vol_for_strike_pct moneyness table",
-          "Same vols on every path (path-invariant)",
+          "Near on first observation; Far later",
+          "Moneyness fallback when vol is blank",
+          "Same vols on every path",
         ],
         steps: [
-          "obs_i == 0 → vol_near if present else vol.",
-          "obs_i > 0 → vol (far).",
-          "If vol <= 0: vol = vol_for_strike_pct(strike_pct).",
+          "First observation → Vol Near when set.",
+          "Later observations → Vol Far.",
+          "If vol is missing or non-positive, use the strike-percent default.",
         ],
       },
       {
         id: "delta",
         label: "Option Delta",
         kind: "engine",
-        description: "central_delta_book: Black–Scholes bump ±0.5 × contract qty, summed by expiry group.",
+        description:
+          "Legs group by expiry. Black–Scholes prices with a half-point spot bump up and down; the difference times contract quantity sums into required delta.",
         detail:
-          "compute_req_delta groups BuiltLegs by expiry, builds tau = (expiry − asof) / 365, and calls central_delta_book(spots, tau, strikes, vols, qtys, forward_rate, discount_rate, is_put). Bump is ±0.5 index points — no divide by 2×bump.",
+          "Time to expiry is calendar days from as-of over 365. Forward and discount rates come from the leg group. Puts and calls use the flag from the product row. There is no divide by twice the bump.",
         bullets: [
-          "Group legs by expiry for vectorised tau",
+          "Group legs by expiry",
           "±0.5 central difference on spot",
-          "Forward/discount per leg group",
-          "Puts: is_put=True in BS pricer",
+          "Forward and discount per leg group",
         ],
         steps: [
-          "Group legs into by_exp dict.",
-          "For each expiry group, compute tau array over path_dates.",
-          "Stack strikes, vols, qtys as numpy arrays.",
-          "total += central_delta_book(S±0.5, τ, K, σ, qty); return total as req_delta.",
+          "Group built legs by expiry.",
+          "For each group, compute time to expiry across path dates.",
+          "Sum bumped Black–Scholes deltas times quantity into required delta.",
         ],
       },
       {
         id: "req",
         label: "Net Required Delta",
         kind: "output",
-        description: "Daily req_delta array — Computation col D futures inventory opening balance.",
+        description:
+          "One required-delta value per path trading day opens the Computation futures inventory. The last observation expiry gates when rolls stop.",
         detail:
-          "PathHedge.req_delta is a float ndarray aligned to path_dates. nav.run_nav reads it as required delta; change[0]=delta[0], change[1:]=diff(delta). last_observation = max(observation expiries).",
+          "NAV reads day-over-day change in required delta as traded futures quantity. Cumulative position marks MTM and scales roll.",
         bullets: [
           "One value per path trading day",
-          "Feeds nav.py fut_qty = change in delta",
-          "last_observation gates roll in nav",
+          "Feeds futures inventory in Computation",
+          "Last observation gates roll",
         ],
         steps: [
-          "compute_req_delta returns np.ndarray length = len(path_dates).",
-          "Store on PathHedge with legs and obs_builds.",
-          "Pass to run_nav(..., req_delta, last_observation=...).",
+          "Return the daily required-delta series.",
+          "Store legs and observation builds with it.",
+          "Pass required delta and last observation into NAV.",
         ],
       },
     ],
@@ -866,59 +883,58 @@ export const logicModules: LogicModule[] = [
       { label: "Contract Qty Formula", value: "raw × principal / Spot₀ / n_obs" },
     ],
     insights: [
-      "hedge_path orchestrates: spot0 → build_observation_details → build_legs → compute_req_delta.",
-      "Observation target = path_start + m × 30.5 days; then resolve_observation_expiry maps to monthly expiry.",
-      "build_legs: strike = Spot₀ × Strike% / 100; contract qty = raw × principal / Spot₀ / n_obs; expand × n_obs expiries.",
-      "Only product.active_legs enter the book — Include=No and display-only rows are excluded.",
-      "Vol Near applies on observation index 0; Vol Far on indices 1…N−1 via vol_for_observation.",
-      "compute_req_delta sums central_delta_book across expiry groups; bump ±0.5 with no /(2×bump) divisor.",
-      "PathHedge.last_observation caps roll charges in nav.run_nav after the final observation expiry.",
+      "Per path: fix spot zero, build observation targets, expand legs, then sum deltas.",
+      "Observation target = path start + month × 30.5 days; then map to monthly expiry.",
+      "Strike = spot zero × strike percent; contract qty = raw × principal / spot zero / observation count; expand across all observation expiries.",
+      "Only Include Yes legs enter the book.",
+      "Vol Near on the first observation; Vol Far on later ones.",
+      "Required delta sums central Black–Scholes bumps of ±0.5 with no extra divisor.",
+      "Last observation caps roll charges in NAV after the final observation expiry.",
     ],
     noteCards: [
       {
-        title: "hedge_path entry point",
-        body: "Single call per path in forward-test worker: hedge_path(market, product, path_dates) → PathHedge with req_delta ndarray.",
+        title: "Per-path hedge pass",
+        body: "One hedge pass per path returns daily required delta, built legs, and the observation table for the desk.",
         bullets: [
-          "Called from compute_single_path_detail",
-          "Same product, different spot0 per path",
+          "Same product, different spot zero per path",
           "Returns legs for path-detail UI",
+          "Feeds Computation futures inventory",
         ],
       },
       {
         title: "Observation schedule",
-        body: "build_observations and build_observation_details convert Product Input month offsets into calendar targets and monthly expiries.",
-        code: "target = start + timedelta(days=m * 30.5)",
+        body: "Product Input month offsets become calendar targets and monthly expiries.",
+        code: "target = start + m × 30.5 days",
       },
       {
         title: "Options book expansion",
-        body: "Product Input stores each strike once. build_legs emits one BuiltLeg per (active_leg, observation_expiry) — sample six puts become 42 rows.",
+        body: "Product Input stores each strike once. The book emits one row per active leg and observation expiry — sample six puts become forty-two rows.",
         bullets: [
-          "strike = Spot₀ × Strike% / 100",
-          "qty = raw × principal / Spot₀ / n_obs",
-          "Forward/Discount from each leg spec",
+          "Strike = Spot₀ × Strike% / 100",
+          "Qty = raw × principal / Spot₀ / n_obs",
+          "Forward and Discount from each leg",
         ],
       },
       {
         title: "Vol assignment",
-        body: "vol_for_observation selects Near vs Far by obs index. Non-positive parsed vols fall back to vol_for_strike_pct moneyness defaults in black_scholes.py.",
+        body: "Near vs Far by observation index. Blank or non-positive vols fall back to moneyness defaults by strike percent.",
       },
       {
         title: "Central delta bump",
-        body: "central_delta_book prices puts/calls with forward/discount rates from the leg group, applies ±0.5 spot bump, multiplies by contract quantities.",
-        code: "req_delta[t] = Σ Δ_BS(S[t]±0.5, K, τ, σ) × qty",
+        body: "Price puts and calls with forward and discount from the leg group, bump spot by half a point either way, multiply by contract quantities.",
+        code: "req_delta = Σ Δ_BS(S±0.5, K, τ, σ) × qty",
       },
       {
-        title: "Expiry grouping optimisation",
-        body: "compute_req_delta groups BuiltLegs by expiry so tau = (exp − asof)/365 is computed once per group across all path dates.",
+        title: "Expiry grouping",
+        body: "Legs group by expiry so time to expiry is computed once per group across all path dates.",
       },
       {
-        title: "PathHedge outputs",
-        body: "run_nav consumes req_delta and last_observation (plus path-local roll_on_day). obs_builds feed Hedging Sheet / Excel only — not the NAV ledger.",
+        title: "What NAV consumes",
+        body: "NAV takes required delta and last observation (plus path-local roll on shift days). Observation builds feed the Hedging Sheet only — not the NAV ledger.",
         bullets: [
-          "req_delta → futures inventory",
-          "last_observation → roll cutoff",
-          "obs_builds → observation table (UI)",
-          "path_roll_vector → roll_on_day for GBM paths",
+          "Required delta → futures inventory",
+          "Last observation → roll cutoff",
+          "Observation table → Hedging Sheet UI",
         ],
       },
     ],
@@ -932,156 +948,164 @@ export const logicModules: LogicModule[] = [
     engineFile: "engine/nav.py",
     accent: "rose",
     purpose:
-      "run_nav executes the daily ledger: seed Cash = principal × cash_pct and Gsec = principal × gsec_pct from Product Input, mark futures from req_delta, apply rolls/fees/tx, and compute terminal Total and IRR.",
+      "The daily ledger seeds cash and G-Sec from Product Input, marks futures from required delta, applies rolls, fees, and brokerage, then reports terminal Total and IRR.",
     stageCount: 8,
     metrics: [
       { label: "Cash Buffer", value: "principal × cash_pct" },
       { label: "G-Sec Day Zero", value: "principal × gsec_pct" },
-      { label: "Fee Rate", value: "Product Input fee_rate" },
+      { label: "Fee Rate", value: "Product Input fee rate" },
     ],
     nodes: [
       {
         id: "delta-inv",
         label: "Futures Inventory",
         kind: "input",
-        description: "Required delta from hedge_path drives change, traded quantity, and cumulative futures position.",
+        description:
+          "Required delta from hedging drives day-over-day traded quantity and the cumulative futures position that marks MTM.",
         detail:
-          "delta = req_delta array; change[0]=delta[0]; change[1:]=delta[1:]-delta[:-1]; fut_qty=change; fut_cum=cumsum(fut_qty). This is Computation column D/E logic.",
+          "Opening change equals the first day's required delta. Later days use the difference versus the prior day. Cumulative position marks MTM and scales roll.",
         bullets: [
           "Opens the daily ledger",
           "Traded qty = day-over-day delta change",
           "Cumulative position marks MTM",
         ],
         steps: [
-          "Accept req_delta ndarray aligned to path_dates.",
-          "Compute change as first difference of delta.",
-          "fut_cum = np.cumsum(change) for MTM and roll.",
+          "Accept the daily required-delta series.",
+          "Compute change as the first difference.",
+          "Cumulate traded quantity for MTM and roll.",
         ],
       },
       {
         id: "mtm",
         label: "Futures Mark To Market",
         kind: "engine",
-        description: "Daily MTM on prior cumulative futures position times Nifty move, scaled to crores.",
+        description:
+          "Daily MTM is prior cumulative futures times the Nifty move, scaled to crores. Day zero MTM is zero.",
         detail:
-          "mtm[1:] = fut_cum[:-1] × (spots[1:] − spots[:-1]) / 1e7. Day 0 MTM is zero. MTM accumulates into cash buffer via cumsum in the cash series.",
+          "MTM accumulates into the cash buffer. The sum feeds the Result MTM block, including roll days.",
         bullets: [
           "Prior cum position × ΔNifty / 1e7",
           "Includes roll days",
           "Sum feeds Result MTM block",
         ],
         steps: [
-          "Shift fut_cum by one day for marking.",
-          "mtm[t] = fut_cum[t−1] × (S[t] − S[t−1]) / 1e7.",
-          "Add to cash cumulative path.",
+          "Use yesterday's cumulative futures for today's mark.",
+          "Multiply by today's Nifty change and scale to crores.",
+          "Add to the cash cumulative path.",
         ],
       },
       {
         id: "roll-nav",
         label: "Rollover Cost",
         kind: "process",
-        description: "Roll cost on futures shift dates while date ≤ last_observation; tax benefit tracked separately.",
+        description:
+          "Roll cost hits on futures shift dates while the date is on or before the last observation. Tax benefit is tracked separately and is not in Total.",
         detail:
-          "roll_cost = −roll_on_day × fut_cum / 1e7. When last_observation set, roll_on_day zeroed for dates after. tax_ben = roll_cost × 0.42744 — stored in result, excluded from Total.",
+          "Roll equals minus roll points times cumulative futures, scaled to crores. After the last observation, roll is zeroed.",
         bullets: [
-          "7% roll convention from market.py",
+          "Seven percent roll convention",
           "Stops after last observation expiry",
           "Tax benefit 42.744% · not in Total",
         ],
         steps: [
-          "rolls_for_dates(path_dates) → roll_on_day vector.",
-          "Mask rolls where date > last_observation.",
-          "Apply −roll × fut_cum / 1e7 to cash path.",
+          "Align roll points to path dates.",
+          "Zero rolls after last observation.",
+          "Apply roll against cumulative futures into cash.",
         ],
       },
       {
         id: "cash",
         label: "Cash And Interest",
         kind: "engine",
-        description: "Cash buffer = principal × cash_pct at day zero absorbs MTM and roll; earns cash_rate on prior balance.",
+        description:
+          "Cash buffer is principal times the cash percent at day zero. It absorbs MTM and roll and earns the Product Input cash rate on the prior balance.",
         detail:
-          "cash_buffer_cr = principal_cr × cash_pct from Product Input. cash[0]=cash_buffer_cr; cash[1:]=buffer + cumsum(mtm[1:]+roll_cost[1:]). int_cash[1:]=cash[:-1]×cash_rate×day_gaps/365. cash_plus_int = buffer + sum(int_cash).",
+          "Interest uses calendar day gaps between path dates. Cash plus interest for the Result block is the buffer plus sum of cash interest.",
         bullets: [
-          "cash_rate from Product Input (sample 6%)",
+          "Cash rate from Product Input (sample 6%)",
           "Absorbs MTM and rollover hits",
           "Day gaps from path date diffs",
         ],
         steps: [
-          "Seed cash[0] = principal_cr × cash_pct.",
-          "Accumulate MTM and roll into cash series.",
-          "Accrue interest on lagged cash balance.",
+          "Seed day-zero cash from principal × cash percent.",
+          "Accumulate MTM and roll into the cash series.",
+          "Accrue interest on the lagged cash balance.",
         ],
       },
       {
         id: "gsec",
         label: "G-Sec Compounding",
         kind: "engine",
-        description: "Bond sleeve = principal × gsec_pct at day zero compounds at Product Input G-Sec rate.",
+        description:
+          "The bond sleeve is principal times the G-Sec percent at day zero and compounds at the Product Input G-Sec rate.",
         detail:
-          "Opening Gsec = principal_cr − cash_buffer_cr (gsec_pct of principal). growth[1:]=1 + gsec_rate×day_gaps/365; gsec = opening × cumprod(growth). int_gsec from day-over-day increase.",
+          "Opening G-Sec is the remainder of principal after the cash buffer. Growth uses calendar day gaps. Interest is the day-over-day increase.",
         bullets: [
-          "gsec_rate from Product Input (sample 6%)",
-          "Day-zero sleeve = principal × gsec_pct",
+          "G-Sec rate from Product Input (sample 6%)",
+          "Day-zero sleeve = principal × G-Sec percent",
           "Compound on calendar day gaps",
         ],
         steps: [
-          "Set opening gsec = principal − cash buffer.",
-          "Apply daily growth factor from gsec_rate.",
-          "Track int_gsec for Result block.",
+          "Set opening G-Sec = principal minus cash buffer.",
+          "Apply daily growth from the G-Sec rate.",
+          "Track G-Sec interest for the Result block.",
         ],
       },
       {
         id: "tx",
         label: "Transaction Costs",
         kind: "process",
-        description: "Buy and sell brokerage on futures turnover every trading day.",
+        description:
+          "Buy and sell brokerage apply on futures turnover every trading day from Product Input rates.",
         detail:
-          "notional = |fut_qty| × spot / 1e7. Product Input Buy Brokerage / Sell Brokerage apply on positive/negative fut_qty days (including day 0). NAV subtracts today's tx and prior day's tx each step (Computation convention).",
+          "Notional is absolute traded quantity times spot, scaled to crores. The same brokerage card applies every day. NAV subtracts today's and the prior day's costs each step.",
         bullets: [
-          "buy_brokerage / sell_brokerage from Product Input",
-          "Same brokerage card every day — no rate switch",
-          "Turnover on |fut_qty| × Nifty",
+          "Buy and sell brokerage from Product Input",
+          "Same brokerage card every day",
+          "Turnover on traded quantity × Nifty",
         ],
         steps: [
-          "Compute notional from traded qty and spot.",
-          "Apply buy/sell masks to fut_qty sign.",
-          "tx_prev lag: subtract prior day costs in NAV step.",
+          "Compute notional from traded quantity and spot.",
+          "Apply buy or sell rate from the sign of the trade.",
+          "Subtract same-day and prior-day costs in the NAV step.",
         ],
       },
       {
         id: "fees",
         label: "Management Fees",
         kind: "process",
-        description: "Accrues Product Input fee_rate management fee on principal across path tenure.",
+        description:
+          "Management fee accrues at the Product Input fee rate on principal across path tenure.",
         detail:
-          "fees[1:] = principal_cr × fee_rate × day_gaps[1:] / 365. Fees subtract from daily NAV increment and sum into terminal Result.",
+          "Fees use calendar day gaps, subtract from the daily NAV increment, and sum into the terminal Result.",
         bullets: [
-          "fee_rate from Product Input (sample 1.5%)",
-          "Calendar day_gap accrual",
-          "Subtracted in nav_incr",
+          "Fee rate from Product Input (sample 1.5%)",
+          "Calendar day-gap accrual",
+          "Subtracted in the daily NAV step",
         ],
         steps: [
-          "fee_rate from ProductSpec / Product Input.",
-          "Multiply principal_cr by rate and day fraction.",
-          "Accumulate sum_fees for Result.",
+          "Read fee rate from the product book.",
+          "Multiply principal by rate and day fraction.",
+          "Accumulate fees for the Result block.",
         ],
       },
       {
         id: "result",
         label: "Result And IRR",
         kind: "output",
-        description: "Terminal components and annualised IRR from Total vs principal over tenure.",
+        description:
+          "Terminal components and annualised IRR from Total versus principal over tenure.",
         detail:
-          "Total = principal_cr + sum_mtm + cash_plus_int + gsec_interest − sum_tx − sum_fees. IRR = (total/principal_cr)^(365/tenure_used) − 1. store_series=True emits computation_rows for path detail UI.",
+          "Total = principal + MTM + cash interest (with buffer) + G-Sec interest − transaction costs − fees. Tax benefit on roll is stored but not added. IRR annualises Total over calendar tenure days.",
         bullets: [
           "Invt + MTM + CashInt + Gsec + Tx + Fees",
           "Tax benefit stored, not added to Total",
-          "computation_rows for path detail export",
+          "Daily series available for path detail",
         ],
         steps: [
-          "Aggregate component sums across path.",
-          "Compute tenure_used = end − start days.",
-          "IRR = (Total/principal_cr)^(365/tenure_used) − 1; return NavResult with optional daily series.",
+          "Aggregate component sums across the path.",
+          "Tenure used = end minus start in calendar days.",
+          "IRR = (Total / principal) raised to 365 / tenure, minus one.",
         ],
       },
     ],
@@ -1094,50 +1118,50 @@ export const logicModules: LogicModule[] = [
       { label: "Tax Benefit On Roll", value: "42.744% · Not In Total" },
     ],
     insights: [
-      "run_nav opens Cash = principal × cash_pct and Gsec = principal × gsec_pct on day 0.",
-      "Futures inventory: change = diff(req_delta); fut_cum drives MTM and roll scaling.",
-      "MTM = prior cum futures × ΔNifty / 1e7; rolls apply on shift dates while date ≤ last_observation.",
-      "Cash absorbs MTM + roll and earns cash_rate; Gsec compounds at gsec_rate on the gsec_pct opening sleeve.",
-      "Transaction costs use Product Input buy_brokerage/sell_brokerage on |fut_qty|×spot every day; NAV subtracts tx and lagged tx_prev.",
-      "Total = Invt + MTM + CashInt + Gsec + Tx + Fees; tax benefit on roll is stored, not added to Total.",
+      "Day zero opens Cash = principal × cash percent and G-Sec = principal × G-Sec percent.",
+      "Futures inventory: traded quantity is the change in required delta; cumulative position drives MTM and roll.",
+      "MTM = prior cum futures × Nifty move / 1e7; rolls apply on shift dates while date ≤ last observation.",
+      "Cash absorbs MTM and roll and earns the cash rate; G-Sec compounds on its opening sleeve.",
+      "Brokerage uses Product Input buy and sell rates on turnover every day; NAV subtracts today and yesterday.",
+      "Total = Invt + MTM + CashInt + Gsec − Tx − Fees; tax benefit on roll is stored, not added.",
       "IRR annualises terminal Total against principal over calendar tenure days.",
     ],
     noteCards: [
       {
-        title: "run_nav entry point",
-        body: "Called per path after hedge_path with req_delta, principal_cr, rate assumptions, and last_observation cutoff.",
+        title: "NAV entry per path",
+        body: "After hedging, NAV runs with required delta, principal, rate assumptions, and the last-observation cutoff.",
         bullets: [
-          "store_series=True for path detail tables",
-          "Returns NavResult dataclass",
-          "Feeds PathSummary row in forward test",
+          "Daily series kept for path detail tables",
+          "Result row feeds the job summary",
+          "One pass per Monte Carlo path",
         ],
       },
       {
         title: "Day-zero seeds",
-        body: "Cash = principal × cash_pct and Gsec = principal × gsec_pct initialise the ledger before the first MTM tick.",
-        code: "cash[0]=principal_cr*cash_pct; gsec[0]=principal_cr*gsec_pct",
+        body: "Cash = principal × cash percent and G-Sec = principal × G-Sec percent initialise the ledger before the first MTM tick.",
+        code: "cash₀ = principal × cash%; gsec₀ = principal × gsec%",
       },
       {
         title: "Futures MTM loop",
-        body: "Mark-to-market uses yesterday's cumulative futures position against today's Nifty move, converted to crores.",
-        code: "mtm[t] = fut_cum[t-1] × (S[t]-S[t-1]) / 1e7",
+        body: "Mark-to-market uses yesterday's cumulative futures against today's Nifty move, converted to crores.",
+        code: "mtm = prior fut × (S_today − S_yesterday) / 1e7",
       },
       {
         title: "Roll and tax benefit",
-        body: "Roll cost charges on futures shift dates proportional to cum position. Tax benefit = 42.744% × roll — displayed but excluded from Total composition.",
+        body: "Roll cost charges on futures shift dates proportional to cum position. Tax benefit = 42.744% × roll — displayed but excluded from Total.",
       },
       {
-        title: "Cash and Gsec carry",
-        body: "Cash earns 6% on the lagged balance after MTM/roll hits. Gsec compounds daily via growth factors on calendar gaps between path dates.",
+        title: "Cash and G-Sec carry",
+        body: "Cash earns the Product Input cash rate on the lagged balance after MTM and roll. G-Sec compounds on calendar gaps between path dates.",
       },
       {
         title: "Transaction costs",
-        body: "Buy and sell legs use Product Input brokerage on traded futures notional every day. Computation subtracts same-day and prior-day tx in the NAV step.",
+        body: "Buy and sell legs use Product Input brokerage on traded futures notional every day. Computation subtracts same-day and prior-day costs in the NAV step.",
       },
       {
         title: "Terminal Result block",
-        body: "Total sums investment, MTM+roll, cash interest plus buffer, Gsec interest, minus transaction costs and fees. IRR exponent uses 365/tenure_used.",
-        code: "Total = Invt + ΣMTM+roll + CashInt + Gsec + Tx + Fees",
+        body: "Total sums investment, MTM and roll, cash interest plus buffer, G-Sec interest, minus transaction costs and fees. IRR uses 365 over tenure days.",
+        code: "Total = Invt + ΣMTM+roll + CashInt + Gsec − Tx − Fees",
       },
     ],
     outputs: ["Result Block", "Daily NAV Ledger", "Cost Splits", "IRR"],
@@ -1150,10 +1174,10 @@ export const logicModules: LogicModule[] = [
     engineFile: "engine/forwardtest.py",
     accent: "maroon",
     purpose:
-      "forwardtest.py evaluates paths in parallel — hedge_path + run_nav per path — stores job summary, yearly KPIs, and powers the Since-year filter without re-running the engine.",
+      "The forward Run evaluates paths in parallel — hedge then NAV on each seed — stores the job summary and yearly KPIs, and powers the Since-year filter without re-running the engine.",
     stageCount: 5,
     metrics: [
-      { label: "Paths", value: "≥235" },
+      { label: "Paths", value: "1000" },
       { label: "KPIs", value: "Mean · Median · IRR" },
       { label: "Filter", value: "Since Year" },
     ],
@@ -1162,54 +1186,57 @@ export const logicModules: LogicModule[] = [
         id: "run",
         label: "Parallel Path Run",
         kind: "engine",
-        description: "ProcessPoolExecutor workers evaluate paths; each runs hedge_path then run_nav.",
+        description:
+          "Workers evaluate paths in parallel. Each path runs hedging then NAV. A new Run cancels the prior job safely and reports progress to the desk.",
         detail:
-          "compute_single_path_detail loads _WORKER_PRODUCT and _WORKER_MARKET, calls hedge_path → run_nav, writes PathSummary. New Run cancels prior job via ForwardTestCancelled.",
+          "Workers share the same product book and market handle. Path count follows Monte Carlo Paths from the product (default one thousand).",
         bullets: [
-          "Parallelism from forwardtest_parallelism()",
+          "Parallel workers per path",
           "Cancel-safe on new runs",
           "Progress callback to UI",
         ],
         steps: [
-          "build_paths → list[PathSpec].",
-          "Spawn workers with product + market init.",
-          "For each path: hedge_path → run_nav → PathSummary.",
-          "Aggregate summaries into job JSON.",
+          "Build the forward path atlas.",
+          "Spawn workers with product and market.",
+          "For each path: hedge → NAV → summary row.",
+          "Aggregate rows into the job summary.",
         ],
       },
       {
         id: "row",
         label: "Path Summary Row",
         kind: "process",
-        description: "One result block per path: Invt, MTM, Cash, Gsec, Tx, Fees, Total, IRR, Nifty levels.",
+        description:
+          "One result block per path: investment, MTM, cash, G-Sec, transaction costs, fees, Total, IRR, and Nifty levels.",
         detail:
-          "PathSummary dataclass captures terminal components, irr, start/end Nifty, avg_obs_nifty, abs_nifty_ret, year (= start year), n_trading_days, and cost splits.",
+          "Each row also carries start and end, average observation Nifty, absolute Nifty return, start year, trading-day count, and optional buy/sell cost splits.",
         bullets: [
           "Powers Analytics Lab tables",
-          "One row per path_id",
-          "Buy/sell cost splits optional fields",
+          "One row per path",
+          "Buy/sell cost splits when available",
         ],
         steps: [
-          "Map NavResult fields to PathSummary.",
-          "Attach path start/end ISO strings.",
-          "Append to job summary list.",
+          "Map NAV result fields into the summary row.",
+          "Attach path start and end dates.",
+          "Append to the job summary list.",
         ],
       },
       {
         id: "year",
         label: "Yearly Rollup",
         kind: "engine",
-        description: "Groups path summaries by start year for mean, median, hit-rate, and extremes.",
+        description:
+          "Groups path summaries by start year for mean, median, hit-rate, and extremes.",
         detail:
-          "Yearly Lab aggregates PathSummary rows by year field. Computes mean/median IRR, hit rates, and tail stats for Analytics charts — filtered by Since-year before aggregation.",
+          "Yearly Lab aggregates after the Since-year filter. Charts show mean versus median IRR, hit rates, and tails.",
         bullets: [
           "Bucket by path start year",
           "Mean vs median IRR charts",
           "Hit-rate and extremes",
         ],
         steps: [
-          "Filter summaries where year >= since_year.",
-          "Group by PathSummary.year.",
+          "Filter summaries where start year ≥ Since year.",
+          "Group by start year.",
           "Compute KPI aggregates per year bucket.",
         ],
       },
@@ -1217,82 +1244,84 @@ export const logicModules: LogicModule[] = [
         id: "since",
         label: "Since Year Filter",
         kind: "process",
-        description: "Trims which path rows feed Home KPIs and Analytics — no engine re-run.",
+        description:
+          "Trims which path rows feed Home KPIs and Analytics — no engine re-run.",
         detail:
-          "Default since_year=2001. Frontend filter applies client-side or via API query on cached job summary. Path picker and yearly charts respect the same cutoff.",
+          "Default Since year is 2001. The filter applies on the cached job summary. Path picker and yearly charts respect the same cutoff.",
         bullets: [
           "Default · 2001",
           "Client-side on cached job",
-          "Does not trigger new forward test",
+          "Does not trigger a new forward Run",
         ],
         steps: [
           "User selects Since year in Analytics.",
-          "Filter PathSummary list by start year.",
-          "Recompute displayed KPIs from subset.",
+          "Filter summary rows by start year.",
+          "Recompute displayed KPIs from the subset.",
         ],
       },
       {
         id: "lab",
         label: "Analytics Surfaces",
         kind: "output",
-        description: "Home summary, Yearly Lab, Path Summary table, single-path detail, and delta charts.",
+        description:
+          "Home summary, Yearly Lab, Path Summary table, single-path detail, and delta charts.",
         detail:
-          "Path detail loads cached computation_rows, req_delta series, and legs from job folder on demand. Home KPIs read latest completed job summary.",
+          "Path detail loads cached daily ledger, required delta, and legs from the job folder on demand. Home KPIs read the latest completed job summary.",
         bullets: [
           "Yearly Lab · Path Summary · Charts",
           "Path detail cache per job folder",
           "Desk · Analytics navigation",
         ],
         steps: [
-          "Job completes → summary JSON persisted.",
-          "Analytics pages read job store.",
-          "Path picker fetches single-path detail endpoint.",
+          "Job completes → summary persisted.",
+          "Analytics pages read the job store.",
+          "Path picker fetches single-path detail on demand.",
         ],
       },
     ],
     defaults: [
       { label: "Default Since", value: "2001" },
       { label: "Path Detail Cache", value: "Per Path Under The Job Folder" },
-      { label: "Worker Init", value: "_WORKER_PRODUCT + _WORKER_MARKET" },
+      { label: "Monte Carlo Paths", value: "1000" },
     ],
     insights: [
-      "run_forwardtest orchestrates build_paths → parallel compute_single_path_detail for each PathSpec.",
-      "Each worker path: hedge_path(market, product, dates) → run_nav(..., req_delta, last_observation).",
-      "PathSummary row stores Invt, MTM, Cash+Int, Gsec, Tx, Fees, Total, IRR, and Nifty start/end.",
+      "A Run builds the forward path atlas, then evaluates hedge and NAV on each Monte Carlo seed in parallel.",
+      "Each path: hedge → NAV with required delta and last observation.",
+      "Summary rows store Invt, MTM, Cash+Int, Gsec, Tx, Fees, Total, IRR, and Nifty start/end.",
       "Yearly rollup groups by path start year for mean, median, hit-rate, and extreme charts.",
       "Since-year filter trims which rows feed Home KPIs and Analytics without re-running the engine.",
-      "Path detail cache stores computation_rows, daily delta, and legs under the job folder.",
-      "Progress callbacks and cancel checks allow superseding a stale Run when product or params change.",
+      "Path detail cache stores the daily ledger, delta, and legs under the job folder.",
+      "Progress and cancel checks let a new Run supersede a stale one when product or params change.",
     ],
     noteCards: [
       {
         title: "Forward-test orchestration",
-        body: "engine/forwardtest.py::run_forwardtest wires product, market, path atlas, parallel workers, and job persistence.",
+        body: "The Run wires product, market, path atlas, parallel workers, and job persistence.",
         bullets: [
-          "build_paths with product tenure + obs months",
-          "ProcessPoolExecutor or ThreadPoolExecutor",
-          "Job folder stores summary + path details",
+          "Paths use product tenure and observation months",
+          "Workers run in parallel across seeds",
+          "Job folder stores summary and path details",
         ],
       },
       {
         title: "Single path pipeline",
-        body: "compute_single_path_detail executes hedge_path then run_nav for one PathSpec and returns PathSummary plus optional detail payload.",
+        body: "Each worker hedges then runs NAV for one path and returns the summary row plus optional detail payload.",
       },
       {
-        title: "PathSummary schema",
-        body: "Terminal components mirror nav NavResult: invt, mtm_futures, cash_plus_int, gsec, transaction_cost, fees, total, irr, plus Nifty context fields.",
+        title: "Summary row contents",
+        body: "Terminal components mirror the NAV Result: investment, futures MTM, cash plus interest, G-Sec, transaction cost, fees, Total, IRR, plus Nifty context.",
       },
       {
         title: "Yearly Lab aggregation",
-        body: "Charts bucket PathSummary rows by start year. Mean and median IRR, hit rates, and tails computed on the filtered set.",
+        body: "Charts bucket summary rows by start year. Mean and median IRR, hit rates, and tails compute on the filtered set.",
       },
       {
         title: "Since-year filter",
-        body: "Frontend trims cached summary rows where path start year ≥ selected Since — instant KPI refresh without recomputing paths.",
+        body: "The desk trims cached summary rows where path start year is on or after selected Since — instant KPI refresh without recomputing paths.",
       },
       {
         title: "Path detail on demand",
-        body: "Single-path views load cached computation_rows, cost_rows, and delta series from the job folder rather than re-running hedge_path + run_nav.",
+        body: "Single-path views load cached daily ledger, cost rows, and delta from the job folder rather than re-running hedge and NAV.",
       },
     ],
     outputs: ["Job Summary", "Yearly Charts", "Path Summary Table"],
@@ -1380,7 +1409,7 @@ function replaceDefault(
 }
 
 /**
- * Overlay live ProductSpec / market meta onto Logic Atlas chips.
+ * Overlay live product / market meta onto Logic Atlas chips.
  * Procedure prose stays static; numeric metrics and defaults track the desk product.
  */
 export function withLiveAtlasData(
@@ -1413,7 +1442,10 @@ export function withLiveAtlasData(
         product.observation_months.map((m) => String(m)).join(", "),
       );
       if (product.n_paths != null) {
-        defaults = replaceDefault(defaults, "Monte Carlo Paths", String(product.n_paths));
+        defaults = [
+          ...defaults.filter((d) => d.label !== "Monte Carlo Paths"),
+          { label: "Monte Carlo Paths", value: String(product.n_paths) },
+        ];
       }
       defaults = [
         ...defaults.filter(
@@ -1471,25 +1503,40 @@ export function withLiveAtlasData(
       metrics = replaceMetric(metrics, "Roll Rate", pct(product.roll_rate ?? 0.07));
     }
 
-    if (market && mod.id === "macro-paths") {
-      if (market.last_date) {
-        metrics = replaceMetric(metrics, "All Paths Start", formatDeskDate(market.last_date));
+    if (mod.id === "macro-paths") {
+      const asof = market?.asof ?? market?.last_date;
+      if (asof) {
+        metrics = replaceMetric(metrics, "All Paths Start", formatDeskDate(asof));
       }
-      if (market.simulation_end) {
+      if (market?.simulation_end) {
         metrics = replaceMetric(metrics, "All Paths End", formatDeskDate(market.simulation_end));
       }
-      const nPaths = product?.n_paths ?? market.n_paths_monthly;
+      const nPaths = product?.n_paths ?? market?.n_paths_monthly;
       if (nPaths != null) {
         defaults = replaceDefault(defaults, "Monte Carlo Paths", String(nPaths));
+        metrics = [
+          ...metrics.filter((m) => m.label !== "Monte Carlo Paths"),
+          { label: "Monte Carlo Paths", value: String(nPaths) },
+        ];
       }
-      if (market.trading_days != null) {
-        defaults = replaceDefault(defaults, "Horizon Trading Days", String(market.trading_days));
+      if (market?.trading_days != null) {
+        defaults = [
+          ...defaults.filter((d) => d.label !== "Horizon Trading Days"),
+          { label: "Horizon Trading Days", value: String(market.trading_days) },
+        ];
+      } else if (market?.n_trading_days != null) {
+        defaults = [
+          ...defaults.filter((d) => d.label !== "Horizon Trading Days"),
+          { label: "Horizon Trading Days", value: String(market.n_trading_days) },
+        ];
       }
     }
 
-    if (market && mod.id === "summary") {
-      if (market.n_paths_monthly != null) {
-        metrics = replaceMetric(metrics, "Paths", String(market.n_paths_monthly));
+    if (mod.id === "summary") {
+      const nPaths = product?.n_paths ?? market?.n_paths_monthly;
+      if (nPaths != null) {
+        metrics = replaceMetric(metrics, "Paths", String(nPaths));
+        defaults = replaceDefault(defaults, "Monte Carlo Paths", String(nPaths));
       }
     }
 
@@ -1497,4 +1544,3 @@ export function withLiveAtlasData(
     return { ...mod, metrics, defaults };
   });
 }
-

@@ -30,13 +30,14 @@ const DESK_LINKS = [
 ] as const;
 
 export function LogicAtlasConsole() {
-  const { market, product, refreshProduct } = useForwardTest();
+  const { market, product, refreshProduct, refreshMarket } = useForwardTest();
   const [selectedId, setSelectedId] = useState(logicModules[0]?.id ?? "product-input");
 
-  // Refresh ProductSpec on mount so Atlas chips track the latest upload.
+  // Refresh live product + market so Atlas chips track latest upload and as-of.
   useEffect(() => {
     void refreshProduct();
-  }, [refreshProduct]);
+    void refreshMarket();
+  }, [refreshProduct, refreshMarket]);
 
   const modules = useMemo(
     () => stripBracketDeep(withLiveAtlasData(logicModules, product, market)),
