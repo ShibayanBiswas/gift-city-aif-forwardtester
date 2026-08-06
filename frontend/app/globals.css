@@ -1222,12 +1222,11 @@ html.dark .desk-select {
 }
 .logic-pipeline-item {
   display: flex;
-  /* Same flex basis as Backtester; max-width locks live width so long blurbs cannot inflate cards. */
+  /* Node-only flex child (arrows sit between items) so every step card shares one width. */
   flex: 1 0 10.5rem;
   min-width: 10.5rem;
   max-width: 28.875rem; /* ≈462px — measured Backtester Active Pipeline @1440 / 5 steps */
   align-items: stretch;
-  gap: 0.3rem;
 }
 .logic-pipeline-item .logic-node {
   flex: 1 1 auto;

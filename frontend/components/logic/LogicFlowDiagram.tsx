@@ -1,5 +1,6 @@
 "use client";
 
+import { Fragment } from "react";
 import { motion } from "framer-motion";
 import {
   ArrowRight,
@@ -166,15 +167,17 @@ export function LogicFlowDiagram({
     <div className="logic-pipeline-scroll">
       <div className="logic-pipeline-row">
         {module.nodes.map((node, index) => (
-          <div key={node.id} className="logic-pipeline-item">
-            <FlowNode
-              node={node}
-              index={index}
-              active={activeNodeId === node.id}
-              onClick={onNodeSelect ? () => onNodeSelect(node) : undefined}
-            />
+          <Fragment key={node.id}>
+            <div className="logic-pipeline-item">
+              <FlowNode
+                node={node}
+                index={index}
+                active={activeNodeId === node.id}
+                onClick={onNodeSelect ? () => onNodeSelect(node) : undefined}
+              />
+            </div>
             {index < module.nodes.length - 1 ? <FlowArrow /> : null}
-          </div>
+          </Fragment>
         ))}
       </div>
     </div>

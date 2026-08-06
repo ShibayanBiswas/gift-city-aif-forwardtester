@@ -64,8 +64,8 @@ export function LogicAtlasConsole() {
         <p className="intel-hero-kicker relative z-10">Anand Rathi · Gift City AIF · Desk Intelligence</p>
         <h1 className="intel-hero-title relative z-10">Intel · Logic Atlas</h1>
         <p className="intel-hero-sub relative z-10">
-          Working procedure of a desk run: Product Input → Macro Paths → market rolls &amp; expiries → Hedging Sheet
-          → Computation → Summary. Metrics track the live Product Input automatically.
+          Working procedure of a desk run: Product Input to Macro Paths to market rolls and expiries to Hedging Sheet
+          to Computation to Summary. Metrics track the live Product Input automatically.
         </p>
         <div className="intel-hero-meta relative z-10">
           <motion.span

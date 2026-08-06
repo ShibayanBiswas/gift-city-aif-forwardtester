@@ -275,7 +275,7 @@ export const logicModules: LogicModule[] = [
     metrics: [
       { label: "All Paths Start", value: "As Of Today" },
       { label: "All Paths End", value: "Product End" },
-      { label: "Sessions", value: "Mon–Fri Only" },
+      { label: "Sessions", value: "Mon-Fri Only" },
     ],
     nodes: [
       {
@@ -378,8 +378,8 @@ export const logicModules: LogicModule[] = [
     ],
     defaults: [
       { label: "Monte Carlo Paths", value: "1000" },
-      { label: "Window", value: "As Of → Product End" },
-      { label: "Sessions", value: "Mon–Fri · No Weekends" },
+      { label: "Window", value: "As Of to Product End" },
+      { label: "Sessions", value: "Mon-Fri · No Weekends" },
       { label: "Free Host Cap", value: "~2000 Paths" },
     ],
     insights: [
@@ -511,12 +511,12 @@ export const logicModules: LogicModule[] = [
         bullets: [
           "Default roll rate 7%",
           "Stops after last observation expiry",
-          "Different paths ⇒ different roll points",
+          "Different paths mean different roll points",
         ],
         steps: [
-          "Seed month → trading-day count on or before first shift.",
-          "Later months → calendar days between consecutive shifts.",
-          "Apply roll against cumulative futures while date ≤ last observation.",
+          "Seed month uses trading-day count on or before first shift.",
+          "Later months use calendar days between consecutive shifts.",
+          "Apply roll against cumulative futures while date on or before last observation.",
         ],
       },
       {
@@ -547,7 +547,7 @@ export const logicModules: LogicModule[] = [
     insights: [
       "Historical Nifty, roll calendars, and expiries load from market data files at worker start.",
       "Market sync extends history through the latest Nifty session.",
-      "Roll points = 7% × average Nifty between shifts × day fraction; first interval uses a trading-day seed.",
+      "Roll points = 7% x average Nifty between shifts x day fraction; first interval uses a trading-day seed.",
       "Each path gets a roll vector aligned to its dates — zero on non-shift days.",
       "NAV zeros roll when the path date exceeds the last observation from hedging.",
       "The month-to-expiry map powers observation expiry lookup.",
@@ -558,9 +558,9 @@ export const logicModules: LogicModule[] = [
         title: "What the market load brings in",
         body: "Spot series, shift-date roll points, and monthly plus full expiry calendars assemble from the data files at load.",
         bullets: [
-          "Daily Nifty — historical spot series",
-          "Roll costs — shift-date roll points",
-          "Calendar build — monthly and all expiries",
+          "Daily Nifty: historical spot series",
+          "Roll costs: shift-date roll points",
+          "Calendar build: monthly and all expiries",
         ],
       },
       {
@@ -570,7 +570,7 @@ export const logicModules: LogicModule[] = [
       {
         title: "Roll cost construction",
         body: "Seven percent carry on index futures: average spot over the shift interval times day fraction. Historical series stored at load; each simulated path recomputes from its own spots.",
-        code: "roll = 0.07 × avg_spot × Δt / 365",
+        code: "roll = 0.07 x avg_spot x dt / 365",
       },
       {
         title: "Futures shift calendar",
@@ -633,7 +633,7 @@ export const logicModules: LogicModule[] = [
           "Pre-2019 used monthly-only Thursdays. From February 2019 weeklies joined on Thursday. From September 2025 weekly and monthly move to Tuesday.",
         bullets: [
           "Tuesday era from September 2025",
-          "Holiday → previous trading day",
+          "Holiday becomes previous trading day",
           "Weekly series from February 2019 for Intel",
         ],
         steps: [
@@ -691,7 +691,7 @@ export const logicModules: LogicModule[] = [
       "NSE expiry weekday rules break at February 2019 (weeklies) and September 2025 (Tuesday).",
       "The monthly-last list is what observation mapping uses.",
       "Each observation target maps to that month's monthly expiry, or the first expiry on or after the target.",
-      "Observation targets use month offset × 30.5 calendar days from path start before expiry mapping.",
+      "Observation targets use month offset x 30.5 calendar days from path start before expiry mapping.",
       "Forward futures shifts equal monthly option expiries; holidays floor backward.",
       "Optional overrides sit first in the resolver stack.",
       "Market Calendar is shared dates only; simulated levels live per path.",
@@ -703,7 +703,7 @@ export const logicModules: LogicModule[] = [
         bullets: [
           "Override wins when present",
           "Shift date from roll calendar",
-          "Thursday era → Tuesday era at September 2025",
+          "Thursday era becomes Tuesday era at September 2025",
         ],
       },
       {
@@ -712,8 +712,8 @@ export const logicModules: LogicModule[] = [
       },
       {
         title: "Hedging Sheet mapping",
-        body: "Each observation month becomes a calendar target of start plus month × 30.5 days. That target snaps to the monthly expiry for the target month, or the first expiry on or after the target.",
-        code: "target = start + m × 30.5 days → monthly expiry",
+        body: "Each observation month becomes a calendar target of start plus month x 30.5 days. That target snaps to the monthly expiry for the target month, or the first expiry on or after the target.",
+        code: "target = start + m x 30.5 days then monthly expiry",
       },
       {
         title: "Two expiry lists",
@@ -739,7 +739,7 @@ export const logicModules: LogicModule[] = [
     metrics: [
       { label: "Forward", value: "6.6%" },
       { label: "Discount", value: "7.6%" },
-      { label: "Delta Bump", value: "±0.5" },
+      { label: "Delta Bump", value: "+/-0.5" },
     ],
     nodes: [
       {
@@ -775,7 +775,7 @@ export const logicModules: LogicModule[] = [
           "Each row carries month, target, expiry, and Nifty",
         ],
         steps: [
-          "For each observation month, offset = month × 30.5.",
+          "For each observation month, offset = month x 30.5.",
           "Target date = start plus that many calendar days.",
           "Store the build row for the Hedging Sheet.",
         ],
@@ -809,8 +809,8 @@ export const logicModules: LogicModule[] = [
           "Only Include Yes legs enter. The sample six puts across seven observations become forty-two built legs. Forward and discount rates come from each product row.",
         bullets: [
           "Include Yes rows only",
-          "Six sample puts × seven obs = 42 legs",
-          "Qty = raw × principal / spot / n_obs",
+          "Six sample puts x seven obs = 42 legs",
+          "Qty = raw x principal / spot / n_obs",
         ],
         steps: [
           "Count observations (at least one).",
@@ -833,8 +833,8 @@ export const logicModules: LogicModule[] = [
           "Same vols on every path",
         ],
         steps: [
-          "First observation → Vol Near when set.",
-          "Later observations → Vol Far.",
+          "First observation uses Vol Near when set.",
+          "Later observations use Vol Far.",
           "If vol is missing or non-positive, use the strike-percent default.",
         ],
       },
@@ -848,7 +848,7 @@ export const logicModules: LogicModule[] = [
           "Time to expiry is calendar days from as-of over 365. Forward and discount rates come from the leg group. Puts and calls use the flag from the product row. There is no divide by twice the bump.",
         bullets: [
           "Group legs by expiry",
-          "±0.5 central difference on spot",
+          "+/-0.5 central difference on spot",
           "Forward and discount per leg group",
         ],
         steps: [
@@ -880,15 +880,15 @@ export const logicModules: LogicModule[] = [
     defaults: [
       { label: "Option Type", value: "Put Option" },
       { label: "Forward And Discount", value: "6.6% / 7.6%" },
-      { label: "Contract Qty Formula", value: "raw × principal / Spot₀ / n_obs" },
+      { label: "Contract Qty Formula", value: "raw x principal / start spot / observations" },
     ],
     insights: [
       "Per path: fix spot zero, build observation targets, expand legs, then sum deltas.",
-      "Observation target = path start + month × 30.5 days; then map to monthly expiry.",
-      "Strike = spot zero × strike percent; contract qty = raw × principal / spot zero / observation count; expand across all observation expiries.",
+      "Observation target = path start + month x 30.5 days; then map to monthly expiry.",
+      "Strike = spot zero x strike percent; contract qty = raw x principal / spot zero / observation count; expand across all observation expiries.",
       "Only Include Yes legs enter the book.",
       "Vol Near on the first observation; Vol Far on later ones.",
-      "Required delta sums central Black–Scholes bumps of ±0.5 with no extra divisor.",
+      "Required delta sums central Black–Scholes bumps of +/-0.5 with no extra divisor.",
       "Last observation caps roll charges in NAV after the final observation expiry.",
     ],
     noteCards: [
@@ -904,14 +904,14 @@ export const logicModules: LogicModule[] = [
       {
         title: "Observation schedule",
         body: "Product Input month offsets become calendar targets and monthly expiries.",
-        code: "target = start + m × 30.5 days",
+        code: "target = start + m x 30.5 days",
       },
       {
         title: "Options book expansion",
         body: "Product Input stores each strike once. The book emits one row per active leg and observation expiry — sample six puts become forty-two rows.",
         bullets: [
-          "Strike = Spot₀ × Strike% / 100",
-          "Qty = raw × principal / Spot₀ / n_obs",
+          "Strike = start spot x Strike% / 100",
+          "Qty = raw x principal / start spot / n_obs",
           "Forward and Discount from each leg",
         ],
       },
@@ -922,7 +922,7 @@ export const logicModules: LogicModule[] = [
       {
         title: "Central delta bump",
         body: "Price puts and calls with forward and discount from the leg group, bump spot by half a point either way, multiply by contract quantities.",
-        code: "req_delta = Σ Δ_BS(S±0.5, K, τ, σ) × qty",
+        code: "req_delta = sum BS delta(S+/-0.5, K, tau, vol) x qty",
       },
       {
         title: "Expiry grouping",
@@ -932,9 +932,9 @@ export const logicModules: LogicModule[] = [
         title: "What NAV consumes",
         body: "NAV takes required delta and last observation (plus path-local roll on shift days). Observation builds feed the Hedging Sheet only — not the NAV ledger.",
         bullets: [
-          "Required delta → futures inventory",
-          "Last observation → roll cutoff",
-          "Observation table → Hedging Sheet UI",
+          "Required delta feeds futures inventory",
+          "Last observation sets roll cutoff",
+          "Observation table feeds Hedging Sheet",
         ],
       },
     ],
@@ -951,8 +951,8 @@ export const logicModules: LogicModule[] = [
       "The daily ledger applies futures MTM, roll, cash, G-Sec, fees, and brokerage. It reports terminal Total and IRR.",
     stageCount: 8,
     metrics: [
-      { label: "Cash Buffer", value: "principal × cash_pct" },
-      { label: "G-Sec Day Zero", value: "principal × gsec_pct" },
+      { label: "Cash Buffer", value: "principal x cash percent" },
+      { label: "G-Sec Day Zero", value: "principal x G-Sec percent" },
       { label: "Fee Rate", value: "Product Input fee rate" },
     ],
     nodes: [
@@ -984,7 +984,7 @@ export const logicModules: LogicModule[] = [
         detail:
           "MTM accumulates into the cash buffer. The sum feeds the Result MTM block, including roll days.",
         bullets: [
-          "Prior cum position × ΔNifty / 1e7",
+          "Prior futures times Nifty move",
           "Includes roll days",
           "Sum feeds Result MTM block",
         ],
@@ -1027,7 +1027,7 @@ export const logicModules: LogicModule[] = [
           "Day gaps from path date diffs",
         ],
         steps: [
-          "Seed day-zero cash from principal × cash percent.",
+          "Seed day-zero cash from principal x cash percent.",
           "Accumulate MTM and roll into the cash series.",
           "Accrue interest on the lagged cash balance.",
         ],
@@ -1042,7 +1042,7 @@ export const logicModules: LogicModule[] = [
           "Opening G-Sec is the remainder of principal after the cash buffer. Growth uses calendar day gaps. Interest is the day-over-day increase.",
         bullets: [
           "G-Sec rate from Product Input (sample 6%)",
-          "Day-zero sleeve = principal × G-Sec percent",
+          "Day-zero sleeve = principal x G-Sec percent",
           "Compound on calendar day gaps",
         ],
         steps: [
@@ -1062,7 +1062,7 @@ export const logicModules: LogicModule[] = [
         bullets: [
           "Buy and sell brokerage from Product Input",
           "Same brokerage card every day",
-          "Turnover on traded quantity × Nifty",
+          "Turnover on traded quantity x Nifty",
         ],
         steps: [
           "Compute notional from traded quantity and spot.",
@@ -1096,7 +1096,7 @@ export const logicModules: LogicModule[] = [
         description:
           "Terminal Total combines principal, mark-to-market, cash, G-Sec, costs, and fees. IRR annualises Total versus principal.",
         detail:
-          "Total = principal + MTM + cash interest (with buffer) + G-Sec interest − transaction costs − fees. Tax benefit on roll is stored but not added. IRR annualises Total over calendar tenure days.",
+          "Total = principal + MTM + cash interest (with buffer) + G-Sec interest - transaction costs - fees. Tax benefit on roll is stored but not added. IRR annualises Total over calendar tenure days.",
         bullets: [
           "Invt + MTM + CashInt + Gsec + Tx + Fees",
           "Tax benefit stored, not added to Total",
@@ -1110,20 +1110,20 @@ export const logicModules: LogicModule[] = [
       },
     ],
     defaults: [
-      { label: "Cash Buffer At Day Zero", value: "principal × cash_pct" },
-      { label: "Government Securities At Day Zero", value: "principal × gsec_pct" },
+      { label: "Cash Buffer At Day Zero", value: "principal x cash percent" },
+      { label: "Government Securities At Day Zero", value: "principal x G-Sec percent" },
       { label: "Cash Interest Rate", value: "6%" },
       { label: "G-Sec Interest Rate", value: "6%" },
       { label: "Management Fee Rate", value: "1.5% Of Principal" },
       { label: "Tax Benefit On Roll", value: "42.744% · Not In Total" },
     ],
     insights: [
-      "Day zero opens Cash = principal × cash percent and G-Sec = principal × G-Sec percent.",
+      "Day zero opens Cash = principal x cash percent and G-Sec = principal x G-Sec percent.",
       "Futures inventory: traded quantity is the change in required delta; cumulative position drives MTM and roll.",
-      "MTM = prior cum futures × Nifty move / 1e7; rolls apply on shift dates while date ≤ last observation.",
+      "MTM = prior cum futures x Nifty move / 1e7; rolls apply on shift dates while date on or before last observation.",
       "Cash absorbs MTM and roll and earns the cash rate; G-Sec compounds on its opening sleeve.",
       "Brokerage uses Product Input buy and sell rates on turnover every day; NAV subtracts today and yesterday.",
-      "Total = Invt + MTM + CashInt + Gsec − Tx − Fees; tax benefit on roll is stored, not added.",
+      "Total = Invt + MTM + CashInt + Gsec - Tx - Fees; tax benefit on roll is stored, not added.",
       "IRR annualises terminal Total against principal over calendar tenure days.",
     ],
     noteCards: [
@@ -1138,17 +1138,17 @@ export const logicModules: LogicModule[] = [
       },
       {
         title: "Day-zero seeds",
-        body: "Cash = principal × cash percent and G-Sec = principal × G-Sec percent initialise the ledger before the first MTM tick.",
-        code: "cash₀ = principal × cash%; gsec₀ = principal × gsec%",
+        body: "Cash = principal x cash percent and G-Sec = principal x G-Sec percent initialise the ledger before the first MTM tick.",
+        code: "cash0 = principal x cash%; gsec0 = principal x gsec%",
       },
       {
         title: "Futures MTM loop",
         body: "Mark-to-market uses yesterday's cumulative futures against today's Nifty move, converted to crores.",
-        code: "mtm = prior fut × (S_today − S_yesterday) / 1e7",
+        code: "mtm = prior fut x (S_today - S_yesterday) / 1e7",
       },
       {
         title: "Roll and tax benefit",
-        body: "Roll cost charges on futures shift dates proportional to cum position. Tax benefit = 42.744% × roll — displayed but excluded from Total.",
+        body: "Roll cost charges on futures shift dates proportional to cum position. Tax benefit = 42.744% x roll — displayed but excluded from Total.",
       },
       {
         title: "Cash and G-Sec carry",
@@ -1161,7 +1161,7 @@ export const logicModules: LogicModule[] = [
       {
         title: "Terminal Result block",
         body: "Total sums investment, MTM and roll, cash interest plus buffer, G-Sec interest, minus transaction costs and fees. IRR uses 365 over tenure days.",
-        code: "Total = Invt + ΣMTM+roll + CashInt + Gsec − Tx − Fees",
+        code: "Total = Invt + sum MTM+roll + CashInt + Gsec - Tx - Fees",
       },
     ],
     outputs: ["Result Block", "Daily NAV Ledger", "Cost Splits", "IRR"],
@@ -1198,7 +1198,7 @@ export const logicModules: LogicModule[] = [
         steps: [
           "Build the forward path atlas.",
           "Spawn workers with product and market.",
-          "For each path: hedge → NAV → summary row.",
+          "For each path: hedge, then NAV, then summary row.",
           "Aggregate rows into the job summary.",
         ],
       },
@@ -1235,7 +1235,7 @@ export const logicModules: LogicModule[] = [
           "Hit-rate and extremes",
         ],
         steps: [
-          "Filter summaries where start year ≥ Since year.",
+          "Filter summaries where start year on or after Since year.",
           "Group by start year.",
           "Compute KPI aggregates per year bucket.",
         ],
@@ -1273,7 +1273,7 @@ export const logicModules: LogicModule[] = [
           "Desk · Analytics navigation",
         ],
         steps: [
-          "Job completes → summary persisted.",
+          "Job completes and summary is persisted.",
           "Analytics pages read the job store.",
           "Path picker fetches single-path detail on demand.",
         ],
@@ -1286,7 +1286,7 @@ export const logicModules: LogicModule[] = [
     ],
     insights: [
       "A Run builds the forward path atlas, then evaluates hedge and NAV on each Monte Carlo seed in parallel.",
-      "Each path: hedge → NAV with required delta and last observation.",
+      "Each path: hedge then NAV with required delta and last observation.",
       "Summary rows store Invt, MTM, Cash+Int, Gsec, Tx, Fees, Total, IRR, and Nifty start/end.",
       "Yearly rollup groups by path start year for mean, median, hit-rate, and extreme charts.",
       "Since-year filter trims which rows feed Home KPIs and Analytics without re-running the engine.",
@@ -1473,11 +1473,11 @@ export function withLiveAtlasData(
       metrics = replaceMetric(metrics, "Cash Buffer", `${pct(cashPct)} of principal`);
       metrics = replaceMetric(metrics, "G-Sec Day Zero", `${pct(gsecPct)} of principal`);
       metrics = replaceMetric(metrics, "Fee Rate", pct(product.fee_rate ?? 0.015));
-      defaults = replaceDefault(defaults, "Cash Buffer At Day Zero", `principal × ${pct(cashPct)}`);
+      defaults = replaceDefault(defaults, "Cash Buffer At Day Zero", `principal x ${pct(cashPct)}`);
       defaults = replaceDefault(
         defaults,
         "Government Securities At Day Zero",
-        `principal × ${pct(gsecPct)}`,
+        `principal x ${pct(gsecPct)}`,
       );
       defaults = replaceDefault(defaults, "Cash Interest Rate", pct(product.cash_rate ?? 0.06));
       defaults = replaceDefault(defaults, "G-Sec Interest Rate", pct(product.gsec_rate ?? 0.06));
